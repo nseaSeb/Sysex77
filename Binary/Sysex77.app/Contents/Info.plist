@@ -38,8 +38,6 @@
 	<string>0833</string>
 	<key>DTXcodeBuild</key>
 	<string>8E3004b</string>
-	<key>LSApplicationCategoryType</key>
-	<string>public.app-category.music</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>
