@@ -1,5 +1,6 @@
-# Sysex77
+# Sysex77 midi editor for the Yamaha SY77
 
+Be carreful, this is not a finalized app, use it at your own risk !
 
 Attention cette version est en cours de développement, elle est loin d’être parfaitement fonctionnelle …
 A utiliser avec precaution
