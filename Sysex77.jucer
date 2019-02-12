@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<JUCERPROJECT name="Sysex77" companyName="NseaProtector" version="0.0.4" userNotes="Editor for Synthetiseur Yamaha SY77 and by extension TG77 / SY99"
+              companyWebsite="http://juce.com" defines="PIP_JUCE_EXAMPLES_DIRECTORY=L1VzZXJzL3NlYmFzdGllbnBvcnRyYWl0L0pVQ0UvZXhhbXBsZXM="
+              projectType="guiapp" id="fH5cMO" jucerVersion="5.4.2">
+  <MAINGROUP id="fXpzep" name="Sysex77">
+    <GROUP id="{DC11FEA2-06F4-71FC-4E9A-543601BD260D}" name="Resources">
+      <FILE id="So2JZ6" name="Sysex77.png" compile="0" resource="1" file="Ressources/Sysex77.png"/>
+      <FILE id="VN3x4G" name="Sysex99.png" compile="0" resource="1" file="Ressources/Sysex99.png"/>
+      <FILE id="WHirz1" name="TableData.xml" compile="0" resource="1" file="Ressources/TableData.xml"
+            xcodeResource="0"/>
+      <FILE id="UdjuYi" name="Audio.png" compile="0" resource="1" file="Ressources/Audio.png"/>
+      <FILE id="YJ4T8Q" name="Librairie.xml" compile="0" resource="1" file="Ressources/Librairie.xml"
+            xcodeResource="0"/>
+      <FILE id="PE62H7" name="Filter.png" compile="0" resource="1" file="Ressources/Filter.png"/>
+      <FILE id="hhbnty" name="SY77 YAMAHA.png" compile="0" resource="1" file="Ressources/SY77 YAMAHA.png"
+            xcodeResource="0"/>
+      <FILE id="YeQHV1" name="AFM.png" compile="0" resource="1" file="Ressources/AFM.png"/>
+      <FILE id="uhXjgb" name="French.txt" compile="0" resource="1" file="Ressources/French.txt"
+            xcodeResource="0"/>
+      <FILE id="KMhWTw" name="VCA.png" compile="0" resource="1" file="Ressources/VCA.png"/>
+      <FILE id="b18lNp" name="SY77Waves.xml" compile="0" resource="1" file="Ressources/SY77Waves.xml"/>
+      <FILE id="afTmE3" name="SY99Waves.xml" compile="0" resource="1" file="Ressources/SY99Waves.xml"/>
+      <FILE id="h9omuP" name="SwitchFilter.png" compile="0" resource="1"
+            file="/Applications/JKnobMan133-mac/SwitchFilter.png"/>
+      <FILE id="GqxkMF" name="FiltreControl.png" compile="0" resource="1"
+            file="/Applications/JKnobMan133-mac/FiltreControl.png"/>
+      <FILE id="KUoGhD" name="ButtonFilter.png" compile="0" resource="1"
+            file="/Applications/JKnobMan133-mac/ButtonFilter.png"/>
+    </GROUP>
+    <GROUP id="{92E2BD87-EC47-FD9C-9ADD-48F73D9E17E6}" name="Source">
+      <FILE id="YvStYR" name="MidiDemo.h" compile="0" resource="0" file="Source/MidiDemo.h"/>
+      <GROUP id="{87236820-FC95-90B0-DBC9-557C4BE45351}" name="Patch">
+        <FILE id="NT8Pb7" name="Voice.h" compile="0" resource="0" file="Source/Voice.h"/>
+        <FILE id="EnAkma" name="Volume.h" compile="0" resource="0" file="Source/Volume.h"/>
+        <FILE id="RSGc0q" name="Pan.h" compile="0" resource="0" file="Source/Pan.h"/>
+        <FILE id="EJGSPH" name="Element.h" compile="0" resource="0" file="Source/Element.h"/>
+        <FILE id="h52Pvb" name="Pitch.h" compile="0" resource="0" file="Source/Pitch.h"/>
+      </GROUP>
+      <GROUP id="{1CCFC3A1-B050-FAFA-BFCD-7F98672DE299}" name="Libraririe">
+        <FILE id="S6kNlk" name="BankTableModel.h" compile="0" resource="0"
+              file="Source/BankTableModel.h"/>
+        <FILE id="rh3wf8" name="VoicesTableModel.h" compile="0" resource="0"
+              file="Source/VoicesTableModel.h"/>
+        <FILE id="ApoZpH" name="Librairie.h" compile="0" resource="0" file="Source/Librairie.h"/>
+      </GROUP>
+      <GROUP id="{08F85B6A-0F23-591B-BD1D-54DE1BA5032B}" name="Filter">
+        <FILE id="Sr7ncq" name="FilterVue.h" compile="0" resource="0" file="Source/FilterVue.h"/>
+        <FILE id="gq1aom" name="CommonFilter.h" compile="0" resource="0" file="Source/CommonFilter.h"/>
+        <FILE id="VULXr2" name="Filter1.h" compile="0" resource="0" file="Source/Filter1.h"/>
+        <FILE id="VMCtHA" name="Filter2.h" compile="0" resource="0" file="Source/Filter2.h"/>
+      </GROUP>
+      <GROUP id="{43D02F56-71E5-53D7-9485-DA95D3439018}" name="Wave">
+        <FILE id="W9wblo" name="AWMVue.h" compile="0" resource="0" file="Source/AWMVue.h"/>
+        <FILE id="MbkNxF" name="WaveVue.h" compile="0" resource="0" file="Source/WaveVue.h"/>
+        <FILE id="fdIzjd" name="WaveEg.h" compile="0" resource="0" file="Source/WaveEg.h"/>
+        <FILE id="agMiOJ" name="PitchEG.h" compile="0" resource="0" file="Source/PitchEG.h"/>
+      </GROUP>
+      <GROUP id="{F81026E2-B6F1-F6AC-8E2E-7501E5EC069D}" name="AFM">
+        <FILE id="Vi7Tju" name="Oscillator.h" compile="0" resource="0" file="Source/Oscillator.h"/>
+        <FILE id="dafNh0" name="AfmVue.h" compile="0" resource="0" file="Source/AfmVue.h"/>
+      </GROUP>
+      <GROUP id="{A1503F57-A007-ACD6-9D4E-FBF1E3798AF2}" name="OwnClass">
+        <FILE id="TN4gXo" name="LookAndFeel.h" compile="0" resource="0" file="Source/LookAndFeel.h"/>
+        <FILE id="nRtVwq" name="MidiObjects.h" compile="0" resource="0" file="Source/MidiObjects.h"/>
+        <FILE id="jrsubs" name="ADSR.h" compile="0" resource="0" file="Source/ADSR.h"/>
+        <FILE id="Fv5G3Q" name="Hook.h" compile="0" resource="0" file="Source/Hook.h"/>
+      </GROUP>
+      <FILE id="yBkFWt" name="MidiSysex.h" compile="0" resource="0" file="Source/MidiSysex.h"/>
+      <FILE id="KSWPHc" name="Values.h" compile="0" resource="0" file="Source/Values.h"/>
+      <FILE id="MVtIs5" name="ValueTrees.h" compile="0" resource="0" file="Source/ValueTrees.h"/>
+      <FILE id="nY6taA" name="Main.cpp" compile="1" resource="0" file="Source/Main.cpp"/>
+      <FILE id="eMvp3G" name="Controller.h" compile="0" resource="0" file="Source/Controller.h"/>
+      <FILE id="PLzSlk" name="Config.h" compile="0" resource="0" file="Source/Config.h"/>
+    </GROUP>
+  </MAINGROUP>
+  <MODULES>
+    <MODULE id="juce_audio_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_devices" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_formats" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_processors" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_utils" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_core" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_data_structures" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_events" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_graphics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_gui_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_gui_extra" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_osc" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+  </MODULES>
+  <EXPORTFORMATS>
+    <XCODE_MAC targetFolder="Builds/MacOSX">
+      <CONFIGURATIONS>
+        <CONFIGURATIONS name="Debug" isDebug="1" optimisation="1" targetName="MidiDemo"/>
+        <CONFIGURATIONS name="Release" isDebug="0" optimisation="3" targetName="MidiDemo"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_audio_basics" path=""/>
+        <MODULEPATH id="juce_audio_devices" path=""/>
+        <MODULEPATH id="juce_audio_formats" path=""/>
+        <MODULEPATH id="juce_audio_processors" path=""/>
+        <MODULEPATH id="juce_audio_utils" path=""/>
+        <MODULEPATH id="juce_core" path=""/>
+        <MODULEPATH id="juce_data_structures" path=""/>
+        <MODULEPATH id="juce_events" path=""/>
+        <MODULEPATH id="juce_graphics" path=""/>
+        <MODULEPATH id="juce_gui_basics" path=""/>
+        <MODULEPATH id="juce_gui_extra" path=""/>
+        <MODULEPATH id="juce_osc" path="../../JUCE/modules"/>
+      </MODULEPATHS>
+    </XCODE_MAC>
+  </EXPORTFORMATS>
+  <JUCEOPTIONS JUCE_STRICT_REFCOUNTEDPOINTER="1"/>
+  <LIVE_SETTINGS>
+    <OSX buildEnabled="0" continuousRebuildEnabled="1"/>
+  </LIVE_SETTINGS>
+</JUCERPROJECT>
