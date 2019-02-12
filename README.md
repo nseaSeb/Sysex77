@@ -10,6 +10,7 @@ A l’ouverture, après l’image d’accueil, sélectionné votre interface mid
 Cliquer en haut de la page ou dans une zone noire pour faire apparaitre le menu.
 
 La librairie permet le dump de banques sonores, vous en trouverez un grand nombre sur le web au format .SYX
+par exemple ici http://bobbyblues.recup.ch/yamaha_sy77/sy77_patches.html
 Pensez a sauver vos banques au préalable et à désactiver le bulk protect…
 
 
