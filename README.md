@@ -4,7 +4,9 @@ Be carreful, this is not a finalized app, use it at your own risk !
 
 Attention cette version est en cours de développement, elle est loin d’être parfaitement fonctionnelle …
 A utiliser avec precaution
-        ![Texte alternatif](Sysex77.png)    
+
+        ![Texte alternatif](sysex77.png)    
+
 A l’ouverture, après l’image d’accueil, sélectionné votre interface midi, ensuite vous pouvez sur cette même page activer ou désactiver le bulk protect ou vous pouvez le faire sur votre synthé pour permettre les échanges de banques, attention cela peut éffacer vos patchs perso dans votre synthé, faite une sauvegarde !  
 
 Cliquer en haut de la page ou dans une zone noire pour faire apparaitre le menu.
