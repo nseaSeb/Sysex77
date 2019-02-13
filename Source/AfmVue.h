@@ -11,6 +11,7 @@
 #pragma once
 
 #include "../JuceLibraryCode/JuceHeader.h"
+#include "Operator.h"
 
 //==============================================================================
 //==============================================================================
@@ -21,7 +22,8 @@ struct TabAFM  : public TabbedComponent
     : TabbedComponent (TabbedButtonBar::TabsAtTop)
     {
         auto colour = findColour (ResizableWindow::backgroundColourId);
-        addTab (TRANS("AFM"),     colour, new Oscillator (), true);
+        addTab (TRANS("AFM OP"),     colour, new Operator (), true);
+        addTab (TRANS("AFM OSC"),     colour, new Oscillator (), true);
         addTab (TRANS("Volume EG"),     colour, new WaveEg (), true);
         addTab (TRANS("Pitch EG"),     colour, new PitchEg (), true);
         addTab  (("Close"), colour, nullptr,false);
@@ -86,7 +88,7 @@ public:
         
         tabs.setBounds (0,0,getWidth(),getHeight());
         
-        comboPreset.setBounds(340,2,getWidth()-400,24);
+        comboPreset.setBounds(400,2,getWidth()-460,24);
         txtSave.setBounds(getWidth()-54,2,48,24);
         
     }
@@ -107,7 +109,7 @@ public:
     void timerCallback() override
     {
         
-        if(tabs.getCurrentTabIndex()==3)
+        if(tabs.getCurrentTabIndex()==4)
         {
             tabs.setCurrentTabIndex(0);
             setVisible(false);

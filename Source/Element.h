@@ -69,25 +69,12 @@ public:
         btFilter.addListener(this);
     
         
-        auto dir = File::getSpecialLocation(File::currentExecutableFile);
-        int numTries = 0;
-        while (! dir.getChildFile ("Resources").exists() && numTries++ < 15)
-            dir = dir.getParentDirectory();
-        File fileWave = dir.getFullPathName() + "/Resources/Audio.png";
+  
 
-        imgAudio = ImageFileFormat::loadFrom(fileWave);
-        
-        fileWave = dir.getFullPathName() + "/Resources/AFM.png";
-        
-        imgAFM = ImageFileFormat::loadFrom(fileWave);
-        
-        fileWave = dir.getFullPathName() + "/Resources/Filter.png";
-        
-        imgFilter = ImageFileFormat::loadFrom(fileWave);
-        
-        fileWave = dir.getFullPathName() + "/Resources/VCA.png";
-        
-        imgVCA = ImageFileFormat::loadFrom(fileWave);
+        imgAudio =  ImageFileFormat::loadFrom(BinaryData::Audio_png, (size_t) BinaryData::Audio_pngSize);
+        imgAFM = ImageFileFormat::loadFrom(BinaryData::AFM_png,(size_t) BinaryData::AFM_pngSize);
+        imgFilter = ImageFileFormat::loadFrom(BinaryData::Filter_png,(size_t) BinaryData::Filter_pngSize);
+        imgVCA = ImageFileFormat::loadFrom(BinaryData::VCA_png,(size_t) BinaryData::VCA_pngSize);
         btFilter.setImages (false, true, true,
                           imgFilter, 0.7f, Colours::transparentBlack,
                           imgFilter, 1.0f, Colours::transparentBlack,

@@ -152,9 +152,9 @@ public:
         mainWindow.reset (new MainWindow ("MidiDemo", new MidiDemo(), *this));
         
  
- //       auto splash = new SplashScreen ("SYSEX77",ImageFileFormat::loadFrom(BinaryData::SY77_YAMAHA_png, (size_t) BinaryData::SY77_YAMAHA_pngSize),true);
+        auto splash = new SplashScreen ("SYSEX77",ImageFileFormat::loadFrom(BinaryData::SY77_YAMAHA_png, (size_t) BinaryData::SY77_YAMAHA_pngSize),true);
 
- //       splash->deleteAfterDelay (RelativeTime::seconds (4), true);
+        splash->deleteAfterDelay (RelativeTime::seconds (4), true);
 
     }
     void myInitialisationWorkFinished()
