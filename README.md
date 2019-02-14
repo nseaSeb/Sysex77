@@ -17,6 +17,7 @@ Pensez a sauver vos banques au préalable et à désactiver le bulk protect…
     
     
 Cette application est et restera libre, vous pouvez m’encourager simplement en écoutant un ou plusieurs de mes titres sur deezer/spotify etc. en recherchant "Sebastien Portrait" vous trouverez quelques titres comme "Ocean beach Club" 
+https://open.spotify.com/artist/3qPhbBJMJSF3AYbvzll5Zm?si=z6Rnq3ghR02R2sWc9b2mHg
 Bien à vous,
 Seb
 
