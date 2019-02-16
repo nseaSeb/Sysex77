@@ -1,5 +1,7 @@
-  ![Texte alternatif](Ressources/icon.png)  
   # Sysex77 midi editor for the Yamaha SY77
+  
+![Texte alternatif](Ressources/icon.png)  
+
 
 Be carreful, this is not a finalized app, use it at your own risk !
 
