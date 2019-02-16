@@ -26,7 +26,7 @@ struct TabWave  : public TabbedComponent
         addTab (TRANS("WAVE"),     colour, new AWMVue (), true);
         addTab (TRANS("Volume EG"),     colour, new WaveEg (), true);
         addTab (TRANS("Pitch EG"),     colour, new PitchEg (), true);
-        addTab  (("Close"), colour, nullptr,false);
+        addTab  (TRANS("Close"), colour, nullptr,false);
         
     }
     

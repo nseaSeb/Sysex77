@@ -31,7 +31,7 @@ public:
         {
             forEachXmlChildElement (*columnList, columnXml)
             {
-                table.getHeader().addColumn (columnXml->getStringAttribute ("name"),
+                table.getHeader().addColumn (TRANS(columnXml->getStringAttribute ("name")),
                                              columnXml->getIntAttribute ("columnId"),
                                              columnXml->getIntAttribute ("width"),
                                              50,

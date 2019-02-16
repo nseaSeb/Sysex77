@@ -18,3 +18,8 @@ countries: FR
 "MIDI Monitor" = "Moniteur Midi"
 "MIDI Bluetooth devices..." = "Périférique Midi Bluetooth"
 "MIDI input:" = "Entrée MIDI:"
+"Midi Setting" = "Config Midi"
+"Close" = "Fermer"
+"Name" = "Nom"
+"TYPE" = "Catégorie"
+"Edit Name" = "Editer le nom"

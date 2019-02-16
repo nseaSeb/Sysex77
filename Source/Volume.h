@@ -15,6 +15,7 @@
 
 //==============================================================================
 /*
+ Normalement opsolete a supprimer
 */
 class Volume    : public Component, public Button::Listener,public Slider::Listener,public Value::Listener,public ChangeListener
 {

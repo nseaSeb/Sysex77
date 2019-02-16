@@ -154,7 +154,7 @@ struct DemoTabbedComponent  : public TabbedComponent
         addTab (TRANS("Librairie"),     colour, new LibrairiePage (), true);
        // addTab (TRANS("Midi"),     colour, new ControllerPage (), true);
         addTab (TRANS("Voice"), colour, new VoicePage(), true);
-        addTab (("MidiSetting"),colour,nullptr,false);
+        addTab (TRANS("Midi Setting"),colour,nullptr,false);
    
         
         
@@ -231,16 +231,7 @@ public:
     
     {
         // Init to light the Paint call
-        auto dir = File::getSpecialLocation(File::currentExecutableFile);
-        
-        int numTries = 0;
-        
-        while (! dir.getChildFile ("Resources").exists() && numTries++ < 15)
-            dir = dir.getParentDirectory();
-        Logger::writeToLog("Midi Demo init : dir exist");
-        //
-       // File fileImageSY77 = dir.getFullPathName() + "/Resources/Sysex77.png";
-       // imgBack = ImageCache::getFromFile(fileImageSY77);
+
         imgBack = ImageCache::getFromMemory(BinaryData::Sysex77_png, BinaryData::Sysex77_pngSize);
         if(SYModel==3)
             imgBack = ImageCache::getFromMemory(BinaryData::Sysex99_png, BinaryData::Sysex99_pngSize);

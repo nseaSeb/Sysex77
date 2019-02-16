@@ -23,7 +23,7 @@ public:
     AfmOscLookAndFeel()
     {
 
-        imageKnob = ImageCache::getFromMemory(BinaryData::AfmOsc_png, BinaryData::AfmOsc_pngSize);
+        imageKnob = ImageCache::getFromMemory(BinaryData::OscAfm_png, BinaryData::OscAfm_pngSize);
   
 }
 

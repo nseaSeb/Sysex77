@@ -31,7 +31,7 @@ struct TabFilter  : public TabbedComponent
         addTab (TRANS("Common "),     colour, new CommonFilter (), true);
         addTab (TRANS("Filter 1"),     colour, new Filter1 (), true);
         addTab (TRANS("Filter 2"),     colour, new Filter2 (), true);
-        addTab  (("Close"), colour, nullptr,false);
+        addTab  (TRANS("Close"), colour, nullptr,false);
         
                                                               
     }

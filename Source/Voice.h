@@ -80,30 +80,7 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         editWave4.setVisible(false);
         
         
-        editVolume1.setElementNumber(1);
-        addAndMakeVisible(editVolume1);
-        editVolume1.setAlwaysOnTop(true);
-        editVolume1.setVisible(false);
-        editVolume1.setEgName("Volume envelope OP1 ");
-        
-        editVolume2.setElementNumber(2);
-        addAndMakeVisible(editVolume2);
-        editVolume2.setAlwaysOnTop(true);
-        editVolume2.setVisible(false);
-        editVolume2.setEgName("Volume envelope OP2 ");
-        
-        editVolume3.setElementNumber(3);
-        addAndMakeVisible(editVolume3);
-        editVolume3.setAlwaysOnTop(true);
-        editVolume3.setVisible(false);
-        editVolume3.setEgName("Volume envelope OP3 ");
-  
-        editVolume4.setElementNumber(4);
-        addAndMakeVisible(editVolume4);
-        editVolume4.setAlwaysOnTop(true);
-        editVolume4.setVisible(false);
-        editVolume4.setEgName("Volume envelope OP4 ");
- 
+
         addAndMakeVisible(comboMode);
         
         addAndMakeVisible(element1);
@@ -213,19 +190,19 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         editWave1.setVisible(false);
         editAfm1.setVisible(false);
         editFilter1.setVisible(false);
-        editVolume1.setVisible(false);
+    
         editWave2.setVisible(false);
         editAfm2.setVisible(false);
         editFilter2.setVisible(false);
-        editVolume2.setVisible(false);
+
         editWave2.setVisible(false);
         editAfm2.setVisible(false);
         editFilter2.setVisible(false);
-        editVolume2.setVisible(false);
+
         editWave2.setVisible(false);
         editAfm2.setVisible(false);
         editFilter2.setVisible(false);
-        editVolume2.setVisible(false);
+
         
     }
     
@@ -273,7 +250,7 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
             {
                 //editVolume1.setVisible(true);
                 editAfm1.setVisible(true);
-                //editAfm1.setTabVolume();
+                editAfm1.setTabVolume();
             }
             
              element1.elementValue =0;
@@ -293,7 +270,14 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
                 editFilter2.setVisible(true);
             if(element2.elementValue == Element::commande::VolumeEdit)
             {
-                editVolume2.setVisible(true);
+                editWave2.setVisible(true);
+                editWave2.setTabVolume();
+            }
+            if(element2.elementValue == Element::commande::VolumeAFM)
+            {
+                //editVolume1.setVisible(true);
+                editAfm2.setVisible(true);
+                editAfm2.setTabVolume();
             }
              element2.elementValue =0;
         }
@@ -309,7 +293,14 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
                 editFilter3.setVisible(true);
             if(element3.elementValue == Element::commande::VolumeEdit)
             {
-                editVolume3.setVisible(true);
+                editWave3.setVisible(true);
+                editWave3.setTabVolume();
+            }
+            if(element3.elementValue == Element::commande::VolumeAFM)
+            {
+                //editVolume1.setVisible(true);
+                editAfm3.setVisible(true);
+                editAfm3.setTabVolume();
             }
              element3.elementValue =0;
         }
@@ -325,7 +316,14 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
                 editFilter4.setVisible(true);
             if(element4.elementValue == Element::commande::VolumeEdit)
             {
-                editVolume4.setVisible(true);
+                editWave4.setVisible(true);
+                editWave4.setTabVolume();
+            }
+            if(element4.elementValue == Element::commande::VolumeAFM)
+            {
+                //editVolume1.setVisible(true);
+                editAfm4.setVisible(true);
+                editAfm4.setTabVolume();
             }
              element4.elementValue =0;
         }
@@ -470,10 +468,7 @@ void setNombreElements (int nombre)
         editWave2.setBounds(boundsZone);
         editWave3.setBounds(boundsZone);
         editWave4.setBounds(boundsZone);
-        editVolume1.setBounds(boundsZone);
-        editVolume2.setBounds(boundsZone);
-        editVolume3.setBounds(boundsZone);
-        editVolume4.setBounds(boundsZone);
+       
         editFilter1.setBounds(boundsZone);
         editFilter2.setBounds(boundsZone);
         editFilter3.setBounds(boundsZone);
@@ -570,10 +565,7 @@ void setNombreElements (int nombre)
     WaveVue editWave3;
     WaveVue editWave4;
 
-    Volume editVolume1;
-    Volume editVolume2;
-    Volume editVolume3;
-    Volume editVolume4;
+
     
     FilterVue editFilter1;
     FilterVue editFilter2;
@@ -589,7 +581,7 @@ void setNombreElements (int nombre)
     MidiSlider sliderMaster;
     
     ComboBox    comboMode;
-    TextEditor  editName {"editName"};
+    TextEditor  editName {TRANS("Edit Name")};
     MidiButton op1;
     TextButton op2 {"2"};
     TextButton op3{"3"};
@@ -602,7 +594,7 @@ void setNombreElements (int nombre)
     Element element4;
     
     Label labelOpOn{"-Operateurs-", "Operateurs On-Off"};
-    Label labelName {" ", "Name"};
+    Label labelName {" ", TRANS("Name")};
     Label labelMode{"", "Operateurs Mode"};
 
     

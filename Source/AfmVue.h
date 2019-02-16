@@ -22,11 +22,11 @@ struct TabAFM  : public TabbedComponent
     : TabbedComponent (TabbedButtonBar::TabsAtTop)
     {
         auto colour = findColour (ResizableWindow::backgroundColourId);
-        addTab (TRANS("AFM OP"),     colour, new Operator (), true);
-        addTab (TRANS("AFM OSC"),     colour, new Oscillator (), true);
-        addTab (TRANS("Volume EG"),     colour, new WaveEg (), true);
-        addTab (TRANS("Pitch EG"),     colour, new PitchEg (), true);
-        addTab  (("Close"), colour, nullptr,false);
+        addTab (("AFM OP"),     colour, new Operator (), true);
+        addTab (("AFM OSC"),     colour, new Oscillator (), true);
+        addTab (("Volume EG"),     colour, new WaveEg (), true);
+        addTab (("Pitch EG"),     colour, new PitchEg (), true);
+        addTab  (TRANS("Close"), colour, nullptr,false);
         
     }
     
@@ -68,7 +68,7 @@ public:
     }
     void setTabVolume()
     {
-        tabs.setCurrentTabIndex(1);
+        tabs.setCurrentTabIndex(2);
     }
     void setElementNumber ( int number, UndoManager& undoman)
     {
