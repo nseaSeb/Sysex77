@@ -134,13 +134,10 @@ public:
         Logger::writeToLog( SystemStats::getUserLanguage());
         if(SystemStats::getUserLanguage()=="fr")
         {
-        File languageFile("../../../../Ressources/French.txt");
-        Logger::writeToLog(languageFile.getFullPathName());
-        if (languageFile.exists())
-        {
-            juce::LocalisedStrings *currentMappings = new juce::LocalisedStrings(languageFile, true);
+            juce::LocalisedStrings *currentMappings = new             juce::LocalisedStrings(String::createStringFromData(BinaryData::French_txt, BinaryData::French_txtSize), false);
             juce::LocalisedStrings::setCurrentMappings(currentMappings);
-        }
+ 
+
         }
         
     }
