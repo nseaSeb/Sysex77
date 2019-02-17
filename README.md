@@ -2,7 +2,8 @@
   
 ![Texte alternatif](Ressources/icon.png)  
 
-#EN
+#ENGLISH
+
 Be carreful, this is not a finalized app, use it at your own risk !
 When you open, after the home image, select your midi interface, then you can activate or deactivate the bulk protect on this same page or you can do it on your synth to allow bank exchanges, be careful it can delete your custom patches in your synth, make a backup !
 
@@ -15,7 +16,9 @@ https://open.spotify.com/artist/3qPhbBJMJSF3AYbvzll5Zm?si=z6Rnq3ghR02R2sWc9b2mHg
 
 *Ps: No animals were injured during the development of this application, on the contrary a labrador to share many questions and the agitation of his rear axle left no doubt "am happy"! 
 
-#FR
+*****************************************
+#FRANCAIS
+
 Attention cette version est en cours de développement, elle est loin d’être parfaitement fonctionnelle …
 A utiliser avec precaution, Sysex77.app -> OSX 10.7 minimum (Lion) Sysex77 osx1012.app -> à partir de Sierra ...
 
