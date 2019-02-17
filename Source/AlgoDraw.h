@@ -59,10 +59,10 @@ public:
     {
         
         g.setColour ( Colours::darkorange);
-        g.drawRect(2, 8, getWidth()-4, getHeight()-16);
-        g.fillRect(10, getHeight()-8, 4, 8);
-        g.fillRect(10, 0, 4, 8);
-        g.fillRect(getWidth()-14, 0, 4, 8);
+        g.drawRect(2, 6, getWidth()-4, getHeight()-12);
+        g.fillRect(10, getHeight()-8, 3, 6);
+        g.fillRect(10, 0, 3, 6);
+        g.fillRect(getWidth()-14, 0, 3, 6);
         
         g.setColour(Colours::white);
         g.drawText(getName(), 0, 10, getWidth(), getHeight(), Justification::centredTop);
@@ -72,9 +72,9 @@ public:
     {
      //   sliderIn1.setBoundsRelative(0.02f, 0.14f, 0.2f, 0.5f);
         /*
-        sliderIn1.setBounds(2, 8, 14, getHeight()-29);
-        sliderIn2.setBounds(getWidth()-16,8,14,getHeight()-29);
-        sliderOut1.setBounds(2, getHeight()-22, getWidth()-4, 14);
+        sliderIn1.setBounds(2, 6, 8, getHeight()-20);
+        sliderIn2.setBounds(getWidth()-12,6,8,getHeight()-20);
+        sliderOut1.setBounds(2, getHeight()-20, getWidth()-4, 8);
          */
     }
     
@@ -124,8 +124,8 @@ public:
         auto colour = Colours::darkorange;
         g.setColour (colour);
         g.drawRect(0, 0, getWidth(), getHeight());
-        float h6 = 0.86f;
-        float h5 = 0.69f;
+        float h6 = 0.85f;
+        float h5 = 0.68f;
         float h4 = 0.52f;
         float h3 = 0.35f;
         float h2 = 0.18f;
@@ -134,82 +134,450 @@ public:
         if(intAlgoNumber == 1)
         {
             
-            FMOp1.setBoundsRelative(0.3f, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(0.3f, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(0.3f, h4, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(0.3f, h3, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(0.3f, h2, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(0.3f, h1, 0.5f, 0.14f);
-            roundSize(FMOp1);
-            roundSize(FMOp2);
-            roundSize(FMOp3);
-            roundSize(FMOp4);
-            roundSize(FMOp5);
-            roundSize(FMOp6);
+            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h3, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h3, h2, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h3, h1, 0.5f, 0.14f);
+
+        }
+        if(intAlgoNumber == 2)
+        {
+            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h3, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h3, h2, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h4, h2, 0.5f, 0.14f);
+        }
+        if(intAlgoNumber == 3)
+        {
+            
+            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h3, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h3, h2, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h4, h3, 0.5f, 0.14f);
+
+        }
+        if(intAlgoNumber == 4)
+        {
+            
+            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h3, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h3, h2, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h4, h4, 0.5f, 0.14f);
+
+        }
+        if(intAlgoNumber == 5)
+        {
+            
+            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h3, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h3, h2, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h4, h5, 0.5f, 0.14f);
+
+        }
+        if(intAlgoNumber == 6)
+        {
+            
+            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h3, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h4, h3, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h5, h3, 0.5f, 0.14f);
+
+        }
+        if(intAlgoNumber == 7)
+        {
+            
+            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h3, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h4, h4, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h4, h3, 0.5f, 0.14f);
+
+        }
+        if(intAlgoNumber == 8)
+        {
+            
+            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h3, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h4, h4, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h5, h4, 0.5f, 0.14f);
+
+
+        }
+        if(intAlgoNumber == 9)
+        {
+            
+            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h4, h4, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h3, h3, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h2, h3, 0.5f, 0.14f);
+
+        }
+        if(intAlgoNumber == 10)
+        {
+            
+            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h3, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h4, h5, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h4, h4, 0.5f, 0.14f);
+
+        }
+        if(intAlgoNumber == 11)
+        {
+            
+            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h3, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h4, h5, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h5, h5, 0.5f, 0.14f);
+
+        }
+        if(intAlgoNumber == 12)
+        {
+            
+            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h4, h5, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h3, h3, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h4, h3, 0.5f, 0.14f);
+
+        }
+        if(intAlgoNumber == 13)
+        {
+            
+            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h4, h5, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h3, h3, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h2, h4, 0.5f, 0.14f);
+
+        }
+        if(intAlgoNumber == 14)
+        {
+            
+            FMOp1.setBoundsRelative(h2, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h2, h5, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h2, h4, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h4, h4, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h5, h4, 0.5f, 0.14f);
+    
+        }
+        if(intAlgoNumber == 15)
+        {
+            
+            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h2, h5, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h4, h4, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h5, h4, 0.5f, 0.14f);
+
+        }
+        if(intAlgoNumber == 16)
+        {
+            
+            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h4, h5, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h4, h4, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h5, h5, 0.5f, 0.14f);
+
+        }
+        if(intAlgoNumber == 17)
+        {
+            
+            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h4, h5, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h4, h4, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h5, h4, 0.5f, 0.14f);
+
+        }
+        if(intAlgoNumber == 18)
+        {
+            FMOp1.setBoundsRelative(h2, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h2, h5, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h2, h4, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h4, h5, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h5, h5, 0.5f, 0.14f);
+        }
+        if(intAlgoNumber == 19)
+        {
+            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h4, h5, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h5, h5, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h4, h4, 0.5f, 0.14f);
+        }
+        if(intAlgoNumber == 20)
+        {
+            FMOp1.setBoundsRelative(h2, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h2, h5, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h4, h5, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h5, h5, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h6, h5, 0.5f, 0.14f);
+        }
+        if(intAlgoNumber == 21)
+        {
+            FMOp1.setBoundsRelative(h4, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h3, h3, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h3, h2, 0.5f, 0.14f);
+        }
+        if(intAlgoNumber == 22)
+        {
+            FMOp1.setBoundsRelative(h4, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h3, h3, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h4, h3, 0.5f, 0.14f);
+        }
+        if(intAlgoNumber == 23)
+        {
+            FMOp1.setBoundsRelative(h4, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h3, h3, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h4, h4, 0.5f, 0.14f);
+        }
+        if(intAlgoNumber == 24)
+        {
+            FMOp1.setBoundsRelative(h4, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h3, h3, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h4, h5, 0.5f, 0.14f);
+        }
+        if(intAlgoNumber == 25)
+        {
+            FMOp1.setBoundsRelative(h4, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h4, h4, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h5, h4, 0.5f, 0.14f);
+        }
+        if(intAlgoNumber == 26)
+        {
+            FMOp1.setBoundsRelative(h4, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h4, h5, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h4, h4, 0.5f, 0.14f);
+        }
+        if(intAlgoNumber == 27)
+        {
+            FMOp1.setBoundsRelative(h4, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h4, h5, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h5, h5, 0.5f, 0.14f);
+        }
+        if(intAlgoNumber == 28)
+        {
+            FMOp1.setBoundsRelative(h4, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h4, h5, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h2, h4, 0.5f, 0.14f);
+        }
+        if(intAlgoNumber == 29)
+        {
+            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h2, h6, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h2, h5, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h4, h5, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h5, h5, 0.5f, 0.14f);
+        }
+        if(intAlgoNumber == 30)
+        {
+            FMOp1.setBoundsRelative(h4, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h4, h5, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h3, h3, 0.5f, 0.14f);
+        }
+        if(intAlgoNumber == 31)
+        {
+            FMOp1.setBoundsRelative(h4, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h4, h5, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h4, h4, 0.5f, 0.14f);
+        }
+        if(intAlgoNumber == 32)
+        {
+            FMOp1.setBoundsRelative(h4, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h4, h5, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h2, h6, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h2, h5, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h2, h4, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+        }
+        if(intAlgoNumber == 33)
+        {
+            FMOp1.setBoundsRelative(h5, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h5, h5, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h2, h6, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h2, h5, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h4, h5, 0.5f, 0.14f);
         }
         if(intAlgoNumber==34)
         {
-            FMOp1.setBoundsRelative(0.3f, 0.86f, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(0.3f, 0.69f, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(0.3f, 0.52f, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(0.6f, 0.86f, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(0.6f, 0.69f, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(0.6f, 0.52f, 0.5f, 0.14f);
-            roundSize(FMOp1);
-            roundSize(FMOp2);
-            roundSize(FMOp3);
-            roundSize(FMOp4);
-            roundSize(FMOp5);
-            roundSize(FMOp6);
+            FMOp1.setBoundsRelative(h4, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h4, h5, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h4, h4, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+        }
+        if(intAlgoNumber==35)
+        {
+            FMOp1.setBoundsRelative(h4, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h4, h5, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h4, h4, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h2, h6, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h2, h5, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+        }
+        if(intAlgoNumber==36)
+        {
+            FMOp1.setBoundsRelative(h4, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h4, h5, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h5, h5, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h2, h6, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h2, h5, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+        }
+        if(intAlgoNumber==37)
+        {
+            FMOp1.setBoundsRelative(h5, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h4, h6, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h3, h3, 0.5f, 0.14f);
+        }
+        if(intAlgoNumber==38)
+        {
+            FMOp1.setBoundsRelative(h5, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h4, h6, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h4, h4, 0.5f, 0.14f);
+        }
+        if(intAlgoNumber==39)
+        {
+            FMOp1.setBoundsRelative(h5, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h4, h6, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h4, h5, 0.5f, 0.14f);
+        }
+        if(intAlgoNumber==40)
+        {
+            FMOp1.setBoundsRelative(h5, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h4, h6, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h4, h5, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h3, h4, 0.5f, 0.14f);
+        }
+        if(intAlgoNumber==41)
+        {
+            FMOp1.setBoundsRelative(h5, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h4, h6, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h4, h5, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h2, h6, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h2, h5, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h3, h5, 0.5f, 0.14f);
+        }
+        if(intAlgoNumber==42)
+        {
+            FMOp1.setBoundsRelative(h5, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h5, h5, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h4, h6, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h4, h5, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h3, h5, 0.5f, 0.14f);
         }
         if(intAlgoNumber==43)
         {
-            
-            FMOp1.setBoundsRelative(0.2f, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(0.2f, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(0.4f, h6, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(0.4f, h5, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(0.6f, h6, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(0.6f, h5, 0.5f, 0.14f);
-            roundSize(FMOp1);
-            roundSize(FMOp2);
-            roundSize(FMOp3);
-            roundSize(FMOp4);
-            roundSize(FMOp5);
-            roundSize(FMOp6);
+            FMOp1.setBoundsRelative(h5, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h4, h6, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h2, h6, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h2, h5, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h2, h4, 0.5f, 0.14f);
         }
         if(intAlgoNumber == 44)
         {
-            FMOp1.setBoundsRelative(h1, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h2, h6, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h4, h6, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h5, h6, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h5, h5, 0.5f, 0.14f);
-            roundSize(FMOp1);
-            roundSize(FMOp2);
-            roundSize(FMOp3);
-            roundSize(FMOp4);
-            roundSize(FMOp5);
-            roundSize(FMOp6);
+            FMOp1.setBoundsRelative(h6, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h5, h6, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h4, h6, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h2, h6, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h2, h5, 0.5f, 0.14f);
+
         }
         if(intAlgoNumber==45)
         {
             
-            FMOp1.setBoundsRelative(h1, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h2, h6, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h4, h6, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h5, h6, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h6, h6, 0.5f, 0.14f);
-            roundSize(FMOp1);
-            roundSize(FMOp2);
-            roundSize(FMOp3);
-            roundSize(FMOp4);
-            roundSize(FMOp5);
-            roundSize(FMOp6);
+            FMOp1.setBoundsRelative(h6, h6, 0.5f, 0.14f);
+            FMOp2.setBoundsRelative(h5, h6, 0.5f, 0.14f);
+            FMOp3.setBoundsRelative(h4, h6, 0.5f, 0.14f);
+            FMOp4.setBoundsRelative(h3, h6, 0.5f, 0.14f);
+            FMOp5.setBoundsRelative(h2, h6, 0.5f, 0.14f);
+            FMOp6.setBoundsRelative(h1, h6, 0.5f, 0.14f);
+
         }
-        
+        roundSize(FMOp1);
+        roundSize(FMOp2);
+        roundSize(FMOp3);
+        roundSize(FMOp4);
+        roundSize(FMOp5);
+        roundSize(FMOp6);
     }
     void resized() override
     {

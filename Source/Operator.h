@@ -27,8 +27,9 @@ public:
         addAndMakeVisible(algoFm);
         addAndMakeVisible(sliderAlgo);
         sliderAlgo.setSliderStyle(Slider::LinearHorizontal);
-        sliderAlgo.setRange(1, 45);
-        sliderAlgo.setNumDecimalPlacesToDisplay(0);
+//        sliderAlgo.setRange(1, 45);
+        sliderAlgo.setRangeAndRound(1, 45, 1);
+  //      sliderAlgo.setNumDecimalPlacesToDisplay(0);
         sliderAlgo.setPopupDisplayEnabled(true, true, this);
         sliderAlgo.setTextBoxStyle(Slider::NoTextBox, true, 10, 10);
         sliderAlgo.setColour(Slider::ColourIds::thumbColourId, Colours::darkorange);
@@ -104,14 +105,14 @@ public:
     {
         // This method is where you should set the bounds of any child
         // components that your component contains..
-        algoFm.setBoundsRelative(0.01f, 0.16f, 0.4f, 0.84f);
-        sliderAlgo.setBoundsRelative(0.01f, 0.08f, 0.4f, 0.1f);
+        algoFm.setBoundsRelative(0.01f, 0.15f, 0.4f, 0.84f);
+        sliderAlgo.setBoundsRelative(0.01f, 0.06f, 0.4f, 0.08f);
         repaint();
     }
     
 private:
     AlgoDraw algoFm;
     MidiSlider sliderAlgo;
-    Label labelAlgo { "algo", "FM Algorythm"};
+    Label labelAlgo { "algo", TRANS("AFM Algorithm")};
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Operator)
 };
