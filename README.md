@@ -42,3 +42,7 @@ Seb
 
 *Ps: Aucun animal n'a été blessé durant le developpement de cette application, bien au contraire un labrador à partager de nombreuses interrogations et l'agitation de son train arrière n'a laissé aucun doute "suis content" ! 
 
+THANKS A LOT AT THE JUCE FORUM AND SPECIALLY:
+#Daniel, Jules, McMartin, matkatmusic, Xenakios, dqthebt
+Thank you for your patience and valuable help.
+
