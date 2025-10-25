@@ -1,4 +1,5 @@
   # Sysex77 midi editor for the Yamaha SY77/99,  Editeur Midi pour le Yamaha SY77/99 (EN/FR)
+  ## If anyone would like to contribute or even take over the project, they are welcome to do so.
   
 ![Texte alternatif](Ressources/icon.png)  
 
