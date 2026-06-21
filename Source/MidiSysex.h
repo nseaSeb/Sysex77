@@ -9,13 +9,16 @@
  */
 
 #pragma once
+#include "SysexUtils.h"
+
 void addOscListener ()
 {
-    
+
     addListener (this, adresseOscFoot); // [4]
     addListener (this, adresseOscMod);
     addListener(this, adresseOpMode);
     addListener(this, adresseOscSendBank);
+    addListener(this, adresseOscSendVoice);
     addListener(this,adresseOscRepaint);
     addListener(this, oscTotalVoiceVolume);
 
@@ -195,7 +198,19 @@ void oscMessageReceived (const OSCMessage& message) override
             const uint8* const data = (const uint8*) mb.getData();
             sendRaw(data, mb.getSize());
         }
-        
+
+    }
+    if (address.matches(adresseOscSendVoice))
+    {
+        // Envoie au synthé le bloc sysex d'une seule voix de la banque courante.
+        if (message.size() == 1 && message[0].isInt32())
+        {
+            auto block = SyVoice::getVoiceBlock ((const uint8*) currentBankData.getData(),
+                                                 currentBankData.getSize(),
+                                                 message[0].getInt32());
+            if (block.getSize() > 1)
+                sendRaw (block.getData(), (long) block.getSize());
+        }
     }
     //        rotaryKnob.setValue (jlimit (0.0f, 10.0f, message[0].getFloat32())); // [6]
 }

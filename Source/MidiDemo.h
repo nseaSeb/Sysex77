@@ -54,6 +54,7 @@ static const String adresseOpMode = "/77OpMode";
 static const String adresseOscSendBank ="/77SendBank";
 static const String adresseOscRepaint = "/77Repaint";
 static const String adresseOscParseVoices = "/77ParseVoices";
+static const String adresseOscSendVoice = "/77SendVoice";
 static const String oscTotalVoiceVolume = "/77TotalVoiceVolume";
 
 
@@ -82,6 +83,7 @@ static const String oscSendMidiMessage = "/77MidiMessage";
 
 static   StringArray  arrayBank;    //la liste des banques
 static  StringArray arrayListVoices; // liste des voices
+static MemoryBlock currentBankData;  // octets bruts de la banque sélectionnée (pour envoi d'une voix)
 static const int maxFiles = 512;
 
 static        Array<File> BankFiles; //les fichiers des banques

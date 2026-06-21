@@ -46,6 +46,37 @@ namespace SyVoice
     }
 
     //==============================================================================
+    /** Renvoie le bloc Sysex (de 0xF0 à 0xF7 inclus) de la voix d'index `index`
+        dans un dump de banque .syx (les voix y sont des messages F0…F7 successifs).
+        Renvoie un bloc vide si l'index est hors plage. */
+    inline juce::MemoryBlock getVoiceBlock (const juce::uint8* data, size_t size, int index)
+    {
+        juce::MemoryBlock block;
+        if (data == nullptr || index < 0)
+            return block;
+
+        int count = 0;
+        for (size_t i = 0; i < size; ++i)
+        {
+            if (data[i] == 0xF0)
+            {
+                if (count == index)
+                {
+                    size_t end = i + 1;
+                    while (end < size && data[end] != 0xF7 && data[end] != 0xF0)
+                        ++end;
+                    if (end < size && data[end] == 0xF7)
+                        ++end; // inclut le 0xF7 terminal
+                    block.append (data + i, end - i);
+                    return block;
+                }
+                ++count;
+            }
+        }
+        return block;
+    }
+
+    //==============================================================================
     /** Checksum Yamaha standard : (somme des octets + checksum) ≡ 0 (mod 128). */
     inline juce::uint8 yamahaChecksum (const juce::uint8* data, int count)
     {

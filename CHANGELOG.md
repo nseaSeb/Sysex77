@@ -21,6 +21,12 @@ et le projet suit un versionnage de type [SemVer](https://semver.org/lang/fr/).
   au démarrage et mise à jour en direct au changement de thème.
 
 ### Ajouté / Added
+- **Envoyer une voix de la librairie au synthé** : double-cliquer une voix dans
+  une banque (A/B/C/D) envoie son bloc sysex (`F0…F7`) au SY77 via le relais OSC
+  `/77SendVoice` → `MidiSysex`. Nouvelle fonction testée
+  `SyVoice::getVoiceBlock` (extraction du n-ième bloc de voix d'un `.syx`) ; les
+  octets de la banque sélectionnée sont mémorisés (`currentBankData`).
+  ⚠️ À valider avec le synthé branché (où atterrit la voix dépend du SY77).
 - **Tests unitaires** (`juce::UnitTest`) : nouvelle logique sysex « pure »
   extraite et testée dans `Source/SysexUtils.h` (`SyVoice::extractVoiceNames`,
   `yamahaChecksum`, `parseParam9`) + `Source/Tests.h`. Lancés via l'argument

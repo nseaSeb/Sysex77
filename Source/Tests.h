@@ -50,6 +50,24 @@ struct SysexUtilsTests : public juce::UnitTest
             expect (SyVoice::extractVoiceNames (nullptr, 0).isEmpty());
         }
 
+        beginTest ("getVoiceBlock extracts the Nth F0..F7 block");
+        {
+            const juce::uint8 syx[] = {
+                0xF0, 0x43, 0x10, 0x01, 0xF7,       // voix 0 (5 octets)
+                0xF0, 0x43, 0x10, 0x02, 0x03, 0xF7  // voix 1 (6 octets)
+            };
+            auto b0 = SyVoice::getVoiceBlock (syx, sizeof (syx), 0);
+            expectEquals ((int) b0.getSize(), 5);
+            expectEquals ((int) ((const juce::uint8*) b0.getData())[0], 0xF0);
+            expectEquals ((int) ((const juce::uint8*) b0.getData())[4], 0xF7);
+
+            auto b1 = SyVoice::getVoiceBlock (syx, sizeof (syx), 1);
+            expectEquals ((int) b1.getSize(), 6);
+            expectEquals ((int) ((const juce::uint8*) b1.getData())[5], 0xF7);
+
+            expect (SyVoice::getVoiceBlock (syx, sizeof (syx), 9).getSize() == 0);
+        }
+
         beginTest ("yamahaChecksum sum+checksum mod 128 == 0");
         {
             const juce::uint8 data[] = { 0x12, 0x34, 0x7F, 0x01, 0x40 };

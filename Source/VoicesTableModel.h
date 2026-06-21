@@ -12,6 +12,15 @@
 
 #include "../JuceLibraryCode/JuceHeader.h"
 
+// Demande l'envoi au synthé de la voix d'index global donné (relais OSC -> MidiSysex).
+inline void requestSendVoice (int globalVoiceIndex)
+{
+    static juce::OSCSender voiceSender;
+    static bool connected = voiceSender.connect ("127.0.0.1", 9001);
+    if (connected)
+        voiceSender.send ("/77SendVoice", globalVoiceIndex);
+}
+
 //==============================================================================
 
 class BankATableModel    : public Component
@@ -49,6 +58,7 @@ private:
         void listBoxItemDoubleClicked	(int 	row,const MouseEvent &)	override
         {
                Logger::writeToLog("table A double clic");
+               requestSendVoice (row); // banque A : offset 0
         }
         void listBoxItemClicked	(int 	row, const MouseEvent &)	 override
         {
@@ -281,6 +291,10 @@ private:
                  Justification::centred, true);
                  */
                     }
+        void listBoxItemDoubleClicked (int row, const MouseEvent&) override
+        {
+            requestSendVoice (row + 16); // banque B
+        }
         
         
         var getDragSourceDescription (const SparseSet<int>& selectedRows) override
@@ -425,13 +439,17 @@ private:
                     
                     if(arrayListVoices[rowNumber+32].isNotEmpty())
                         g.drawFittedText(arrayListVoices[rowNumber+32], 0, 0, width, height, Justification::centred, 1);
-                        
+
                 /*
                  g.drawText ("Aucunes Banques" + String (rowNumber + 1),
                  5, 0, width, height,
                  Justification::centred, true);
                  */
                     }
+        void listBoxItemDoubleClicked (int row, const MouseEvent&) override
+        {
+            requestSendVoice (row + 32); // banque C
+        }
         
         
         var getDragSourceDescription (const SparseSet<int>& selectedRows) override
@@ -575,13 +593,17 @@ private:
                     
                     if(arrayListVoices[rowNumber+48].isNotEmpty())
                         g.drawFittedText(arrayListVoices[rowNumber+48], 0, 0, width, height, Justification::centred, 1);
-                        
+
                 /*
                  g.drawText ("Aucunes Banques" + String (rowNumber + 1),
                  5, 0, width, height,
                  Justification::centred, true);
                  */
                     }
+        void listBoxItemDoubleClicked (int row, const MouseEvent&) override
+        {
+            requestSendVoice (row + 48); // banque D
+        }
         
         
         var getDragSourceDescription (const SparseSet<int>& selectedRows) override

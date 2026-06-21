@@ -131,6 +131,7 @@ public:
         if(BankFiles[sourceListBox.getSelectedRow()].exists())
         {
             BankFiles[sourceListBox.getSelectedRow()].loadFileAsData(mb);
+            currentBankData = mb; // mémorise pour pouvoir envoyer une voix au synthé
             // Extraction des noms de voix (logique pure et testée, cf. SysexUtils.h / Tests.h)
             arrayListVoices.addArray (SyVoice::extractVoiceNames ((const uint8*) mb.getData(), mb.getSize()));
         }
