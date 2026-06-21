@@ -11,6 +11,13 @@ et le projet suit un versionnage de type [SemVer](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Ajouté / Added
+- **LookAndFeel « Atari GEM » dédié** (`AtariLookAndFeel`) activé quand le thème
+  Atari est choisi : rendu **plat, anguleux et monochrome** — boutons
+  rectangulaires à bord noir (inversés si actifs), combos et cadres carrés,
+  potards plats. Sélection automatique du LookAndFeel selon le thème
+  (`selectSyLookAndFeel`), restauré au démarrage. Boutons rouges (`orangered`,
+  ex. sélecteur VOICE/MULTI/SEQ) routés vers l'accent du thème ; fond des listes
+  adouci pour limiter l'effet « damier » de la Librairie.
 - **Thème d'interface Moderne / Atari Vintage** : sélecteur dans l'onglet
   Setting (combo « Theme »). « Modern » = fond sombre + accent orange ;
   « Atari Vintage » = look monochrome gris GEM (fond gris ST, encre noire).

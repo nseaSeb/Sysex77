@@ -13,7 +13,7 @@ addAndMakeVisible(ledMidiIn);
 ledMidiIn.setColour(TextButton::buttonOnColourId, Colours::white);
 
 addAndMakeVisible(ledMidiOut);
-ledMidiOut.setColour(TextButton::buttonOnColourId, Colours::orangered);
+ledMidiOut.setColour(TextButton::buttonOnColourId, SYColSelected);
 
 
 //Setting
@@ -84,7 +84,7 @@ for (int i = 0; i < 4; ++i)
     b->setRadioGroupId (42);
     b->setClickingTogglesState (true);
     b->addListener(this);
-    b->setColour(TextButton::buttonOnColourId, Colours::orangered);
+    b->setColour(TextButton::buttonOnColourId, SYColSelected);
     
     switch (i)
     {

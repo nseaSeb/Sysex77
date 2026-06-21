@@ -19,6 +19,9 @@ static Colour   SYColSelected { Colours::darkorange };
 // Thème de l'interface : 0 = Moderne (sombre/orange), 1 = Atari vintage (GEM mono)
 static int SYTheme = 0;
 
+// Choisit le LookAndFeel selon SYTheme (défini en fin de fichier).
+inline void selectSyLookAndFeel();
+
 // Applique les couleurs globales courantes (SYCol*) au LookAndFeel par défaut.
 // Ces couleurs sont lues au moment du paint -> un repaint suffit pour les voir.
 inline void syncSyLookAndFeel()
@@ -41,6 +44,10 @@ inline void syncSyLookAndFeel()
     lf.setColour (ComboBox::textColourId,          ink);
     lf.setColour (ComboBox::arrowColourId,         ink);
     lf.setColour (ComboBox::outlineColourId,       ink.withAlpha (0.4f));
+
+    // listes : fond proche de SYColAlt pour adoucir l'alternance des lignes
+    lf.setColour (ListBox::backgroundColourId,     SYColAlt.contrasting (0.05f));
+    lf.setColour (ListBox::textColourId,           ink);
 }
 
 inline void applySyTheme (int theme)
@@ -62,7 +69,7 @@ inline void applySyTheme (int theme)
         SYColSelected   = Colours::darkorange;
     }
 
-    syncSyLookAndFeel();
+    selectSyLookAndFeel();
 }
 
 
@@ -234,9 +241,100 @@ public:
         p.applyTransform(AffineTransform::rotation(angle).translated(centreX, centreY));
         g.setColour(SYColBackground.contrasting());
         g.fillPath(p);
-        
-        
+
+
     }
     //==============================================================================
-    
+
 };
+
+//==============================================================================
+// LookAndFeel « Atari GEM » : rendu plat, anguleux et monochrome.
+// Activé uniquement quand le thème Atari est sélectionné (voir selectSyLookAndFeel).
+class AtariLookAndFeel : public LookAndFeel_V4
+{
+public:
+    AtariLookAndFeel()
+    {
+        setColour (ResizableWindow::backgroundColourId, SYColBackground);
+        setColour (PopupMenu::backgroundColourId,       SYColAlt);
+        setColour (PopupMenu::textColourId,             SYColLabel);
+    }
+
+    // Boutons : rectangle plein + bord noir, inversé si actif (style GEM).
+    void drawButtonBackground (Graphics& g, Button& b, const Colour&,
+                               bool isOver, bool isDown) override
+    {
+        auto r = b.getLocalBounds().toFloat().reduced (0.5f);
+        const bool on = b.getToggleState() || isDown;
+        g.setColour (on ? SYColSelected : (isOver ? SYColAlt.darker (0.08f) : SYColAlt));
+        g.fillRect (r);
+        g.setColour (SYColLabel);
+        g.drawRect (r, 1.0f);
+    }
+
+    void drawButtonText (Graphics& g, TextButton& b, bool, bool) override
+    {
+        g.setColour (b.getToggleState() ? SYColAlt : SYColLabel);
+        g.setFont (getTextButtonFont (b, b.getHeight()));
+        g.drawFittedText (b.getButtonText(), b.getLocalBounds().reduced (4, 0),
+                          Justification::centred, 1);
+    }
+
+    void drawComboBox (Graphics& g, int w, int h, bool,
+                       int, int, int, int, ComboBox&) override
+    {
+        Rectangle<float> r (0.5f, 0.5f, (float) w - 1.0f, (float) h - 1.0f);
+        g.setColour (SYColAlt);    g.fillRect (r);
+        g.setColour (SYColLabel);  g.drawRect (r, 1.0f);
+
+        Rectangle<float> arrow ((float) w - 16.0f, 0.0f, 14.0f, (float) h);
+        arrow = arrow.reduced (4.0f, (float) h * 0.4f);
+        Path p;
+        p.addTriangle (arrow.getX(), arrow.getY(),
+                       arrow.getRight(), arrow.getY(),
+                       arrow.getCentreX(), arrow.getBottom());
+        g.setColour (SYColLabel);  g.fillPath (p);
+    }
+
+    // Cadres carrés (pas d'arrondi) comme les boîtes GEM.
+    void drawGroupComponentOutline (Graphics& g, int w, int h, const String& text,
+                                    const Justification&, GroupComponent&) override
+    {
+        Rectangle<float> r (1.0f, 9.0f, (float) w - 2.0f, (float) h - 10.0f);
+        g.setColour (SYColLabel.withAlpha (0.75f));
+        g.drawRect (r, 1.0f);
+        if (text.isNotEmpty())
+        {
+            g.setColour (SYColLabel);
+            g.setFont (Font (FontOptions (13.0f)));
+            g.drawText (text, 8, 0, w - 16, 17, Justification::left, true);
+        }
+    }
+
+    // Potards plats : disque clair, cercle noir, trait repère.
+    void drawRotarySlider (Graphics& g, int x, int y, int w, int h, float pos,
+                           float startA, float endA, Slider&) override
+    {
+        auto cx = x + w * 0.5f, cy = y + h * 0.5f;
+        auto rad = jmin (w, h) * 0.5f - 2.0f;
+        g.setColour (SYColAlt);    g.fillEllipse (cx - rad, cy - rad, rad * 2, rad * 2);
+        g.setColour (SYColLabel);  g.drawEllipse (cx - rad, cy - rad, rad * 2, rad * 2, 1.0f);
+
+        auto ang = startA + pos * (endA - startA);
+        Path p;
+        p.addRectangle (-1.0f, -rad + 1.0f, 2.0f, rad - 2.0f);
+        p.applyTransform (AffineTransform::rotation (ang).translated (cx, cy));
+        g.setColour (SYColLabel);  g.fillPath (p);
+    }
+};
+
+// Choisit/active le LookAndFeel selon le thème courant, puis applique les couleurs.
+inline void selectSyLookAndFeel()
+{
+    static AtariLookAndFeel atariLF;
+    static LookAndFeel* baseLF = &LookAndFeel::getDefaultLookAndFeel();
+
+    LookAndFeel::setDefaultLookAndFeel (SYTheme == 1 ? (LookAndFeel*) &atariLF : baseLF);
+    syncSyLookAndFeel();
+}

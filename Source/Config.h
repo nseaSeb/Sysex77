@@ -145,6 +145,7 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
             SYColLabel = Colours::grey;
             SYColBackground = Colours::black;
             SYColSelected = Colours::darkorange;
+            SYTheme = 0;
         }
         
         // Mise à jour des boutons
@@ -153,8 +154,8 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
         btColLab.setColour(TextButton::buttonColourId, SYColLabel);
         btColSel.setColour(TextButton::buttonColourId, SYColSelected);
 
-        // synchronise le LookAndFeel avec le thème/couleurs courants
-        syncSyLookAndFeel();
+        // active le LookAndFeel + couleurs selon le thème courant
+        selectSyLookAndFeel();
     }
     void 	comboBoxChanged (ComboBox *comboBoxThatHasChanged) override
     {
