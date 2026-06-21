@@ -100,6 +100,7 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
         xmlData->setAttribute ("Theme", SYTheme);
         xml.addChildElement(xmlData);
         
+        appDirPath.createDirectory(); // s'assure que le dossier existe
         xml.writeTo(appDirPath.getChildFile("SYSEX77.xml"));
         
         
@@ -111,14 +112,10 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
     }
     void setState() //Lecture des parametres
     {
-        auto dir = File::getSpecialLocation(File::userDocumentsDirectory);
-        
-        int numTries = 0;
-        while (!dir.getChildFile("Sysex77").exists() && numTries++ < 15)
-            dir = dir.getParentDirectory();
-        
-        auto tableFile = dir.getChildFile("Sysex77").getChildFile("SYSEX77.xml");
-        
+        // Lit au même endroit que getState() écrit (corrige un bug de chemin :
+        // l'ancienne version cherchait dans ~/Documents au lieu de appDirPath).
+        auto tableFile = appDirPath.getChildFile("SYSEX77.xml");
+
         if (tableFile.exists())
         {
             tutorialData = XmlDocument::parse(tableFile);  // Utilisation directe de l'opérateur =
