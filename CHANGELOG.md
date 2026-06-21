@@ -21,6 +21,14 @@ et le projet suit un versionnage de type [SemVer](https://semver.org/lang/fr/).
   au démarrage et mise à jour en direct au changement de thème.
 
 ### Ajouté / Added
+- **Tests unitaires** (`juce::UnitTest`) : nouvelle logique sysex « pure »
+  extraite et testée dans `Source/SysexUtils.h` (`SyVoice::extractVoiceNames`,
+  `yamahaChecksum`, `parseParam9`) + `Source/Tests.h`. Lancés via l'argument
+  `--test` :
+  `Builds/MacOSX/build/Debug/Sysex77.app/Contents/MacOS/Sysex77 --test`
+  (code retour 0 si tout passe). `BankTableModel` utilise désormais la fonction
+  extraite, qui corrige au passage une **lecture hors limites** possible sur un
+  fichier .syx tronqué.
 - **Logo vectoriel** : le logo « SYSEX 77/99 » est maintenant dessiné en texte
   (vecteur) qui suit l'accent du thème, au lieu d'une image PNG orange figée.
 - **LookAndFeel plat dédié** (`FlatLookAndFeel`) activé par le thème Light :

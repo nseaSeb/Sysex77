@@ -11,6 +11,7 @@
 #pragma once
 
 #include "../JuceLibraryCode/JuceHeader.h"
+#include "SysexUtils.h"
 
 //==============================================================================
 /*
@@ -129,36 +130,9 @@ public:
         MemoryBlock mb;
         if(BankFiles[sourceListBox.getSelectedRow()].exists())
         {
-        BankFiles[sourceListBox.getSelectedRow()].loadFileAsData(mb);
-     
-        const uint8* const data = (const uint8*) mb.getData();
-    
-        String str;
-  //      str = String(&data, mb.getSize());
-        int i =0;
-        int a = 0;
- Array<char>   val;
-        if(mb.getSize() > 0) // si pas de data evite le plantage !
-        {
-        while (i < mb.getSize() - 1)
-        {
-      
-            if(data[i]== 0xF0) //entree
-            {
-                i = i + 33;
-                for(a=0; a<10; a++)
-                {
-                    str = str + juce::String::charToString(data[i+a]);
- //               str = str + String(data[i+a]+0x30);
-                
-                }
-                arrayListVoices.add(str);
-                str.clear();
-               
-            }
-            ++i;
-        }
-        }
+            BankFiles[sourceListBox.getSelectedRow()].loadFileAsData(mb);
+            // Extraction des noms de voix (logique pure et testée, cf. SysexUtils.h / Tests.h)
+            arrayListVoices.addArray (SyVoice::extractVoiceNames ((const uint8*) mb.getData(), mb.getSize()));
         }
         sendChangeMessage();
         }

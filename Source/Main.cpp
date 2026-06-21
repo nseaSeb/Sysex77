@@ -8,6 +8,7 @@
 
 #include "../JuceLibraryCode/JuceHeader.h"
 #include "MidiDemo.h"
+#include "Tests.h"
 inline File getExamplesDirectory() noexcept
 {
 #ifdef PIP_JUCE_EXAMPLES_DIRECTORY
@@ -146,14 +147,42 @@ public:
     const String getApplicationName() override       { return "MidiDemo"; }
     const String getApplicationVersion() override    { return "1.0.0"; }
 
-    void initialise (const String&) override         {
+    void initialise (const String& commandLine) override
+    {
+        if (commandLine.contains ("--test"))
+        {
+            runUnitTestsAndQuit();
+            return;
+        }
+
         mainWindow.reset (new MainWindow ("MidiDemo", new MidiDemo(), *this));
-        
- 
+
+
         auto splash = new SplashScreen ("SYSEX77",ImageFileFormat::loadFrom(BinaryData::SY77_YAMAHA_png, (size_t) BinaryData::SY77_YAMAHA_pngSize),true);
 
         splash->deleteAfterDelay (RelativeTime::seconds (4), true);
 
+    }
+
+    void runUnitTestsAndQuit()
+    {
+        UnitTestRunner runner;
+        runner.setAssertOnFailure (false);
+        runner.runAllTests();
+
+        int failures = 0, total = 0;
+        for (int i = 0; i < runner.getNumResults(); ++i)
+        {
+            auto* r = runner.getResult (i);
+            failures += r->failures;
+            total    += r->passes + r->failures;
+        }
+
+        std::printf ("\n=== UnitTests: %d/%d assertions passed, %d failure(s) ===\n",
+                     total - failures, total, failures);
+        std::fflush (stdout);
+        setApplicationReturnValue (failures > 0 ? 1 : 0);
+        quit();
     }
     void myInitialisationWorkFinished()
     {
