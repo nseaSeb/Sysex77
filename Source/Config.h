@@ -53,8 +53,8 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
 
         addAndMakeVisible(labTheme);
         addAndMakeVisible(comboTheme);
-        comboTheme.addItem(TRANS("Modern"), 1);
-        comboTheme.addItem(TRANS("Atari Vintage"), 2);
+        comboTheme.addItem(TRANS("Dark"), 1);
+        comboTheme.addItem(TRANS("Light"), 2);
         comboTheme.setSelectedId(1, dontSendNotification);
         comboTheme.addListener(this);
 

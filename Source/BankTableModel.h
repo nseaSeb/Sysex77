@@ -241,7 +241,7 @@ struct SourceItemListboxContents  : public ListBoxModel, public ChangeBroadcaste
                     
                 g.fillAll (SYColAlt);
                 }
-                g.setColour (LookAndFeel::getDefaultLookAndFeel().findColour (Label::textColourId));
+                g.setColour (rowIsSelected ? SYColSelected.contrasting() : SYColLabel);
                 g.setFont (height * 0.7f);
                   
               //    auto text = arrayBank[rowNumber] ;

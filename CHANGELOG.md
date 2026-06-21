@@ -14,27 +14,28 @@ et le projet suit un versionnage de type [SemVer](https://semver.org/lang/fr/).
 - **Thème déterministe** : le thème pilote désormais entièrement la palette.
   `setState()` ne relit plus une ancienne section COLOR personnalisée (qui
   pouvait écraser le préréglage et donner un rendu « mélangé », p.ex. accents
-  orange en thème Atari) — il lit le thème et applique son préréglage.
+  orange en thème Light) — il lit le thème et applique son préréglage.
 - **Fond des onglets suit le thème** : la couleur de fond des onglets était
   capturée à la construction (avant le chargement du thème), d'où un fond
   bleu-gris foncé persistant. Elle est maintenant alignée sur `SYColBackground`
   au démarrage et mise à jour en direct au changement de thème.
 
 ### Ajouté / Added
-- **LookAndFeel « Atari GEM » dédié** (`AtariLookAndFeel`) activé quand le thème
-  Atari est choisi : rendu **plat, anguleux et monochrome** — boutons
-  rectangulaires à bord noir (inversés si actifs), combos et cadres carrés,
-  potards plats. Sélection automatique du LookAndFeel selon le thème
-  (`selectSyLookAndFeel`), restauré au démarrage. Boutons rouges (`orangered`,
-  ex. sélecteur VOICE/MULTI/SEQ) routés vers l'accent du thème ; fond des listes
-  adouci pour limiter l'effet « damier » de la Librairie.
-  Onglets plats GEM (`drawTabButton` : rectangle plein, bord noir, actif inversé)
-  pour les barres Setting/Librairie/Voice et Common/Filter 1/Filter 2. En-têtes de
-  colonnes de la Librairie : texte rendu lisible (`SYColLabel.contrasting()`) au
-  lieu d'un texte sombre invisible sur barre noire.
-- **Thème d'interface Moderne / Atari Vintage** : sélecteur dans l'onglet
-  Setting (combo « Theme »). « Modern » = fond sombre + accent orange ;
-  « Atari Vintage » = look monochrome gris GEM (fond gris ST, encre noire).
+- **Logo vectoriel** : le logo « SYSEX 77/99 » est maintenant dessiné en texte
+  (vecteur) qui suit l'accent du thème, au lieu d'une image PNG orange figée.
+- **LookAndFeel plat dédié** (`FlatLookAndFeel`) activé par le thème Light :
+  rendu **plat, anguleux et monochrome** — boutons rectangulaires à bord noir
+  (inversés si actifs), combos et cadres carrés, potards plats. Sélection
+  automatique du LookAndFeel selon le thème (`selectSyLookAndFeel`), restauré au
+  démarrage. Boutons rouges (`orangered`, ex. sélecteur VOICE/MULTI/SEQ) routés
+  vers l'accent du thème ; fond des listes adouci. Onglets plats
+  (`drawTabButton` : rectangle plein, bord noir, actif inversé) pour les barres
+  Setting/Librairie/Voice et Common/Filter 1/Filter 2. En-têtes de colonnes de
+  la Librairie et **texte de la ligne sélectionnée** rendus lisibles
+  (`contrasting()`) au lieu d'un texte invisible (pavé noir).
+- **Thèmes d'interface Dark / Light** : sélecteur dans l'onglet Setting
+  (combo « Theme »). « Dark » = fond sombre + accent orange ; « Light » = look
+  monochrome clair, plat (fond gris, encre noire).
   Le choix est persisté (SYSEX77.xml) et pilote toutes les couleurs globales
   (`applySyTheme` dans `LookAndFeel.h`) : fond, sliders, et tracés EG/filtre
   qui suivent désormais l'accent `SYColSelected` et le fond `SYColBackground`.

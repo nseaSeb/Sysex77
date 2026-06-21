@@ -64,7 +64,7 @@ private:
                     g.fillAll (SYColAlt);
                     
                     
-                    g.setColour (LookAndFeel::getDefaultLookAndFeel().findColour (Label::textColourId));
+                    g.setColour (rowIsSelected ? SYColSelected.contrasting() : SYColLabel);
                     g.setFont (height * 0.7f);
                     if(arrayListVoices[rowNumber].isNotEmpty())
                     g.drawFittedText(arrayListVoices[rowNumber], 0, 0, width, height, Justification::centred, 1);
@@ -268,7 +268,7 @@ private:
                     g.fillAll (SYColAlt);
                     
                     
-                    g.setColour (LookAndFeel::getDefaultLookAndFeel().findColour (Label::textColourId));
+                    g.setColour (rowIsSelected ? SYColSelected.contrasting() : SYColLabel);
                     g.setFont (height * 0.7f);
                     
                     //    auto text = arrayBank[rowNumber] ;
@@ -418,7 +418,7 @@ private:
                     g.fillAll (SYColAlt);
                     
                     
-                    g.setColour (LookAndFeel::getDefaultLookAndFeel().findColour (Label::textColourId));
+                    g.setColour (rowIsSelected ? SYColSelected.contrasting() : SYColLabel);
                     g.setFont (height * 0.7f);
                     
                     //    auto text = arrayBank[rowNumber] ;
@@ -568,7 +568,7 @@ private:
                     g.fillAll (SYColAlt);
                     
                     
-                    g.setColour (LookAndFeel::getDefaultLookAndFeel().findColour (Label::textColourId));
+                    g.setColour (rowIsSelected ? SYColSelected.contrasting() : SYColLabel);
                     g.setFont (height * 0.7f);
                     
                     //    auto text = arrayBank[rowNumber] ;

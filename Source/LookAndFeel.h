@@ -16,7 +16,7 @@ static Colour   SYColAlt      { Colour (0xff202020) };
 static Colour   SYColLabel    { Colours::grey };
 static Colour   SYColSelected { Colours::darkorange };
 
-// Thème de l'interface : 0 = Moderne (sombre/orange), 1 = Atari vintage (GEM mono)
+// Thème de l interface : 0 = Dark (sombre, accent orange), 1 = Light (clair, monochrome, plat)
 static int SYTheme = 0;
 
 // Choisit le LookAndFeel selon SYTheme (défini en fin de fichier).
@@ -54,14 +54,14 @@ inline void applySyTheme (int theme)
 {
     SYTheme = theme;
 
-    if (theme == 1) // Atari ST / GEM monochrome
+    if (theme == 1) // Light : clair, monochrome (rendu plat)
     {
         SYColBackground = Colour (0xffb9b9b9); // gris « bureau » ST
         SYColAlt        = Colour (0xffe6e6e6);
         SYColLabel      = Colours::black;
         SYColSelected   = Colour (0xff1a1a1a); // encre quasi-noire
     }
-    else // Moderne (défaut)
+    else // Dark (défaut)
     {
         SYColBackground = Colours::black;
         SYColAlt        = Colour (0xff202020);
@@ -249,19 +249,19 @@ public:
 };
 
 //==============================================================================
-// LookAndFeel « Atari GEM » : rendu plat, anguleux et monochrome.
-// Activé uniquement quand le thème Atari est sélectionné (voir selectSyLookAndFeel).
-class AtariLookAndFeel : public LookAndFeel_V4
+// LookAndFeel plat : rendu anguleux et monochrome (thème Light).
+// Activé uniquement par le thème Light (voir selectSyLookAndFeel).
+class FlatLookAndFeel : public LookAndFeel_V4
 {
 public:
-    AtariLookAndFeel()
+    FlatLookAndFeel()
     {
         setColour (ResizableWindow::backgroundColourId, SYColBackground);
         setColour (PopupMenu::backgroundColourId,       SYColAlt);
         setColour (PopupMenu::textColourId,             SYColLabel);
     }
 
-    // Boutons : rectangle plein + bord noir, inversé si actif (style GEM).
+    // Boutons : rectangle plein + bord noir, inversé si actif (style plat).
     void drawButtonBackground (Graphics& g, Button& b, const Colour&,
                                bool isOver, bool isDown) override
     {
@@ -297,7 +297,7 @@ public:
         g.setColour (SYColLabel);  g.fillPath (p);
     }
 
-    // Cadres carrés (pas d'arrondi) comme les boîtes GEM.
+    // Cadres carrés (pas d'arrondi) anguleux.
     void drawGroupComponentOutline (Graphics& g, int w, int h, const String& text,
                                     const Justification&, GroupComponent&) override
     {
@@ -353,9 +353,9 @@ public:
 // Choisit/active le LookAndFeel selon le thème courant, puis applique les couleurs.
 inline void selectSyLookAndFeel()
 {
-    static AtariLookAndFeel atariLF;
+    static FlatLookAndFeel flatLF;
     static LookAndFeel* baseLF = &LookAndFeel::getDefaultLookAndFeel();
 
-    LookAndFeel::setDefaultLookAndFeel (SYTheme == 1 ? (LookAndFeel*) &atariLF : baseLF);
+    LookAndFeel::setDefaultLookAndFeel (SYTheme == 1 ? (LookAndFeel*) &flatLF : baseLF);
     syncSyLookAndFeel();
 }

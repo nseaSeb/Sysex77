@@ -430,7 +430,13 @@ public:
     {
         //Logger::writeToLog ("MidiDemo Paint");
         g.fillAll (SYColBackground);
-        g.drawImageAt(imgBack,getLocalBounds().getWidth() - imgBack.getWidth() - 20, 10);
+
+        // Logo vectoriel « SYSEX 77/99 » (texte, suit le thème)
+        auto logoText = (SYModel == 3 ? String ("SYSEX 99") : String ("SYSEX 77"));
+        Rectangle<int> logoBox (getWidth() - 250, 6, 230, 46);
+        g.setColour (SYColSelected);
+        g.setFont (Font (FontOptions (34.0f, Font::bold)));
+        g.drawText (logoText, logoBox, Justification::centredRight, false);
         
         
     }
