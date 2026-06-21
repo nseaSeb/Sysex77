@@ -281,7 +281,7 @@ struct SourceItemListboxContents  : public ListBoxModel, public ChangeBroadcaste
         {
             g.setColour(SYColLabel);
             g.fillAll();
-            g.setColour (findColour (Label::textColourId));
+            g.setColour (SYColLabel.contrasting());
             g.setFont(16.0f);
             g.drawFittedText (TRANS("Librairie"), getLocalBounds().reduced (20, 0), Justification::centred, 1);
         }

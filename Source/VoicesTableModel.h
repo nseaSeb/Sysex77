@@ -98,7 +98,7 @@ private:
         {
             g.setColour(SYColLabel);
             g.fillAll();
-            g.setColour (findColour (Label::textColourId));
+            g.setColour (SYColLabel.contrasting());
             g.drawFittedText (TRANS("Bank A"), getLocalBounds().reduced (20, 0), Justification::centred, 1);
         }
         
@@ -308,7 +308,7 @@ private:
         {
             g.setColour(SYColLabel);
             g.fillAll();
-            g.setColour (findColour (Label::textColourId));
+            g.setColour (SYColLabel.contrasting());
             g.drawFittedText (TRANS("Bank B"), getLocalBounds().reduced (20, 0), Justification::centred, 1);
         }
         
@@ -459,7 +459,7 @@ private:
         {
             g.setColour(SYColLabel);
             g.fillAll();
-            g.setColour (findColour (Label::textColourId));
+            g.setColour (SYColLabel.contrasting());
             g.drawFittedText (TRANS("Bank C"), getLocalBounds().reduced (20, 0), Justification::centred, 1);
         }
         
@@ -609,7 +609,7 @@ private:
         {
             g.setColour(SYColLabel);
             g.fillAll();
-            g.setColour (findColour (Label::textColourId));
+            g.setColour (SYColLabel.contrasting());
             
             g.drawFittedText (TRANS("Bank D"), getLocalBounds().reduced (20, 0), Justification::centred, 1);
         }

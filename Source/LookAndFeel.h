@@ -327,6 +327,27 @@ public:
         p.applyTransform (AffineTransform::rotation (ang).translated (cx, cy));
         g.setColour (SYColLabel);  g.fillPath (p);
     }
+
+    // Onglets plats : rectangle plein, bord noir, inversé pour l'onglet actif.
+    void drawTabButton (TabBarButton& button, Graphics& g,
+                        bool isOver, bool /*isDown*/) override
+    {
+        auto area = button.getActiveArea();
+        const bool front = button.isFrontTab();
+
+        g.setColour (front ? SYColSelected : (isOver ? SYColAlt.darker (0.08f) : SYColAlt));
+        g.fillRect (area);
+        g.setColour (SYColLabel);
+        g.drawRect (area, 1);
+
+        g.setColour (front ? SYColAlt : SYColLabel);
+        g.setFont (Font (FontOptions (14.0f)));
+        g.drawFittedText (button.getButtonText().trim(), area.reduced (6, 0),
+                          Justification::centred, 1);
+    }
+
+    // Pas de séparation/ombre derrière l'onglet actif (rendu plat).
+    void drawTabAreaBehindFrontButton (TabbedButtonBar&, Graphics&, int, int) override {}
 };
 
 // Choisit/active le LookAndFeel selon le thème courant, puis applique les couleurs.

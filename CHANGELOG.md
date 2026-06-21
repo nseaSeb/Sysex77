@@ -18,6 +18,10 @@ et le projet suit un versionnage de type [SemVer](https://semver.org/lang/fr/).
   (`selectSyLookAndFeel`), restauré au démarrage. Boutons rouges (`orangered`,
   ex. sélecteur VOICE/MULTI/SEQ) routés vers l'accent du thème ; fond des listes
   adouci pour limiter l'effet « damier » de la Librairie.
+  Onglets plats GEM (`drawTabButton` : rectangle plein, bord noir, actif inversé)
+  pour les barres Setting/Librairie/Voice et Common/Filter 1/Filter 2. En-têtes de
+  colonnes de la Librairie : texte rendu lisible (`SYColLabel.contrasting()`) au
+  lieu d'un texte sombre invisible sur barre noire.
 - **Thème d'interface Moderne / Atari Vintage** : sélecteur dans l'onglet
   Setting (combo « Theme »). « Modern » = fond sombre + accent orange ;
   « Atari Vintage » = look monochrome gris GEM (fond gris ST, encre noire).
