@@ -11,6 +11,11 @@ et le projet suit un versionnage de type [SemVer](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Ajouté / Added
+- **Valeurs numériques sur les courbes** : niveaux affichés à chaque nœud de
+  l'enveloppe ; mode/coupure (FQ)/résonance affichés sur la réponse du filtre.
+- **Look unifié « écran »** : les tracés EG et filtre sont dessinés sur un
+  panneau arrondi sombre avec liseré, pour une présentation cohérente
+  (`SyDraw::drawPanel`).
 - **Tracé graphique des enveloppes (EG)** dans les vues Filter 1/2, Wave et
   Pitch : la courbe est dessinée à partir des niveaux (L0–L4, RL1/RL2) et des
   rates (R1–R4, RR1/RR2), avec grille, remplissage dégradé et points de nœuds.

@@ -212,8 +212,13 @@ public:
         float cutoff = (float) sliderFq1.getValue() / 127.0f;
         float reso   = (float) sliderResonnance.getValue() / 127.0f;
 
+        auto modeName = mode == SyDraw::LPF ? "LPF" : (mode == SyDraw::HPF ? "HPF" : "Thru");
+        String caption = String ("Filtre 1  ") + modeName
+                       + "   FQ "  + String (roundToInt (sliderFq1.getValue()))
+                       + "   Res " + String (roundToInt (sliderResonnance.getValue()));
+
         SyDraw::drawFilterResponse (g, filterArea, mode, cutoff, reso,
-                                    Colours::darkorange, "Filtre 1");
+                                    Colours::darkorange, caption);
         
     }
     void buttonClicked (Button* button) override

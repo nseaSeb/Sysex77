@@ -13,9 +13,19 @@
 
 #pragma once
 
+// SyDraw : helpers de dessin partagés (enveloppes, réponse de filtre, panneaux).
 namespace SyDraw
 {
     //==============================================================================
+    /** Fond « écran » commun (panneau arrondi sombre + liseré coloré). */
+    inline void drawPanel (juce::Graphics& g, juce::Rectangle<float> area, juce::Colour accent)
+    {
+        g.setColour (juce::Colour (0xff0c0c0c));
+        g.fillRoundedRectangle (area, 6.0f);
+        g.setColour (accent.withAlpha (0.35f));
+        g.drawRoundedRectangle (area, 6.0f, 1.2f);
+    }
+
     /** Dessine une grille légère dans `area`. */
     inline void drawGrid (juce::Graphics& g, juce::Rectangle<float> area, juce::Colour colour)
     {
@@ -44,8 +54,10 @@ namespace SyDraw
                               const juce::Array<float>& levels,
                               const juce::Array<float>& segWeights,
                               float maxLevel, juce::Colour colour,
-                              const juce::String& caption = {})
+                              const juce::String& caption = {},
+                              bool showValues = true)
     {
+        drawPanel (g, area, colour);
         drawGrid (g, area, colour);
 
         if (levels.size() < 2 || segWeights.size() != levels.size() - 1 || maxLevel <= 0.0f)
@@ -91,13 +103,25 @@ namespace SyDraw
         g.strokePath (curve, juce::PathStrokeType (2.0f, juce::PathStrokeType::curved,
                                                    juce::PathStrokeType::rounded));
 
-        // points (noeuds)
-        for (auto& n : nodes)
+        // points (noeuds) + valeurs
+        g.setFont (juce::Font (juce::FontOptions (10.0f)));
+        for (int i = 0; i < nodes.size(); ++i)
         {
+            auto n = nodes[i];
             g.setColour (colour);
             g.fillEllipse (n.x - 2.5f, n.y - 2.5f, 5.0f, 5.0f);
             g.setColour (juce::Colours::white.withAlpha (0.6f));
             g.drawEllipse (n.x - 2.5f, n.y - 2.5f, 5.0f, 5.0f, 1.0f);
+
+            if (showValues)
+            {
+                g.setColour (juce::Colours::white.withAlpha (0.75f));
+                // au-dessus du noeud, sauf s'il touche le haut -> en dessous
+                float ty = (n.y - 16.0f < area.getY()) ? n.y + 4.0f : n.y - 15.0f;
+                g.drawText (juce::String (juce::roundToInt (levels[i])),
+                            juce::Rectangle<float> (n.x - 14.0f, ty, 28.0f, 12.0f).toNearestInt(),
+                            juce::Justification::centred, false);
+            }
         }
 
         if (caption.isNotEmpty())
@@ -120,6 +144,7 @@ namespace SyDraw
                                     int mode, float cutoff01, float reso01,
                                     juce::Colour colour, const juce::String& caption = {})
     {
+        drawPanel (g, area, colour);
         drawGrid (g, area, colour);
 
         auto fc   = juce::jlimit (0.02f, 0.98f, cutoff01);
