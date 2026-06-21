@@ -10,7 +10,10 @@
 
 #pragma once
 
-class CommonFilter    : public ElementComponent, public TextButton::Listener
+#include "EnvelopeDraw.h"
+
+class CommonFilter    : public ElementComponent, public TextButton::Listener,
+                        public Slider::Listener, public Value::Listener
 {
 public:
     CommonFilter()
@@ -90,13 +93,20 @@ public:
         addAndMakeVisible(labelFq2);
         labelFq2.setJustificationType(Justification::centred);
         labelFq2.attachToComponent(&sliderFq2, false);
-        
+
+        // mise à jour live du tracé du filtre
+        sliderFq1.addListener (this);
+        sliderFq2.addListener (this);
+        sliderResonnance.addListener (this);
+        radioFilter1Mode.getValueObject().addListener (this);
     }
-    
+
     ~CommonFilter()
     {
-        
+
     }
+    void sliderValueChanged (Slider*) override { repaint(); }
+    void valueChanged (Value&) override        { repaint(); }
     void setElementNumber ( int element, UndoManager& um) override
     {
         Logger::writeToLog("Common Filter set element number");
@@ -194,9 +204,16 @@ public:
          */
         
         g.fillAll (getLookAndFeel().findColour (ResizableWindow::backgroundColourId));   // clear the background
-        g.setColour(Colours::darkorange);
-        
-        g.drawText("A faire ici: dessin du filtre", 0, getHeight()/2, getWidth(), 20, Justification::centred);
+        auto bounds = getLocalBounds().toFloat();
+        juce::Rectangle<float> filterArea (bounds.getWidth() * 0.03f, bounds.getHeight() * 0.05f,
+                                           bounds.getWidth() * 0.94f, bounds.getHeight() * 0.62f);
+
+        int   mode   = radioFilter1Mode.getValue();              // 0 Thru, 1 LPF, 2 HPF
+        float cutoff = (float) sliderFq1.getValue() / 127.0f;
+        float reso   = (float) sliderResonnance.getValue() / 127.0f;
+
+        SyDraw::drawFilterResponse (g, filterArea, mode, cutoff, reso,
+                                    Colours::darkorange, "Filtre 1");
         
     }
     void buttonClicked (Button* button) override

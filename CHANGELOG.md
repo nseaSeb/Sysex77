@@ -11,6 +11,16 @@ et le projet suit un versionnage de type [SemVer](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Ajouté / Added
+- **Tracé graphique des enveloppes (EG)** dans les vues Filter 1/2, Wave et
+  Pitch : la courbe est dessinée à partir des niveaux (L0–L4, RL1/RL2) et des
+  rates (R1–R4, RR1/RR2), avec grille, remplissage dégradé et points de nœuds.
+  Mise à jour **en direct** lors du déplacement des sliders. Remplace les
+  placeholders « A faire ajouter ADSR graphique ».
+  Nouveau helper réutilisable `Source/EnvelopeDraw.h` (`SyDraw::drawEnvelope`).
+- **Tracé de la réponse du filtre** dans la vue Common Filter (Thru / LPF / HPF)
+  selon la coupure (FQ1) et la résonance, avec repère de coupure. Mise à jour en
+  direct. Remplace le placeholder « A faire ici: dessin du filtre »
+  (`SyDraw::drawFilterResponse`).
 - Build **universelle macOS** (arm64 + x86_64) : fonctionne sur Mac Apple Silicon
   ET Intel. Configuré durablement dans `Sysex77.jucer` (Release :
   `ARCHS=x86_64 arm64`, `ONLY_ACTIVE_ARCH=NO`).

@@ -57,6 +57,7 @@
       </GROUP>
       <GROUP id="{A1503F57-A007-ACD6-9D4E-FBF1E3798AF2}" name="OwnClass">
         <FILE id="TN4gXo" name="LookAndFeel.h" compile="0" resource="0" file="Source/LookAndFeel.h"/>
+        <FILE id="EnvDr1" name="EnvelopeDraw.h" compile="0" resource="0" file="Source/EnvelopeDraw.h"/>
         <FILE id="nRtVwq" name="MidiObjects.h" compile="0" resource="0" file="Source/MidiObjects.h"/>
         <FILE id="jrsubs" name="ADSR.h" compile="0" resource="0" file="Source/ADSR.h"/>
         <FILE id="Fv5G3Q" name="Hook.h" compile="0" resource="0" file="Source/Hook.h"/>

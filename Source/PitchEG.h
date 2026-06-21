@@ -10,6 +10,8 @@
 
 #pragma once
 
+#include "EnvelopeDraw.h"
+
 class PitchEg    : public ElementComponent, public TextButton::Listener, Slider::Listener
 {
 public:
@@ -30,7 +32,11 @@ public:
         addAndMakeVisible(sliderSlope);
         sliderSlope.setSliderStyle(Slider::SliderStyle::LinearHorizontal);
         sliderSlope.addListener(this);
-        
+        for (auto* s : { &sliderL0, &sliderL1, &sliderL2, &sliderL3, &sliderL4,
+                         &sliderR1, &sliderR2, &sliderR3, &sliderR4,
+                         &sliderRL1, &sliderRL2, &sliderRR1, &sliderRR2 })
+            s->addListener (this);
+
         addAndMakeVisible(sliderL0);
         addAndMakeVisible(sliderL1);
         addAndMakeVisible(sliderL2);
@@ -85,6 +91,7 @@ public:
         
         if(slider == &sliderSlope)
             resized();
+        repaint();
     }
     void setElementNumber ( int element, UndoManager& um) override
     {
@@ -229,8 +236,21 @@ public:
          */
         
         g.fillAll (getLookAndFeel().findColour (ResizableWindow::backgroundColourId));   // clear the background
-        g.setColour(Colours::darkorange);
-        g.drawText("A faire ajouter ADSR graphique et cutoff Scaling", 0, getHeight()/2, getWidth()/2, 20, Justification::centred);
+        auto bounds = getLocalBounds().toFloat();
+        juce::Rectangle<float> egArea (bounds.getWidth() * 0.03f, bounds.getHeight() * 0.05f,
+                                       bounds.getWidth() * 0.58f, bounds.getHeight() * 0.74f);
+
+        juce::Array<float> egLevels { (float) sliderL0.getValue(), (float) sliderL1.getValue(),
+                                      (float) sliderL2.getValue(), (float) sliderL3.getValue(),
+                                      (float) sliderL4.getValue(), (float) sliderRL1.getValue(),
+                                      (float) sliderRL2.getValue() };
+
+        auto rateWeight = [] (double rate) { return (float) (66.0 - rate); };
+        juce::Array<float> egWeights { rateWeight (sliderR1.getValue()), rateWeight (sliderR2.getValue()),
+                                       rateWeight (sliderR3.getValue()), rateWeight (sliderR4.getValue()),
+                                       rateWeight (sliderRR1.getValue()), rateWeight (sliderRR2.getValue()) };
+
+        SyDraw::drawEnvelope (g, egArea, egLevels, egWeights, 64.0f, Colours::darkorange, "Pitch EG");
         
     }
     void buttonClicked (Button* button) override

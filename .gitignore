@@ -5,3 +5,6 @@
 
 # macOS
 .DS_Store
+
+# Documentation de référence (ne pas committer)
+/docs/
