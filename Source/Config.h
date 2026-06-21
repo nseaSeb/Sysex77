@@ -156,10 +156,8 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
         btColLab.setColour(TextButton::buttonColourId, SYColLabel);
         btColSel.setColour(TextButton::buttonColourId, SYColSelected);
 
-        // synchronise le fond de fenêtre avec le thème/couleurs courants
-        auto& lf = LookAndFeel::getDefaultLookAndFeel();
-        lf.setColour (ResizableWindow::backgroundColourId, SYColBackground);
-        lf.setColour (DocumentWindow::backgroundColourId,  SYColBackground);
+        // synchronise le LookAndFeel avec le thème/couleurs courants
+        syncSyLookAndFeel();
     }
     void 	comboBoxChanged (ComboBox *comboBoxThatHasChanged) override
     {

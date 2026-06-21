@@ -524,7 +524,7 @@ void setNombreElements (int nombre)
         slider.setPopupDisplayEnabled(true, true, this);
         slider.setPopupDisplayEnabled(true, true, this);
         slider.setColour(Slider::ColourIds::thumbColourId, Colours::red);
-        slider.setColour(Slider::ColourIds::trackColourId, Colours::darkorange);
+        slider.setColour(Slider::ColourIds::trackColourId, SYColSelected);
         slider.setRange(0, 127);
         slider.setNumDecimalPlacesToDisplay(0);
         slider.addListener(this);
@@ -532,14 +532,14 @@ void setNombreElements (int nombre)
     void addButtonState (TextButton& bt)
     {
         addAndMakeVisible(bt);
-        bt.setColour(TextButton::ColourIds::buttonOnColourId, Colours::darkorange);
+        bt.setColour(TextButton::ColourIds::buttonOnColourId, SYColSelected);
         bt.setClickingTogglesState(true);
         bt.addListener(this);
     }
     void addLabelStyle (Label& label)
     {
         label.setJustificationType(Justification::centredBottom);
-        label.setColour(Label::ColourIds::textColourId, Colours::darkorange);
+        label.setColour(Label::ColourIds::textColourId, SYColSelected);
         addAndMakeVisible (label);
     }
 

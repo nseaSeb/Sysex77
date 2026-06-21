@@ -246,7 +246,7 @@ public:
         
         addAndMakeVisible(btBulk);
         btBulk.setClickingTogglesState(true);
-        btBulk.setColour(TextButton::ColourIds::buttonOnColourId, Colours::darkorange);
+        btBulk.setColour(TextButton::ColourIds::buttonOnColourId, SYColSelected);
         btBulk.addListener(this);
         
         midiKeyboard.setName ("MIDI Keyboard");

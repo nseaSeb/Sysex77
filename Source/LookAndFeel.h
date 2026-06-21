@@ -10,14 +10,38 @@
 
 #pragma once
 #include "../JuceLibraryCode/JuceHeader.h"
-static Colour SYColBackground;
-static Colour   SYColAlt;
+static Colour SYColBackground { Colours::black };
+static Colour   SYColAlt      { Colour (0xff202020) };
 //static Colour   SYColText;
-static Colour   SYColLabel;
-static Colour   SYColSelected;
+static Colour   SYColLabel    { Colours::grey };
+static Colour   SYColSelected { Colours::darkorange };
 
 // Thème de l'interface : 0 = Moderne (sombre/orange), 1 = Atari vintage (GEM mono)
 static int SYTheme = 0;
+
+// Applique les couleurs globales courantes (SYCol*) au LookAndFeel par défaut.
+// Ces couleurs sont lues au moment du paint -> un repaint suffit pour les voir.
+inline void syncSyLookAndFeel()
+{
+    auto& lf = LookAndFeel::getDefaultLookAndFeel();
+    auto  ink = SYColBackground.contrasting(); // texte lisible sur le fond
+
+    lf.setColour (ResizableWindow::backgroundColourId, SYColBackground);
+    lf.setColour (DocumentWindow::backgroundColourId,  SYColBackground);
+
+    lf.setColour (Label::textColourId,             ink);
+    lf.setColour (GroupComponent::textColourId,    ink);
+    lf.setColour (GroupComponent::outlineColourId, ink.withAlpha (0.5f));
+
+    lf.setColour (TextButton::buttonColourId,      SYColAlt);
+    lf.setColour (TextButton::textColourOffId,     ink);
+    lf.setColour (TextButton::textColourOnId,      SYColBackground);
+
+    lf.setColour (ComboBox::backgroundColourId,    SYColAlt);
+    lf.setColour (ComboBox::textColourId,          ink);
+    lf.setColour (ComboBox::arrowColourId,         ink);
+    lf.setColour (ComboBox::outlineColourId,       ink.withAlpha (0.4f));
+}
 
 inline void applySyTheme (int theme)
 {
@@ -38,9 +62,7 @@ inline void applySyTheme (int theme)
         SYColSelected   = Colours::darkorange;
     }
 
-    auto& lf = LookAndFeel::getDefaultLookAndFeel();
-    lf.setColour (ResizableWindow::backgroundColourId, SYColBackground);
-    lf.setColour (DocumentWindow::backgroundColourId,  SYColBackground);
+    syncSyLookAndFeel();
 }
 
 
@@ -144,7 +166,7 @@ public:
         p.addRectangle(-pointerThickness * 0.5f, -radius - 1, pointerThickness, dotradius);
         
         p.applyTransform(AffineTransform::rotation(angle).translated(centreX, centreY));
-        g.setColour(Colour(0xffffffff));
+        g.setColour(SYColBackground.contrasting());
         g.fillPath(p);
         
         
@@ -210,7 +232,7 @@ public:
         p.addRectangle(-pointerThickness * 0.5f, -radius - 1, pointerThickness, dotradius);
         
         p.applyTransform(AffineTransform::rotation(angle).translated(centreX, centreY));
-        g.setColour(Colour(0xffffffff));
+        g.setColour(SYColBackground.contrasting());
         g.fillPath(p);
         
         

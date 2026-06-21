@@ -32,7 +32,7 @@ public:
         addAndMakeVisible(groupTitre);
         addAndMakeVisible(btFixed);
         btFixed.setClickingTogglesState(true);
-        btFixed.setColour(TextButton::ColourIds::buttonOnColourId, Colours::darkorange);
+        btFixed.setColour(TextButton::ColourIds::buttonOnColourId, SYColSelected);
         addAndMakeVisible(sliderFine);
         valuePitch.addListener(this);
         

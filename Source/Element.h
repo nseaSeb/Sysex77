@@ -30,7 +30,7 @@ public:
     {
      
         addAndMakeSlider(sliderVolume);
-        sliderVolume.setColour(Slider::ColourIds::thumbColourId, Colours::darkorange);
+        sliderVolume.setColour(Slider::ColourIds::thumbColourId, SYColSelected);
         sliderVolume.setRange(0, 100);
         sliderVolume.setPopupDisplayEnabled(true, true, this);
         sliderVolume.setNumDecimalPlacesToDisplay(0);
@@ -284,7 +284,7 @@ public:
                 SyDraw::drawFilterResponse (g, fb, fMode, fCut, fRes, SYColSelected);
         }
 
-        g.setColour (Colour(0xffffffff));
+        g.setColour (SYColBackground.contrasting());
         g.addTransform(AffineTransform::rotation(fAngle));
         String str = "OP" + String(operatorID) + " ";
         if(operatorMode == 1)
@@ -372,7 +372,7 @@ private:
     Image imgVCA;
     Pitch pitch;
     ImageButton btWave;
-    ImageButton btFilter; //{"Filter",Colours::darkorange,Colours::white,Colours::orange };
+    ImageButton btFilter; //{"Filter",SYColSelected,Colours::white,Colours::orange };
     ImageButton btVCA;
 //    Slider sliderPitch {Slider::SliderStyle::Rotary , Slider::NoTextBox};
  //   Slider sliderFine {Slider::SliderStyle::LinearBar,Slider::NoTextBox};

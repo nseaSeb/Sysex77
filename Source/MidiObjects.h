@@ -84,7 +84,7 @@ public:
         // In your constructor, you should add any child components, and
         // initialise any special settings that your component needs.
         
-        setColour(Slider::ColourIds::thumbColourId, Colours::darkorange);
+        setColour(Slider::ColourIds::thumbColourId, SYColSelected);
         setPopupDisplayEnabled(true, true, this);
         setSliderStyle(SliderStyle::LinearVertical);
         setTextBoxStyle(TextEntryBoxPosition::NoTextBox, false, getWidth(), 20);
@@ -254,7 +254,7 @@ public:
         // In your constructor, you should add any child components, and
         // initialise any special settings that your component needs.
         
-        setColour(TextButton::ColourIds::buttonOnColourId, Colours::darkorange);
+        setColour(TextButton::ColourIds::buttonOnColourId, SYColSelected);
         setClickingTogglesState(true);
         TextButton::addListener(this);
         valueSysexIn.addListener(this); //Listen to the sysex in
@@ -392,7 +392,7 @@ void addRadio(String text, int radioId)
     {
         auto bt = new TextButton;
         bt->setButtonText(text);
-        bt->setColour(TextButton::ColourIds::buttonOnColourId, Colours::darkorange);
+        bt->setColour(TextButton::ColourIds::buttonOnColourId, SYColSelected);
         bt->setClickingTogglesState(radioId);
         bt->addListener(this);
         bt->setRadioGroupId(radioId);
@@ -597,7 +597,7 @@ public:
             }
             else
             {
-                g.setColour(Colours::darkorange);
+                g.setColour(SYColSelected);
                 g.fillRect(i * fgrid, fY , fgrid, fHeight);
                 g.setColour(Colours::black);
                 
@@ -654,7 +654,7 @@ public:
     void paint (Graphics& g) override
     {
         // Draw a sample path
-        g.setColour (Colours::darkorange);
+        g.setColour (SYColSelected);
         Path myPath;    // create the path
         
         myPath.startNewSubPath (0, getHeight()+2);

@@ -32,7 +32,7 @@ public:
   //      sliderAlgo.setNumDecimalPlacesToDisplay(0);
         sliderAlgo.setPopupDisplayEnabled(true, true, this);
         sliderAlgo.setTextBoxStyle(Slider::NoTextBox, true, 10, 10);
-        sliderAlgo.setColour(Slider::ColourIds::thumbColourId, Colours::darkorange);
+        sliderAlgo.setColour(Slider::ColourIds::thumbColourId, SYColSelected);
         sliderAlgo.onValueChange = [this] {setAlgorythm();};
         addAndMakeVisible(labelAlgo);
         labelAlgo.attachToComponent(&sliderAlgo, false);
@@ -95,7 +95,7 @@ public:
         
         g.fillAll (getLookAndFeel().findColour (ResizableWindow::backgroundColourId));   // clear the background
         
-        g.setColour (Colours::darkorange);
+        g.setColour (SYColSelected);
         
      //   g.drawText ("AFM operator a implementer", getLocalBounds(),
       //              Justification::centred, true);   // draw some placeholder text

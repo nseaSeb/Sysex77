@@ -17,6 +17,12 @@ et le projet suit un versionnage de type [SemVer](https://semver.org/lang/fr/).
   Le choix est persisté (SYSEX77.xml) et pilote toutes les couleurs globales
   (`applySyTheme` dans `LookAndFeel.h`) : fond, sliders, et tracés EG/filtre
   qui suivent désormais l'accent `SYColSelected` et le fond `SYColBackground`.
+  Audit des couleurs en dur : tous les accents `Colours::darkorange` des
+  composants (radios, boutons, sliders, labels) passent par `SYColSelected` ;
+  `syncSyLookAndFeel()` route aussi labels, group boxes, boutons et combos du
+  LookAndFeel par défaut vers le thème (lu au paint). Note : certaines couleurs
+  posées à la construction ne s'actualisent qu'après réouverture de la vue /
+  redémarrage (cohérent avec le changement de modèle SY77/SY99).
 - **Vignette de filtre dans la vue Voice** : l'emplacement Filter de chaque
   élément affiche la réponse du filtre (mode/coupure/résonance) à la place de
   l'icône statique, lue depuis `valueTreeVoice` ; le bouton reste cliquable pour

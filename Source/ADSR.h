@@ -74,7 +74,7 @@ public:
         // draw the mid line
         g.setColour(Colour(0x50808080));
         g.drawLine(0, getHeight()/2, getWidth(), getHeight()/2, 3);
-        g.setColour (Colours::darkorange); //color of envelope
+        g.setColour (SYColSelected); //color of envelope
         Path myPath;    // create the path
         if(boolModeHold)
         {

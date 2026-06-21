@@ -31,9 +31,9 @@ public:
         sliderOut1.setTextBoxStyle(Slider::NoTextBox, true, 10, 10);
         sliderOut1.setRange(0, 127);
         sliderOut1.setNumDecimalPlacesToDisplay(0);
-        sliderOut1.setColour(Slider::ColourIds::trackColourId, Colours::darkorange);
+        sliderOut1.setColour(Slider::ColourIds::trackColourId, SYColSelected);
         sliderOut1.setPopupDisplayEnabled(false, true, this);
-        sliderOut1.setColour(Slider::ColourIds::textBoxOutlineColourId, Colours::darkorange);
+        sliderOut1.setColour(Slider::ColourIds::textBoxOutlineColourId, SYColSelected);
         
         
     }
@@ -49,8 +49,8 @@ public:
         slider.setTextBoxStyle(Slider::NoTextBox, true, 10, 10);
         slider.setRange(0, 7);
         slider.setNumDecimalPlacesToDisplay(0);
-        slider.setColour(Slider::ColourIds::trackColourId, Colours::darkorange);
-        slider.setColour(Slider::ColourIds::textBoxOutlineColourId, Colours::darkorange);
+        slider.setColour(Slider::ColourIds::trackColourId, SYColSelected);
+        slider.setColour(Slider::ColourIds::textBoxOutlineColourId, SYColSelected);
         slider.setPopupDisplayEnabled(false, true, this);
         
     }
@@ -58,7 +58,7 @@ public:
     void paint (Graphics& g) override
     {
         
-        g.setColour ( Colours::darkorange);
+        g.setColour ( SYColSelected);
         g.drawRect(2, 6, getWidth()-4, getHeight()-12);
         g.fillRect(10, getHeight()-8, 3, 6);
         g.fillRect(10, 0, 3, 6);
@@ -121,7 +121,7 @@ public:
 
      
         
-        auto colour = Colours::darkorange;
+        auto colour = SYColSelected;
         g.setColour (colour);
         g.drawRect(0, 0, getWidth(), getHeight());
         float h6 = 0.85f;
