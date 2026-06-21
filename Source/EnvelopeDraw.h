@@ -20,9 +20,9 @@ namespace SyDraw
     /** Fond « écran » commun (panneau arrondi sombre + liseré coloré). */
     inline void drawPanel (juce::Graphics& g, juce::Rectangle<float> area, juce::Colour accent)
     {
-        g.setColour (juce::Colour (0xff0c0c0c));
+        g.setColour (SYColBackground.contrasting (0.10f));
         g.fillRoundedRectangle (area, 6.0f);
-        g.setColour (accent.withAlpha (0.35f));
+        g.setColour (accent.withAlpha (0.40f));
         g.drawRoundedRectangle (area, 6.0f, 1.2f);
     }
 
@@ -110,12 +110,12 @@ namespace SyDraw
             auto n = nodes[i];
             g.setColour (colour);
             g.fillEllipse (n.x - 2.5f, n.y - 2.5f, 5.0f, 5.0f);
-            g.setColour (juce::Colours::white.withAlpha (0.6f));
+            g.setColour (SYColBackground.contrasting (0.5f).withAlpha (0.7f));
             g.drawEllipse (n.x - 2.5f, n.y - 2.5f, 5.0f, 5.0f, 1.0f);
 
             if (showValues)
             {
-                g.setColour (juce::Colours::white.withAlpha (0.75f));
+                g.setColour (SYColBackground.contrasting (0.75f));
                 // au-dessus du noeud, sauf s'il touche le haut -> en dessous
                 float ty = (n.y - 16.0f < area.getY()) ? n.y + 4.0f : n.y - 15.0f;
                 g.drawText (juce::String (juce::roundToInt (levels[i])),

@@ -50,7 +50,14 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
         comboModel.addItem("TG 77", 2);
         comboModel.addItem("SY 99", 3);
         comboModel.addListener(this);
-        
+
+        addAndMakeVisible(labTheme);
+        addAndMakeVisible(comboTheme);
+        comboTheme.addItem(TRANS("Modern"), 1);
+        comboTheme.addItem(TRANS("Atari Vintage"), 2);
+        comboTheme.setSelectedId(1, dontSendNotification);
+        comboTheme.addListener(this);
+
         btColBack.addListener(this);
         btColAlt.addListener(this);
         btColLab.addListener(this);
@@ -90,6 +97,7 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
         xml.addChildElement(xmlColor);
         
         xmlData->setAttribute ("Model", int(comboModel.getSelectedId()));
+        xmlData->setAttribute ("Theme", SYTheme);
         xml.addChildElement(xmlData);
         
         xml.writeTo(appDirPath.getChildFile("SYSEX77.xml"));
@@ -128,6 +136,8 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
                     if (auto* xmlData = tutorialData->getChildByName("DATA"))
                     {
                         // SYModel = xmlData->getIntAttribute("Model");
+                        SYTheme = xmlData->getIntAttribute("Theme", 0);
+                        comboTheme.setSelectedId(SYTheme + 1, dontSendNotification);
                     }
                 }
             }
@@ -145,6 +155,11 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
         btColBack.setColour(TextButton::buttonColourId, SYColBackground);
         btColLab.setColour(TextButton::buttonColourId, SYColLabel);
         btColSel.setColour(TextButton::buttonColourId, SYColSelected);
+
+        // synchronise le fond de fenêtre avec le thème/couleurs courants
+        auto& lf = LookAndFeel::getDefaultLookAndFeel();
+        lf.setColour (ResizableWindow::backgroundColourId, SYColBackground);
+        lf.setColour (DocumentWindow::backgroundColourId,  SYColBackground);
     }
     void 	comboBoxChanged (ComboBox *comboBoxThatHasChanged) override
     {
@@ -155,6 +170,18 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
 
         
         sysexModel = comboModel.getSelectedItemIndex();
+
+        if (comboBoxThatHasChanged == &comboTheme)
+        {
+            applySyTheme (comboTheme.getSelectedItemIndex());
+            btColAlt .setColour (TextButton::buttonColourId, SYColAlt);
+            btColBack.setColour (TextButton::buttonColourId, SYColBackground);
+            btColLab .setColour (TextButton::buttonColourId, SYColLabel);
+            btColSel .setColour (TextButton::buttonColourId, SYColSelected);
+            if (auto* top = getTopLevelComponent())
+                top->repaint();
+        }
+
         getState();
     }
     void buttonClicked (Button* button) override
@@ -235,7 +262,8 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
         comboModel.setBounds(10, 24, getWidth()/2 - 20, 24);
         labEngine.setBounds(getWidth()/2 +10, 24, getWidth()/2 - 20, 24);
         comboEngine.setBounds(getWidth()/2 +10, 58, getWidth()/2 - 20, 24);
-        
+        labTheme.setBounds(getWidth()/2 +10, 92, getWidth()/2 - 20, 20);
+        comboTheme.setBounds(getWidth()/2 +10, 112, getWidth()/2 - 20, 24);
     }
     void initProperties()
     {
@@ -277,7 +305,9 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
     TextButton btColSel {TRANS("Text selected color")};
     Label labEngine {"",TRANS("Machine Engine")};
     ComboBox comboEngine;
-    
+    Label labTheme {"", TRANS("Theme")};
+    ComboBox comboTheme;
+
     ApplicationProperties props;  // object pour sauver les paramètres
     ComboBox    comboModel;
     OSCSender sender;  // [2]

@@ -218,7 +218,7 @@ public:
                        + "   Res " + String (roundToInt (sliderResonnance.getValue()));
 
         SyDraw::drawFilterResponse (g, filterArea, mode, cutoff, reso,
-                                    Colours::darkorange, caption);
+                                    SYColSelected, caption);
         
     }
     void buttonClicked (Button* button) override

@@ -12,6 +12,7 @@
 #include "Oscillator.h"
 #include "../JuceLibraryCode/JuceHeader.h"
 #include "LookAndFeel.h"
+#include "EnvelopeDraw.h"
 
 #include "WaveVue.h"
 #include "FilterVue.h"
@@ -75,10 +76,12 @@ public:
         imgAFM = ImageFileFormat::loadFrom(BinaryData::AFM_png,(size_t) BinaryData::AFM_pngSize);
         imgFilter = ImageFileFormat::loadFrom(BinaryData::Filter_png,(size_t) BinaryData::Filter_pngSize);
         imgVCA = ImageFileFormat::loadFrom(BinaryData::VCA_png,(size_t) BinaryData::VCA_pngSize);
+        // L'emplacement Filter affiche désormais une vignette (réponse du filtre)
+        // dessinée dans paint(). Le bouton reste cliquable (seuil hit-test = 0).
         btFilter.setImages (false, true, true,
-                          imgFilter, 0.7f, Colours::transparentBlack,
-                          imgFilter, 1.0f, Colours::transparentBlack,
-                          imgFilter, 0.6f, Colours::transparentBlack,
+                          Image(), 0.0f, Colours::transparentBlack,
+                          Image(), 0.0f, Colours::transparentBlack,
+                          Image(), 0.0f, Colours::transparentBlack,
                           0.0f);
    
     
@@ -266,6 +269,20 @@ public:
         */
 
 //        g.fillAll (getLookAndFeel().findColour (ResizableWindow::backgroundColourId));   // clear the background
+
+        // Vignette : réponse du filtre de cet élément (lue depuis valueTreeVoice)
+        {
+            auto idFor = [this] (const char* suffix)
+            { return Identifier (String ("ELEMENT") + String (operatorID) + suffix); };
+
+            int   fMode = (int) valueTreeVoice.getProperty (idFor ("MODEFILTRE1"), 0);
+            float fCut  = (float) (int) valueTreeVoice.getProperty (idFor ("FQ1"), 0) / 127.0f;
+            float fRes  = (float) (int) valueTreeVoice.getProperty (idFor ("RESONNANCEFILTRE"), 0) / 127.0f;
+
+            auto fb = groupFilter.getBounds().toFloat().reduced (5.0f, 14.0f);
+            if (fb.getWidth() > 12.0f && fb.getHeight() > 12.0f)
+                SyDraw::drawFilterResponse (g, fb, fMode, fCut, fRes, SYColSelected);
+        }
 
         g.setColour (Colour(0xffffffff));
         g.addTransform(AffineTransform::rotation(fAngle));

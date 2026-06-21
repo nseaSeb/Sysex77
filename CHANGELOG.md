@@ -11,6 +11,16 @@ et le projet suit un versionnage de type [SemVer](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Ajouté / Added
+- **Thème d'interface Moderne / Atari Vintage** : sélecteur dans l'onglet
+  Setting (combo « Theme »). « Modern » = fond sombre + accent orange ;
+  « Atari Vintage » = look monochrome gris GEM (fond gris ST, encre noire).
+  Le choix est persisté (SYSEX77.xml) et pilote toutes les couleurs globales
+  (`applySyTheme` dans `LookAndFeel.h`) : fond, sliders, et tracés EG/filtre
+  qui suivent désormais l'accent `SYColSelected` et le fond `SYColBackground`.
+- **Vignette de filtre dans la vue Voice** : l'emplacement Filter de chaque
+  élément affiche la réponse du filtre (mode/coupure/résonance) à la place de
+  l'icône statique, lue depuis `valueTreeVoice` ; le bouton reste cliquable pour
+  ouvrir l'éditeur (première étape vers des aperçus par élément à la SynthWorks).
 - **Valeurs numériques sur les courbes** : niveaux affichés à chaque nœud de
   l'enveloppe ; mode/coupure (FQ)/résonance affichés sur la réponse du filtre.
 - **Look unifié « écran »** : les tracés EG et filtre sont dessinés sur un

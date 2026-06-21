@@ -16,6 +16,33 @@ static Colour   SYColAlt;
 static Colour   SYColLabel;
 static Colour   SYColSelected;
 
+// Thème de l'interface : 0 = Moderne (sombre/orange), 1 = Atari vintage (GEM mono)
+static int SYTheme = 0;
+
+inline void applySyTheme (int theme)
+{
+    SYTheme = theme;
+
+    if (theme == 1) // Atari ST / GEM monochrome
+    {
+        SYColBackground = Colour (0xffb9b9b9); // gris « bureau » ST
+        SYColAlt        = Colour (0xffe6e6e6);
+        SYColLabel      = Colours::black;
+        SYColSelected   = Colour (0xff1a1a1a); // encre quasi-noire
+    }
+    else // Moderne (défaut)
+    {
+        SYColBackground = Colours::black;
+        SYColAlt        = Colour (0xff202020);
+        SYColLabel      = Colours::grey;
+        SYColSelected   = Colours::darkorange;
+    }
+
+    auto& lf = LookAndFeel::getDefaultLookAndFeel();
+    lf.setColour (ResizableWindow::backgroundColourId, SYColBackground);
+    lf.setColour (DocumentWindow::backgroundColourId,  SYColBackground);
+}
+
 
 class AfmOscLookAndFeel : public LookAndFeel_V4
 {

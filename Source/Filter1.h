@@ -250,7 +250,7 @@ public:
                                        rateWeight (sliderR3.getValue()), rateWeight (sliderR4.getValue()),
                                        rateWeight (sliderRR1.getValue()), rateWeight (sliderRR2.getValue()) };
 
-        SyDraw::drawEnvelope (g, egArea, egLevels, egWeights, 64.0f, Colours::darkorange, "Filter 1 EG");
+        SyDraw::drawEnvelope (g, egArea, egLevels, egWeights, 64.0f, SYColSelected, "Filter 1 EG");
 
     }
     void buttonClicked (Button* button) override
