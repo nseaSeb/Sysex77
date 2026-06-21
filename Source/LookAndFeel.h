@@ -95,7 +95,7 @@ public:
       //  g.setGradientFill(ColourGradient(SYColSelected, centreX, centreY, SYColBackground, rx,ry, true) );
         g.setColour(SYColSelected); // level draw
         Path filledArc1;
-        filledArc1.addPieSegment(rx, ry, rw + 2, rw + 2, (360 * (float_Pi / 180.0)), angle, 0.75);
+        filledArc1.addPieSegment(rx, ry, rw + 2, rw + 2, (360 * (juce::MathConstants<float>::pi  / 180.0)), angle, 0.75);
         g.fillPath(filledArc1);
         
         //==

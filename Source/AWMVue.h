@@ -351,7 +351,7 @@ private:
             tableFile= BinaryData::SY99Waves_xml;
         
         
-        tutorialData.reset (XmlDocument::parse (tableFile));
+        tutorialData = XmlDocument::parse (tableFile);
         
         dataList   = tutorialData->getChildByName ("DATA");
         columnList = tutorialData->getChildByName ("HEADERS");

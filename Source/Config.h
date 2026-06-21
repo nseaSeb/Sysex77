@@ -103,46 +103,33 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
     }
     void setState() //Lecture des parametres
     {
-        XmlElement* dataList = nullptr;
-        auto dir = File::getSpecialLocation (File::userDocumentsDirectory);
+        auto dir = File::getSpecialLocation(File::userDocumentsDirectory);
         
         int numTries = 0;
-        
-        while (! dir.getChildFile ("Sysex77").exists() && numTries++ < 15)
+        while (!dir.getChildFile("Sysex77").exists() && numTries++ < 15)
             dir = dir.getParentDirectory();
-        Logger::writeToLog("dir exist");
         
-        auto tableFile = dir.getChildFile ("Sysex77").getChildFile ("SYSEX77.xml");
-        Logger::writeToLog(tableFile.getFullPathName());
+        auto tableFile = dir.getChildFile("Sysex77").getChildFile("SYSEX77.xml");
         
         if (tableFile.exists())
         {
-            Logger::writeToLog("file exist");
-            tutorialData.reset (XmlDocument::parse (tableFile));
-            // Parsing des couleurs
-            dataList   = tutorialData->getChildByName ("COLOR");
-        }
-        if(dataList) //Verifie que les data existent
-        {
-            Colour color;
-            
-            color = Colour(dataList->getIntAttribute("Alternate"));
-            SYColAlt = color;
-            color = Colour(dataList->getIntAttribute("Background"));
-            SYColBackground = color;
-            
-            color = Colour(dataList->getIntAttribute("Label"));
-            SYColLabel = color;
-            
-            color = Colour(dataList->getIntAttribute("Selected"));
-            SYColSelected = color;
-            //setColour(ResizableWindow::backgroundColourId, color);
-            //Parsing des data
-            dataList = tutorialData->getChildByName("DATA");
-            if(dataList)
+            tutorialData = XmlDocument::parse(tableFile);  // Utilisation directe de l'opérateur =
+            if (tutorialData != nullptr)  // Vérification importante
             {
-           //     SYModel = dataList->getIntAttribute("Model");
-                
+                // Parsing des couleurs
+                if (auto* dataList = tutorialData->getChildByName("COLOR"))
+                {
+                    SYColAlt = Colour(dataList->getIntAttribute("Alternate"));
+                    SYColBackground = Colour(dataList->getIntAttribute("Background"));
+                    SYColLabel = Colour(dataList->getIntAttribute("Label"));
+                    SYColSelected = Colour(dataList->getIntAttribute("Selected"));
+                    
+                    // Parsing des data
+                    if (auto* xmlData = tutorialData->getChildByName("DATA"))
+                    {
+                        // SYModel = xmlData->getIntAttribute("Model");
+                    }
+                }
             }
         }
         else
@@ -151,14 +138,13 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
             SYColLabel = Colours::grey;
             SYColBackground = Colours::black;
             SYColSelected = Colours::darkorange;
-        //    SYModel = 1;
         }
-     //   comboModel.setSelectedId(SYModel);
-        btColAlt.setColour(TextButton::ColourIds::buttonColourId,SYColAlt);
-        btColBack.setColour(TextButton::ColourIds::buttonColourId,SYColBackground);
-        btColLab.setColour(TextButton::ColourIds::buttonColourId,SYColLabel);
-        btColSel.setColour(TextButton::ColourIds::buttonColourId,SYColSelected);
         
+        // Mise à jour des boutons
+        btColAlt.setColour(TextButton::buttonColourId, SYColAlt);
+        btColBack.setColour(TextButton::buttonColourId, SYColBackground);
+        btColLab.setColour(TextButton::buttonColourId, SYColLabel);
+        btColSel.setColour(TextButton::buttonColourId, SYColSelected);
     }
     void 	comboBoxChanged (ComboBox *comboBoxThatHasChanged) override
     {
@@ -173,35 +159,30 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
     }
     void buttonClicked (Button* button) override
     {
-        
         Logger::writeToLog("ConfigPage: clicked");
         
-        auto* colourSelector = new ColourSelector();
-        colourSelector->setName ("Colour");
-        colourSelector->addChangeListener (this);
-        colourSelector->setCurrentColour (button->findColour (TextButton::buttonColourId));
-        colourSelector->setColour (ColourSelector::backgroundColourId, Colours::transparentBlack);
-        colourSelector->setSize (300, 400);
-        CallOutBox::launchAsynchronously (colourSelector, button->getScreenBounds(), nullptr);
+        // Crée un unique_ptr pour le ColourSelector
+        auto colourSelector = std::make_unique<ColourSelector>();
+        colourSelector->setName("Colour");
+        colourSelector->addChangeListener(this);
+        colourSelector->setCurrentColour(button->findColour(TextButton::buttonColourId));
+        colourSelector->setColour(ColourSelector::backgroundColourId, Colours::transparentBlack);
+        colourSelector->setSize(300, 400);
         
+        // Configure le nom selon le bouton cliqué
         if (button == &btColBack)
-        {
             colourSelector->setName("colBack");
-        }
         else if (button == &btColAlt)
-        {
             colourSelector->setName("colAlt");
-        }
         else if (button == &btColLab)
-        {
             colourSelector->setName("colLab");
-        }
         else if (button == &btColSel)
-        {
             colourSelector->setName("colSel");
-        }
-        //   btColBack.setColour(ColourSelector::backgroundColourId, Colours::transparentBlack);
         
+        // Transfère la propriété du unique_ptr à launchAsynchronously
+        CallOutBox::launchAsynchronously(std::move(colourSelector),
+                                       button->getScreenBounds(),
+                                       nullptr);
     }
     
     void changeListenerCallback (ChangeBroadcaster* source) override

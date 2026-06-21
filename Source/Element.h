@@ -368,7 +368,7 @@ private:
     GroupComponent groupFilter{"",TRANS("Filter")};
     GroupComponent groupVolume{"","Volume"};
     GroupComponent groupPan{"","Pan"};
-    float fAngle = -90 * (float_Pi / 180.0);
+    float fAngle = -90 * (juce::MathConstants<float>::pi  / 180.0);
          CustomLookAndFeel myLookAndFeel;
    
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Element)

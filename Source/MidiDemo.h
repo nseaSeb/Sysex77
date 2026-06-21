@@ -105,7 +105,7 @@ static bool boolStopReceive; //to shunt the midi in when sending
 
 static int sysexModel;
 static uint8 sysexEngine;
-static     float fAngle = -90 * (float_Pi / 180.0); //Radiant to draw at 90°
+static     float fAngle = -90 * (juce::MathConstants<float>::pi  / 180.0); //Radiant to draw at 90°
 File appDirPath = File::getSpecialLocation(File::userApplicationDataDirectory ).getChildFile("Application Support/Sysex77");
 
 static Path pathFilter1;
@@ -484,7 +484,7 @@ public:
         if (isInput)
         {
             jassert (midiInputs[index]->inDevice.get() == nullptr);
-            midiInputs[index]->inDevice.reset (MidiInput::openDevice (index, this));
+            midiInputs[index]->inDevice = MidiInput::openDevice (index, this);
             
             if (midiInputs[index]->inDevice.get() == nullptr)
             {
@@ -497,7 +497,7 @@ public:
         else
         {
             jassert (midiOutputs[index]->outDevice.get() == nullptr);
-            midiOutputs[index]->outDevice.reset (MidiOutput::openDevice (index));
+            midiOutputs[index]->outDevice = MidiOutput::openDevice (index);
             
             if (midiOutputs[index]->outDevice.get() == nullptr)
             {
@@ -847,7 +847,7 @@ public:
         
         auto tableFile = BinaryData::TableData_xml;
         
-        tutorialData.reset (XmlDocument::parse (tableFile));
+        tutorialData = XmlDocument::parse (tableFile);
         
         dataList   = tutorialData->getChildByName ("DATA");
         columnList = tutorialData->getChildByName ("HEADERS");

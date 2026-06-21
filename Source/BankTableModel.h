@@ -29,7 +29,7 @@ public:
         sourceListBox.setModel (&sourceModel);
        // sourceListBox.getVerticalScrollBar().setColour(ListBox::outlineColourId, SYCol);
         //sourceListBox.setMultipleSelectionEnabled (true);
-        sourceListBox.setHeaderComponent(new Header(*this));
+        sourceListBox.setHeaderComponent(std::make_unique<Header>(*this));
         
         addAndMakeVisible (sourceListBox);
         addAndMakeVisible(groupDrop);

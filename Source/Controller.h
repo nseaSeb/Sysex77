@@ -97,7 +97,7 @@ struct ControllerPage   : public Component, public ComboBox::Listener
         
         auto tableFile = BinaryData::TableData_xml;
         
-        tutorialData.reset (XmlDocument::parse (tableFile));
+        tutorialData = XmlDocument::parse (tableFile);
             
             dataList   = tutorialData->getChildByName ("DATA");
             columnList = tutorialData->getChildByName ("HEADERS");

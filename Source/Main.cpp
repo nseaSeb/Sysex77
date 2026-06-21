@@ -55,7 +55,7 @@ inline InputStream* createAssetInputStream (const char* resourcePath)
     auto resourceFile = assetsDir.getChildFile (resourcePath);
 //    jassert (resourceFile.existsAsFile()); // Bug que je ne comprends pas pour le moment
     Logger::writeToLog(String(resourceFile.getFullPathName()));
-    return resourceFile.createInputStream();
+    return resourceFile.createInputStream().release();
 #endif
 }
 
@@ -87,7 +87,8 @@ private Timer
 {
     DemoTaskbarComponent()
     {
-        setIconImage (getImageFromAssets ("juce_icon.png"));
+        setIconImage (getImageFromAssets ("juce_icon.png"),
+                      getImageFromAssets ("juce_icon.png"));
         setIconTooltip ("JUCE demo runner!");
     }
     

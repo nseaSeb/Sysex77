@@ -24,7 +24,7 @@ public:
         setName ("Bank A");
       //  loadBank();
         sourceListBox.setModel (&sourceModel);
-        sourceListBox.setHeaderComponent(new Header(*this));
+        sourceListBox.setHeaderComponent(std::make_unique<Header>(*this));
         addAndMakeVisible (sourceListBox);
     }
 
@@ -207,7 +207,7 @@ public:
      //   loadBank();
         sourceListBox.setModel (&sourceModel);
         //sourceListBox.setMultipleSelectionEnabled (true);
-        sourceListBox.setHeaderComponent(new Header(*this));
+        sourceListBox.setHeaderComponent(std::make_unique<Header>(*this));
         
         addAndMakeVisible (sourceListBox);
         //     addAndMakeVisible (target);
@@ -357,7 +357,7 @@ public:
     //    loadBank();
         sourceListBox.setModel (&sourceModel);
         //sourceListBox.setMultipleSelectionEnabled (true);
-        sourceListBox.setHeaderComponent(new Header(*this));
+        sourceListBox.setHeaderComponent(std::make_unique<Header>(*this));
         
         addAndMakeVisible (sourceListBox);
         //     addAndMakeVisible (target);
@@ -508,7 +508,7 @@ public:
 //        loadBank();
         sourceListBox.setModel (&sourceModel);
         //sourceListBox.setMultipleSelectionEnabled (true);
-        sourceListBox.setHeaderComponent(new Header(*this));
+        sourceListBox.setHeaderComponent(std::make_unique<Header>(*this));
         
         addAndMakeVisible (sourceListBox);
         //     addAndMakeVisible (target);

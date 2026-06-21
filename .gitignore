@@ -1,0 +1,7 @@
+# JUCE / Projucer generated trees — regenerated from Sysex77.jucer via Projucer.
+# (The prebuilt macOS app is tracked explicitly under dist/.)
+/JuceLibraryCode/
+/Builds/
+
+# macOS
+.DS_Store
