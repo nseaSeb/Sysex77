@@ -10,6 +10,16 @@ et le projet suit un versionnage de type [SemVer](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### Corrigé / Fixed
+- **Thème déterministe** : le thème pilote désormais entièrement la palette.
+  `setState()` ne relit plus une ancienne section COLOR personnalisée (qui
+  pouvait écraser le préréglage et donner un rendu « mélangé », p.ex. accents
+  orange en thème Atari) — il lit le thème et applique son préréglage.
+- **Fond des onglets suit le thème** : la couleur de fond des onglets était
+  capturée à la construction (avant le chargement du thème), d'où un fond
+  bleu-gris foncé persistant. Elle est maintenant alignée sur `SYColBackground`
+  au démarrage et mise à jour en direct au changement de thème.
+
 ### Ajouté / Added
 - **LookAndFeel « Atari GEM » dédié** (`AtariLookAndFeel`) activé quand le thème
   Atari est choisi : rendu **plat, anguleux et monochrome** — boutons

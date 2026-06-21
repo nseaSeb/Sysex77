@@ -116,46 +116,26 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
         // l'ancienne version cherchait dans ~/Documents au lieu de appDirPath).
         auto tableFile = appDirPath.getChildFile("SYSEX77.xml");
 
+        SYTheme = 0;
         if (tableFile.exists())
         {
-            tutorialData = XmlDocument::parse(tableFile);  // Utilisation directe de l'opérateur =
-            if (tutorialData != nullptr)  // Vérification importante
-            {
-                // Parsing des couleurs
-                if (auto* dataList = tutorialData->getChildByName("COLOR"))
-                {
-                    SYColAlt = Colour(dataList->getIntAttribute("Alternate"));
-                    SYColBackground = Colour(dataList->getIntAttribute("Background"));
-                    SYColLabel = Colour(dataList->getIntAttribute("Label"));
-                    SYColSelected = Colour(dataList->getIntAttribute("Selected"));
-                    
-                    // Parsing des data
-                    if (auto* xmlData = tutorialData->getChildByName("DATA"))
-                    {
-                        // SYModel = xmlData->getIntAttribute("Model");
-                        SYTheme = xmlData->getIntAttribute("Theme", 0);
-                        comboTheme.setSelectedId(SYTheme + 1, dontSendNotification);
-                    }
-                }
-            }
+            tutorialData = XmlDocument::parse(tableFile);
+            if (tutorialData != nullptr)
+                if (auto* xmlData = tutorialData->getChildByName("DATA"))
+                    SYTheme = xmlData->getIntAttribute("Theme", 0);
         }
-        else
-        {
-            SYColAlt = Colours::black;
-            SYColLabel = Colours::grey;
-            SYColBackground = Colours::black;
-            SYColSelected = Colours::darkorange;
-            SYTheme = 0;
-        }
-        
-        // Mise à jour des boutons
+
+        comboTheme.setSelectedId(SYTheme + 1, dontSendNotification);
+
+        // Le thème pilote la palette de façon déterministe (les anciennes couleurs
+        // personnalisées ne sont plus relues : un thème = toujours le même rendu).
+        applySyTheme(SYTheme);
+
+        // Mise à jour des boutons de couleur
         btColAlt.setColour(TextButton::buttonColourId, SYColAlt);
         btColBack.setColour(TextButton::buttonColourId, SYColBackground);
         btColLab.setColour(TextButton::buttonColourId, SYColLabel);
         btColSel.setColour(TextButton::buttonColourId, SYColSelected);
-
-        // active le LookAndFeel + couleurs selon le thème courant
-        selectSyLookAndFeel();
     }
     void 	comboBoxChanged (ComboBox *comboBoxThatHasChanged) override
     {
@@ -174,6 +154,10 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
             btColBack.setColour (TextButton::buttonColourId, SYColBackground);
             btColLab .setColour (TextButton::buttonColourId, SYColLabel);
             btColSel .setColour (TextButton::buttonColourId, SYColSelected);
+            // met à jour le fond des onglets en direct
+            if (auto* tabs = findParentComponentOfClass<TabbedComponent>())
+                for (int i = 0; i < tabs->getNumTabs(); ++i)
+                    tabs->setTabBackgroundColour (i, SYColBackground);
             if (auto* top = getTopLevelComponent())
                 top->repaint();
         }

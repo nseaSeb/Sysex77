@@ -155,6 +155,11 @@ struct DemoTabbedComponent  : public TabbedComponent
        // addTab (TRANS("Midi"),     colour, new ControllerPage (), true);
         addTab (TRANS("Voice"), colour, new VoicePage(), true);
         addTab (TRANS("Midi Setting"),colour,nullptr,false);
+
+        // ConfigPage (1er onglet) a appliqué le thème pendant sa construction :
+        // on aligne donc le fond des onglets sur la couleur de fond du thème.
+        for (int i = 0; i < getNumTabs(); ++i)
+            setTabBackgroundColour (i, SYColBackground);
    
         
         
