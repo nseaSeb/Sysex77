@@ -86,8 +86,8 @@
   <EXPORTFORMATS>
     <XCODE_MAC targetFolder="Builds/MacOSX">
       <CONFIGURATIONS>
-        <CONFIGURATIONS name="Debug" isDebug="1" optimisation="1" targetName="MidiDemo"/>
-        <CONFIGURATIONS name="Release" isDebug="0" optimisation="3" targetName="MidiDemo"/>
+        <CONFIGURATIONS name="Debug" isDebug="1" optimisation="1" targetName="Sysex77"/>
+        <CONFIGURATIONS name="Release" isDebug="0" optimisation="3" targetName="Sysex77"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
         <MODULEPATH id="juce_audio_basics" path=""/>
