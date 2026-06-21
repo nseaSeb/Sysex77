@@ -29,7 +29,7 @@ public:
         
         if (columnList != nullptr)
         {
-            forEachXmlChildElement (*columnList, columnXml)
+            for (auto* columnXml : columnList->getChildIterator())
             {
                 table.getHeader().addColumn (TRANS(columnXml->getStringAttribute ("name")),
                                              columnXml->getIntAttribute ("columnId"),
@@ -172,7 +172,7 @@ public:
             {
                 auto text = rowElement->getStringAttribute (getAttributeNameForColumnId (columnId));
                 
-                widest = jmax (widest, font.getStringWidth (text));
+                widest = jmax (widest, roundToInt (GlyphArrangement::getStringWidth (font, text)));
             }
         }
         
@@ -232,7 +232,7 @@ public:
 private:
     int rowSelected;
     TableListBox table  { {}, this };
-    Font font           { 14.0f };
+    Font font           { FontOptions { 14.0f } };
     String oscAddressPatern {"/SYSEX"};
     std::unique_ptr<XmlElement> tutorialData;
     XmlElement* columnList = nullptr;
@@ -362,7 +362,7 @@ private:
     
     String getAttributeNameForColumnId (const int columnId) const
     {
-        forEachXmlChildElement (*columnList, columnXml)
+        for (auto* columnXml : columnList->getChildIterator())
         {
             if (columnXml->getIntAttribute ("columnId") == columnId)
                 return columnXml->getStringAttribute ("name");

@@ -134,9 +134,9 @@ int intTabIndex;
 //==============================================================================
 struct MidiDeviceListEntry : ReferenceCountedObject
 {
-    MidiDeviceListEntry (const String& deviceName) : name (deviceName) {}
-    
-    String name;
+    MidiDeviceListEntry (MidiDeviceInfo info) : deviceInfo (info) {}
+
+    MidiDeviceInfo deviceInfo;
     std::unique_ptr<MidiInput> inDevice;
     std::unique_ptr<MidiOutput> outDevice;
     
@@ -484,7 +484,7 @@ public:
         if (isInput)
         {
             jassert (midiInputs[index]->inDevice.get() == nullptr);
-            midiInputs[index]->inDevice = MidiInput::openDevice (index, this);
+            midiInputs[index]->inDevice = MidiInput::openDevice (midiInputs[index]->deviceInfo.identifier, this);
             
             if (midiInputs[index]->inDevice.get() == nullptr)
             {
@@ -497,7 +497,7 @@ public:
         else
         {
             jassert (midiOutputs[index]->outDevice.get() == nullptr);
-            midiOutputs[index]->outDevice = MidiOutput::openDevice (index);
+            midiOutputs[index]->outDevice = MidiOutput::openDevice (midiOutputs[index]->deviceInfo.identifier);
             
             if (midiOutputs[index]->outDevice.get() == nullptr)
             {
@@ -576,14 +576,14 @@ private:
             if (isInput)
             {
                 if (rowNumber < parent.getNumMidiInputs())
-                    g.drawText (parent.getMidiDevice (rowNumber, true)->name,
+                    g.drawText (parent.getMidiDevice (rowNumber, true)->deviceInfo.name,
                                 5, 0, width, height,
                                 Justification::centredLeft, true);
             }
             else
             {
                 if (rowNumber < parent.getNumMidiOutputs())
-                    g.drawText (parent.getMidiDevice (rowNumber, false)->name,
+                    g.drawText (parent.getMidiDevice (rowNumber, false)->deviceInfo.name,
                                 5, 0, width, height,
                                 Justification::centredLeft, true);
             }
@@ -721,43 +721,43 @@ public:
     }
     
     //==============================================================================
-    bool hasDeviceListChanged (const StringArray& deviceNames, bool isInputDevice)
+    bool hasDeviceListChanged (const Array<MidiDeviceInfo>& availableDevices, bool isInputDevice)
     {
         ReferenceCountedArray<MidiDeviceListEntry>& midiDevices = isInputDevice ? midiInputs
         : midiOutputs;
-        
-        if (deviceNames.size() != midiDevices.size())
+
+        if (availableDevices.size() != midiDevices.size())
             return true;
-        
-        for (auto i = 0; i < deviceNames.size(); ++i)
-            if (deviceNames[i] != midiDevices[i]->name)
+
+        for (auto i = 0; i < availableDevices.size(); ++i)
+            if (availableDevices[i].identifier != midiDevices[i]->deviceInfo.identifier)
                 return true;
-        
+
         return false;
     }
-    
-    ReferenceCountedObjectPtr<MidiDeviceListEntry> findDeviceWithName (const String& name, bool isInputDevice) const
+
+    ReferenceCountedObjectPtr<MidiDeviceListEntry> findDevice (MidiDeviceInfo deviceInfo, bool isInputDevice) const
     {
         const ReferenceCountedArray<MidiDeviceListEntry>& midiDevices = isInputDevice ? midiInputs
         : midiOutputs;
-        
-        for (auto midiDevice : midiDevices)
-            if (midiDevice->name == name)
+
+        for (auto& midiDevice : midiDevices)
+            if (midiDevice->deviceInfo.identifier == deviceInfo.identifier)
                 return midiDevice;
-        
+
         return nullptr;
     }
-    
-    void closeUnpluggedDevices (StringArray& currentlyPluggedInDevices, bool isInputDevice)
+
+    void closeUnpluggedDevices (const Array<MidiDeviceInfo>& currentlyPluggedInDevices, bool isInputDevice)
     {
         ReferenceCountedArray<MidiDeviceListEntry>& midiDevices = isInputDevice ? midiInputs
         : midiOutputs;
-        
+
         for (auto i = midiDevices.size(); --i >= 0;)
         {
             auto& d = *midiDevices[i];
-            
-            if (! currentlyPluggedInDevices.contains (d.name))
+
+            if (! currentlyPluggedInDevices.contains (d.deviceInfo))
             {
                 if (isInputDevice ? d.inDevice .get() != nullptr
                     : d.outDevice.get() != nullptr)
@@ -770,27 +770,27 @@ public:
     
     void updateDeviceList (bool isInputDeviceList)
     {
-        auto newDeviceNames = isInputDeviceList ? MidiInput::getDevices()
-        : MidiOutput::getDevices();
-        
-        if (hasDeviceListChanged (newDeviceNames, isInputDeviceList))
+        auto availableDevices = isInputDeviceList ? MidiInput::getAvailableDevices()
+        : MidiOutput::getAvailableDevices();
+
+        if (hasDeviceListChanged (availableDevices, isInputDeviceList))
         {
-            
+
             ReferenceCountedArray<MidiDeviceListEntry>& midiDevices
             = isInputDeviceList ? midiInputs : midiOutputs;
-            
-            closeUnpluggedDevices (newDeviceNames, isInputDeviceList);
-            
+
+            closeUnpluggedDevices (availableDevices, isInputDeviceList);
+
             ReferenceCountedArray<MidiDeviceListEntry> newDeviceList;
-            
+
             // add all currently plugged-in devices to the device list
-            for (auto newDeviceName : newDeviceNames)
+            for (auto& newDevice : availableDevices)
             {
-                MidiDeviceListEntry::Ptr entry = findDeviceWithName (newDeviceName, isInputDeviceList);
-                
+                MidiDeviceListEntry::Ptr entry = findDevice (newDevice, isInputDeviceList);
+
                 if (entry == nullptr)
-                    entry = new MidiDeviceListEntry (newDeviceName);
-                
+                    entry = new MidiDeviceListEntry (newDevice);
+
                 newDeviceList.add (entry);
             }
             
@@ -806,7 +806,7 @@ public:
     //==============================================================================
     void addLabelAndSetStyle (Label& label)
     {
-        label.setFont (Font (15.00f, Font::plain));
+        label.setFont (Font (FontOptions (15.00f, Font::plain)));
         label.setJustificationType (Justification::centredLeft);
         label.setEditable (false, false, false);
         label.setColour (TextEditor::textColourId, Colours::black);
@@ -858,7 +858,7 @@ public:
     
     String getAttributeNameForColumnId (const int columnId) const
     {
-        forEachXmlChildElement (*columnList, columnXml)
+        for (auto* columnXml : columnList->getChildIterator())
         {
             if (columnXml->getIntAttribute ("columnId") == columnId)
                 return columnXml->getStringAttribute ("name");

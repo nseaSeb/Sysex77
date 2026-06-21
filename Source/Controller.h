@@ -108,7 +108,7 @@ struct ControllerPage   : public Component, public ComboBox::Listener
     
     String getAttributeNameForColumnId (const int columnId) const
     {
-        forEachXmlChildElement (*columnList, columnXml)
+        for (auto* columnXml : columnList->getChildIterator())
         {
             if (columnXml->getIntAttribute ("columnId") == columnId)
                 return columnXml->getStringAttribute ("name");

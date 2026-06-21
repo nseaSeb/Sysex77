@@ -432,7 +432,7 @@ struct SourceItemListboxContents  : public ListBoxModel, public ChangeBroadcaste
         bankList.addChildElement(xData);
         // dataList = &BankList;
         
-        bankList.writeToFile(appDirPath.getFullPathName() + "/Bank.xml", "");
+        bankList.writeTo(appDirPath.getChildFile("Bank.xml"));
 
     }
     

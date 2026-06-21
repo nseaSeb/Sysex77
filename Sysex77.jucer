@@ -87,7 +87,8 @@
     <XCODE_MAC targetFolder="Builds/MacOSX">
       <CONFIGURATIONS>
         <CONFIGURATIONS name="Debug" isDebug="1" optimisation="1" targetName="Sysex77"/>
-        <CONFIGURATIONS name="Release" isDebug="0" optimisation="3" targetName="Sysex77"/>
+        <CONFIGURATIONS name="Release" isDebug="0" optimisation="3" targetName="Sysex77"
+                        customXcodeFlags="ONLY_ACTIVE_ARCH=NO,ARCHS=x86_64 arm64"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
         <MODULEPATH id="juce_audio_basics" path=""/>

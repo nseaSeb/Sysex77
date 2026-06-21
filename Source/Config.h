@@ -92,7 +92,7 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
         xmlData->setAttribute ("Model", int(comboModel.getSelectedId()));
         xml.addChildElement(xmlData);
         
-        xml.writeToFile(appDirPath.getFullPathName() + "/SYSEX77.xml", "");
+        xml.writeTo(appDirPath.getChildFile("SYSEX77.xml"));
         
         
         if (! sender.send (adresseOscRepaint)) // [5]

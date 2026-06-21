@@ -10,6 +10,33 @@ et le projet suit un versionnage de type [SemVer](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### Ajouté / Added
+- Build **universelle macOS** (arm64 + x86_64) : fonctionne sur Mac Apple Silicon
+  ET Intel. Configuré durablement dans `Sysex77.jucer` (Release :
+  `ARCHS=x86_64 arm64`, `ONLY_ACTIVE_ARCH=NO`).
+  Commande de distribution :
+  `xcodebuild -scheme "Sysex77 - App" -configuration Release -destination 'generic/platform=macOS' build`.
+
+### Modifié / Changed
+- Renommage de la cible de build `MidiDemo` → `Sysex77` (l'exécutable du bundle
+  s'appelle désormais `Sysex77`).
+- **API MIDI migrée des index vers les identifiants de périphériques**
+  (`MidiDeviceInfo`) : `MidiInput::getAvailableDevices()` /
+  `openDevice(identifier, …)` au lieu de `getDevices()` / `openDevice(index, …)`.
+  Plus robuste lorsque l'ordre des ports MIDI change (`MidiDemo.h`).
+- Suppression des derniers warnings de dépréciation JUCE :
+  `forEachXmlChildElement` → `getChildIterator()` (`AWMVue.h`, `Controller.h`,
+  `MidiDemo.h`) ; `Font(...)` → `FontOptions(...)` ; `XmlElement::writeToFile`
+  → `writeTo` ; `Font::getStringWidth` → `GlyphArrangement::getStringWidth` ;
+  correction d'une perte de précision `long` → `int` (`MidiSysex.h`).
+- App signée ad-hoc (`codesign -s -`). Note : pas de certificat Developer ID
+  disponible → l'app reste non notarisée (avertissement Gatekeeper côté
+  utilisateur).
+
+### Supprimé / Removed
+- Code mort : `Source/FilterVue copie.h`, `Source/labo.h`,
+  `Source/WidgetsDemo.h.pdf`.
+
 ## [0.0.5] - 2026-06-21
 
 ### Corrigé / Fixed

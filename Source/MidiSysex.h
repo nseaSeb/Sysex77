@@ -219,7 +219,7 @@ void sendRaw(const void* sysexData, const long dataSize)
         Logger::writeToLog(String(dataSize));
         //    Logger::writeToLog(String(dataSize));
         //Envoi midi brut depuis la mémoire
-        MidiMessage m = MidiMessage (sysexData, dataSize);
+        MidiMessage m = MidiMessage (sysexData, (int) dataSize);
         m.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
         sendToOutputs (m);
     }
