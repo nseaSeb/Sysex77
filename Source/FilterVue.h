@@ -12,7 +12,7 @@
 
 int intNumber;
 
-#include "../JuceLibraryCode/JuceHeader.h"
+#include <JuceHeader.h>
 #include "ADSR.h"
 #include "Filter1.h"
 #include "Filter2.h"

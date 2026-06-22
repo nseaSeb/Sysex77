@@ -10,7 +10,7 @@
 #include "Pitch.h"
 #pragma once
 #include "Oscillator.h"
-#include "../JuceLibraryCode/JuceHeader.h"
+#include <JuceHeader.h>
 #include "LookAndFeel.h"
 #include "EnvelopeDraw.h"
 

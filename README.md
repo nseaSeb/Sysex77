@@ -1,49 +1,114 @@
-  # Sysex77 midi editor for the Yamaha SY77/99,  Editeur Midi pour le Yamaha SY77/99 (EN/FR)
-  ## If anyone would like to contribute or even take over the project, they are welcome to do so.
-  
-![Texte alternatif](Ressources/icon.png)  
+# Sysex77 — éditeur MIDI pour Yamaha SY77 / SY99 (EN / FR)
 
-#ENGLISH
+![Sysex77](Ressources/icon.png)
 
-Be carreful, this is not a finalized app, use it at your own risk !
-When you open, after the home image, select your midi interface, then you can activate or deactivate the bulk protect on this same page or you can do it on your synth to allow bank exchanges, be careful it can delete your custom patches in your synth, make a backup !
+Éditeur de sysex (presets & banques) pour les Yamaha **SY77 / SY99 / TG77**, écrit en C++/JUCE.
+Inspiré, côté fonctionnalités, de l'éditeur *SynthWorks SY77*.
 
-Click at the top of the page or in a black area to bring up the menu.
+> ⚠️ **Projet en cours de développement** — à utiliser avec précaution.
+> L'envoi de banques peut **écraser les patchs de votre synthé** : faites une sauvegarde et
+> désactivez le *bulk protect* au préalable.
 
-The library allows you to dump sound banks, you will find a large number of them on the web in.SYX format
+**Contributions bienvenues** — quiconque souhaite contribuer, voire reprendre le projet, est le bienvenu.
 
-This application is and will remain free, you can encourage me by simply listening to one or more of my tracks on deezer/spotify etc. By searching for "Sebastien Portrait" you will find some titles like "Ocean beach Club". 
-https://open.spotify.com/artist/3qPhbBJMJSF3AYbvzll5Zm?si=z6Rnq3ghR02R2sWc9b2mHg
+---
 
-*Ps: No animals were injured during the development of this application, on the contrary a labrador to share many questions and the agitation of his rear axle left no doubt "am happy"! 
+## Build
 
-*****************************************
-#FRANCAIS
+Le projet se compile de deux façons. **Pas besoin de Projucer pour la voie CMake** (recommandée,
+notamment hors macOS).
 
-Attention cette version est en cours de développement, elle est loin d’être parfaitement fonctionnelle …
-A utiliser avec precaution, Sysex77.app -> OSX 10.7 minimum (Lion) Sysex77 osx1012.app -> à partir de Sierra ...
+### Option A — CMake / `build.sh` (macOS, Linux) — recommandé
 
-A l’ouverture, après l’image d’accueil, sélectionné votre interface midi, ensuite vous pouvez sur cette même page activer ou désactiver le bulk protect ou vous pouvez le faire sur votre synthé pour permettre les échanges de banques, attention cela peut éffacer vos patchs perso dans votre synthé, faite une sauvegarde !  
+```bash
+./build.sh            # build Release dans ./build
+./build.sh --debug    # build Debug
+./build.sh --test     # build puis lance les tests unitaires
+```
 
-*Si vous utilisez un SY99 choisissez SY99 dans les paramètres, fermez et rouvrez l'application.(la liste des waves correspondra à votre synthé).
+Ou directement en CMake (toutes plateformes, y compris Windows) :
 
-Cliquer en haut de la page ou dans une zone noire pour faire apparaitre le menu.
+```bash
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release
+```
 
-La librairie permet le dump de banques sonores, vous en trouverez un grand nombre sur le web au format .SYX
-par exemple ici http://bobbyblues.recup.ch/yamaha_sy77/sy77_patches.html
-*Pensez a sauver vos banques au préalable et à désactiver le bulk protect…
-    
-  ![Texte alternatif](divers/AfmOsc.png) 
-   
+**JUCE** est résolu automatiquement :
+1. `-DJUCE_DIR=/chemin/vers/JUCE` (ou variable d'env `JUCE_DIR`) si vous avez une copie locale,
+2. sinon `/Applications/JUCE` (install Projucer macOS),
+3. sinon **téléchargé automatiquement** (JUCE 8.0.7) — aucune installation manuelle requise.
 
-Cette application est et restera libre.
-Bien à vous,
-Seb
+**Dépendances Linux** (Debian/Ubuntu) :
 
-*Ps: Aucun animal n'a été blessé durant le developpement de cette application, bien au contraire un labrador à partager de nombreuses interrogations et l'agitation de son train arrière n'a laissé aucun doute "suis content" ! 
+```bash
+sudo apt install build-essential cmake libasound2-dev libjack-jackd2-dev \
+  libfreetype6-dev libx11-dev libxcomposite-dev libxcursor-dev libxext-dev \
+  libxinerama-dev libxrandr-dev libxrender-dev libwebkit2gtk-4.1-dev \
+  libglu1-mesa-dev libcurl4-openssl-dev
+```
 
-THANKS A LOT AT THE JUCE FORUM AND SPECIALLY:
+### Option B — Projucer / Xcode (macOS, historique)
 
-# Daniel, Jules, McMartin, matkatmusic, Xenakios, dqthebt
-Thank you for your patience and valuable help.
+Ouvrir `Sysex77.jucer` dans Projucer, exporter, puis compiler sous Xcode
+(`Builds/MacOSX/Sysex77.xcodeproj`).
 
+### Tests
+
+Les tests unitaires (logique sysex « pure ») tournent via l'argument `--test` du binaire :
+
+```bash
+./build.sh --test
+# ou
+build/Sysex77_artefacts/Sysex77.app/Contents/MacOS/Sysex77 --test
+```
+
+---
+
+## Utilisation
+
+À l'ouverture (après l'image d'accueil) : sélectionnez votre interface MIDI, puis le **device
+number (canal)** dans *Setting*. Vous pouvez y activer/désactiver le *bulk protect* (ou le faire
+sur le synthé) pour autoriser les échanges de banques.
+
+- **SY99** : choisissez *SY 99* dans les paramètres, fermez et rouvrez l'application (la liste des
+  waves correspondra à votre synthé).
+- Cliquez en haut de la page (ou dans une zone noire) pour faire apparaître le menu.
+- La **Librairie** permet de dumper des banques. On en trouve beaucoup au format `.SYX`, par ex.
+  http://bobbyblues.recup.ch/yamaha_sy77/sy77_patches.html
+  *(Pensez à sauvegarder vos banques et à désactiver le bulk protect avant.)*
+
+![AfmOsc](divers/AfmOsc.png)
+
+---
+
+## English (summary)
+
+Sysex (presets & banks) editor for the Yamaha SY77/SY99/TG77, C++/JUCE.
+**Not finalized — use at your own risk; sending banks can erase your synth's patches, back up first!**
+
+Build (no Projucer needed): `./build.sh` (macOS/Linux) or `cmake -B build && cmake --build build`
+(Windows incl.). JUCE is auto-resolved (local `JUCE_DIR`, `/Applications/JUCE`, or auto-downloaded).
+Run unit tests with `--test`.
+
+On launch: pick your MIDI interface, then the device number (channel) in *Setting*; toggle bulk
+protect to allow bank exchanges. The Library dumps sound banks (`.SYX`).
+
+---
+
+## Documentation de référence
+
+- `SY77_PARAMETERS.md` — référence sysex (format, groupes, adresses) croisée code + spec officielle.
+- La spec Yamaha *SY77 MIDI Data Format* et les captures SynthWorks sont sous `docs/` (non versionné).
+
+## Soutien & remerciements
+
+Cette application est et restera **libre**. Pour m'encourager : écoutez un de mes titres
+(*Sebastien Portrait* sur Spotify/Deezer — ex. *Ocean Beach Club*).
+https://open.spotify.com/artist/3qPhbBJMJSF3AYbvzll5Zm
+
+Un grand merci au **forum JUCE**, en particulier : Daniel, Jules, McMartin, matkatmusic, Xenakios, dqthebt.
+
+*Ps : aucun animal n'a été blessé durant le développement — au contraire, un labrador a partagé
+de nombreuses interrogations, et l'agitation de son train arrière n'a laissé aucun doute : « suis content » !*
+
+— Seb

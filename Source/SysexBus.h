@@ -22,7 +22,7 @@
 */
 
 #pragma once
-#include "../JuceLibraryCode/JuceHeader.h"
+#include <JuceHeader.h>
 
 /** Point de rendez-vous unique entre les émetteurs et l'unique abonné (MidiDemo). */
 struct SysexBus

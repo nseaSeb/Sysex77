@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include "../JuceLibraryCode/JuceHeader.h"
+#include <JuceHeader.h>
 
 // Demande l'envoi au synthé de la voix d'index global donné (via le bus interne -> MidiSysex).
 inline void requestSendVoice (int globalVoiceIndex)

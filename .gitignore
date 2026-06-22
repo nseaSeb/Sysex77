@@ -3,6 +3,10 @@
 /JuceLibraryCode/
 /Builds/
 
+# CMake build trees (build via ./build.sh)
+/build/
+/build-cmake/
+
 # macOS
 .DS_Store
 

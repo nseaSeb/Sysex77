@@ -6,7 +6,7 @@
   ==============================================================================
 */
 
-#include "../JuceLibraryCode/JuceHeader.h"
+#include <JuceHeader.h>
 #include "MidiDemo.h"
 #include "Tests.h"
 inline File getExamplesDirectory() noexcept
@@ -30,7 +30,7 @@ inline File getExamplesDirectory() noexcept
     
     while (currentFile.getFileName() != "examples" && numTries++ < 15)
         currentFile = currentFile.getParentDirectory();
-            Logger::writeToLog(String(currentFile));
+            Logger::writeToLog(currentFile.getFullPathName());
         return currentFile;
 #endif
 }

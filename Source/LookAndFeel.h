@@ -9,7 +9,7 @@
 */
 
 #pragma once
-#include "../JuceLibraryCode/JuceHeader.h"
+#include <JuceHeader.h>
 static Colour SYColBackground { Colours::black };
 static Colour   SYColAlt      { Colour (0xff202020) };
 //static Colour   SYColText;
