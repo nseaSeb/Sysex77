@@ -127,13 +127,19 @@ public:
         else
         {
         arrayListVoices.clear();
+        currentBankData.setSize (0); // pas de banque valide chargée par défaut
         MemoryBlock mb;
-        if(BankFiles[sourceListBox.getSelectedRow()].exists())
+        auto file = BankFiles[sourceListBox.getSelectedRow()];
+        if (file.exists() && file.loadFileAsData (mb)
+            && SyVoice::looksLikeYamahaSysex ((const uint8*) mb.getData(), mb.getSize()))
         {
-            BankFiles[sourceListBox.getSelectedRow()].loadFileAsData(mb);
             currentBankData = mb; // mémorise pour pouvoir envoyer une voix au synthé
             // Extraction des noms de voix (logique pure et testée, cf. SysexUtils.h / Tests.h)
             arrayListVoices.addArray (SyVoice::extractVoiceNames ((const uint8*) mb.getData(), mb.getSize()));
+        }
+        else
+        {
+            Logger::writeToLog ("Banque ignorée (pas un dump Sysex Yamaha valide)");
         }
         sendChangeMessage();
         }
@@ -194,41 +200,34 @@ struct SourceItemListboxContents  : public ListBoxModel, public ChangeBroadcaste
             sendChangeMessage();
             Logger::writeToLog("table A double clic");
         }
+        // La sélection (chargement de la banque) se fait dans selectedRowsChanged,
+        // PAS dans le paint : l'ancien code rechargeait le fichier .syx à chaque
+        // repaint d'une ligne sélectionnée (I/O fichier dans paint).
+        void selectedRowsChanged (int lastRowSelected) override
+        {
+            if (lastRowSelected < 0)
+                return;
+            rowSelectedBank = lastRowSelected;
+            if (! doubleClickBank)
+            {
+                bankSelected = arrayBank[lastRowSelected];
+                sendChangeMessage(); // -> BankTableModel::changeListenerCallback charge la banque
+            }
+        }
+
         void paintListBoxItem (int rowNumber, Graphics& g,
                                int width, int height, bool rowIsSelected) override
         {
-           
             if (rowIsSelected)
-            {
-                 rowSelectedBank = rowNumber;
-                if(!doubleClickBank)
-                {
                 g.fillAll (SYColSelected);
-                bankSelected = arrayBank[rowNumber];
-                Logger::writeToLog("change");
-                sendChangeMessage();
-                
-                }
-                
-            }
-                else if (rowNumber % 2)
-                {
-                    
+            else if (rowNumber % 2)
                 g.fillAll (SYColAlt);
-                }
-                g.setColour (rowIsSelected ? SYColSelected.contrasting() : SYColLabel);
-                g.setFont (height * 0.7f);
-                  
-              //    auto text = arrayBank[rowNumber] ;
-                    if(arrayBank[rowNumber].isNotEmpty())
-                    g.drawFittedText(arrayBank[rowNumber], 0, 0, width, height, Justification::centred, 1);
-/*
-                    g.drawText ("Aucunes Banques" + String (rowNumber + 1),
-                            5, 0, width, height,
-                            Justification::centredLeft, true);
- */
-                
-                }
+
+            g.setColour (rowIsSelected ? SYColSelected.contrasting() : SYColLabel);
+            g.setFont (height * 0.7f);
+            if (arrayBank[rowNumber].isNotEmpty())
+                g.drawFittedText (arrayBank[rowNumber], 0, 0, width, height, Justification::centred, 1);
+        }
         
         
         var getDragSourceDescription (const SparseSet<int>& selectedRows) override

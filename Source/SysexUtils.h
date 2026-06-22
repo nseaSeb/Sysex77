@@ -77,6 +77,14 @@ namespace SyVoice
     }
 
     //==============================================================================
+    /** Heuristique : ce buffer ressemble-t-il à un dump Sysex Yamaha (commence par
+        0xF0 0x43) ? Sert à éviter de charger n'importe quel fichier comme banque. */
+    inline bool looksLikeYamahaSysex (const juce::uint8* data, size_t size)
+    {
+        return data != nullptr && size >= 2 && data[0] == 0xF0 && data[1] == 0x43;
+    }
+
+    //==============================================================================
     /** Checksum Yamaha standard : (somme des octets + checksum) ≡ 0 (mod 128). */
     inline juce::uint8 yamahaChecksum (const juce::uint8* data, int count)
     {

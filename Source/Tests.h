@@ -133,6 +133,15 @@ struct SysexUtilsTests : public juce::UnitTest
             expectEquals ((int) SyVoice::paramBytes (5, 0, 0, 0, 0, 0)[1], 0x14);
         }
 
+        beginTest ("looksLikeYamahaSysex detects F0 43 header");
+        {
+            const juce::uint8 yam[] = { 0xF0, 0x43, 0x00, 0x12 };
+            const juce::uint8 other[] = { 0x00, 0x43, 0x00 };
+            expect (  SyVoice::looksLikeYamahaSysex (yam, sizeof (yam)));
+            expect (! SyVoice::looksLikeYamahaSysex (other, sizeof (other)));
+            expect (! SyVoice::looksLikeYamahaSysex (nullptr, 0));
+        }
+
         beginTest ("elementAddrHi and afmOperatorGroup encodings");
         {
             expectEquals ((int) SyVoice::elementAddrHi (0), 0x00);

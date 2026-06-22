@@ -81,7 +81,11 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         voicesListB.loadBank();
         voicesListC.loadBank();
         voicesListD.loadBank();
-        
+
+        labelInfoLine.setText (bankSelected.isNotEmpty()
+                                 ? bankSelected + "  —  " + String (arrayListVoices.size()) + " voix"
+                                 : String ("Aucune banque sélectionnée"),
+                               dontSendNotification);
     }
     void resized() override
     {
@@ -101,7 +105,10 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         voicesListD.setBounds(tableWidth + 46 + tableWidth+ tableWidth + tableWidth, 44, tableWidth, getHeight()-44);
         
         bankList.setBounds(8, 10, tableWidth, getHeight()-20);
-        
+
+        // Info-line : dans l'espace libre de la barre du haut (entre les onglets et RECEIVE).
+        const int infoX = tableWidth + 240;
+        labelInfoLine.setBounds (infoX, 10, jmax (0, getWidth() - 150 - infoX), 24);
     }
     //==============================================================================
     void timerCallback() override   // Timer of Sysex DUMP (receive sysex)
