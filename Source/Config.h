@@ -296,7 +296,7 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
     TextButton btColAlt {TRANS("Alternate background color")};
     TextButton btColLab {TRANS("Label background color")};
     TextButton btColSel {TRANS("Text selected color")};
-    Label labEngine {"",TRANS("Machine Engine")};
+    Label labEngine {"","Canal MIDI (Device 1-16 / ALL)"};
     ComboBox comboEngine;
     Label labTheme {"", TRANS("Theme")};
     ComboBox comboTheme;
