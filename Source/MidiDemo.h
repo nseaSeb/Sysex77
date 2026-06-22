@@ -167,8 +167,9 @@ struct MidiDeviceListEntry : ReferenceCountedObject
 struct DemoTabbedComponent  : public TabbedComponent
 {
     DemoTabbedComponent (bool isRunningComponenTransformsDemo)
-    : TabbedComponent (TabbedButtonBar::TabsAtTop)
+    : TabbedComponent (TabbedButtonBar::TabsAtBottom)   // navigation en bas, façon SynthWorks
     {
+        setTabBarDepth (32);
         auto colour = findColour (ResizableWindow::backgroundColourId);
         addTab (TRANS("Setting"),     colour, new ConfigPage (), true);  
         addTab (TRANS("Librairie"),     colour, new LibrairiePage (), true);
