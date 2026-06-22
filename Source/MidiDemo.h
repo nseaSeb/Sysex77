@@ -325,7 +325,18 @@ public:
         btBulk.setClickingTogglesState(true);
         btBulk.setColour(TextButton::ColourIds::buttonOnColourId, SYColSelected);
         btBulk.addListener(this);
-        
+
+        // Toggle d'affichage du clavier (gardé en bas) — masque/affiche le clavier.
+        addAndMakeVisible (btToggleKeyboard);
+        btToggleKeyboard.setClickingTogglesState (true);
+        btToggleKeyboard.setToggleState (true, dontSendNotification);
+        btToggleKeyboard.setColour (TextButton::ColourIds::buttonOnColourId, SYColSelected);
+        btToggleKeyboard.onClick = [this]
+        {
+            midiKeyboard.setVisible (btToggleKeyboard.getToggleState());
+            resized();
+        };
+
         midiKeyboard.setName ("MIDI Keyboard");
         addAndMakeVisible (midiKeyboard);
         
@@ -530,14 +541,30 @@ public:
         // Les composants MIDI (interfaces, moniteur, pair, bulk) sont désormais
         // disposés par MidiSettingsPage (onglet 3) — plus ici.
 
-        tabs.setBounds (0,10,getWidth(),getHeight()-84);
-        
-        
-        midiKeyboard.setBounds (margin +140, (getHeight() - 70 ), getWidth() - (2 * margin) - 140, 70);
-        labelFoot.setBounds(margin,(getHeight() - 77 ), 134, 20);
-        comboFoot.setBounds(margin,(getHeight() - 58 ), 134, 20);
-        labelMod.setBounds(margin,(getHeight() - 40 ), 134, 20);
-        comboMod.setBounds(margin,(getHeight() - 24 ), 134, 20);
+        // Bandeau bas (clavier + pédale/molette) repliable : quand on le masque,
+        // tout le bandeau disparaît ET la vue s'étend pour combler la place.
+        const bool kb = btToggleKeyboard.getToggleState();
+        midiKeyboard.setVisible (kb);
+        labelFoot.setVisible (kb); comboFoot.setVisible (kb);
+        labelMod .setVisible (kb); comboMod .setVisible (kb);
+
+        if (kb)
+        {
+            tabs.setBounds (0, 10, getWidth(), getHeight() - 84);
+            midiKeyboard.setBounds (margin + 140, getHeight() - 70, getWidth() - (2 * margin) - 140 - 56, 70);
+            btToggleKeyboard.setBounds (getWidth() - margin - 52, getHeight() - 70, 52, 22);
+            labelFoot.setBounds (margin, getHeight() - 77, 134, 20);
+            comboFoot.setBounds (margin, getHeight() - 58, 134, 20);
+            labelMod .setBounds (margin, getHeight() - 40, 134, 20);
+            comboMod .setBounds (margin, getHeight() - 24, 134, 20);
+        }
+        else
+        {
+            // Clavier masqué : la vue prend toute la hauteur, ne reste qu'une fine
+            // barre en bas pour le bouton de réaffichage.
+            tabs.setBounds (0, 10, getWidth(), getHeight() - 34);
+            btToggleKeyboard.setBounds (getWidth() - margin - 52, getHeight() - 26, 52, 20);
+        }
     }
     
     void openDevice (bool isInput, int index)
@@ -936,6 +963,7 @@ public:
     TextButton pairButton   { TRANS("MIDI Bluetooth devices...") };
     
     TextButton  btBulk {"Bulk Protect"};
+    TextButton  btToggleKeyboard {"Clavier"};
     std::unique_ptr<MidiDeviceListBox> midiInputSelector, midiOutputSelector;
     std::unique_ptr<MidiSettingsPage>  midiSettingsPage;
     ReferenceCountedArray<MidiDeviceListEntry> midiInputs, midiOutputs;

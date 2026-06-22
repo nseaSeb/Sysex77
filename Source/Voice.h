@@ -10,6 +10,48 @@
 #include "Element.h"
 #include "Volume.h"
 #pragma once
+
+//==============================================================================
+/** Matrice de routage (façon SynthWorks) : les éléments actifs (à gauche) sont
+    reliés par des lignes croisées à un mixeur central, puis aux sorties L/R.
+    Version visuelle (reflète le nombre d'éléments) ; câblage des données à venir. */
+class RoutingMatrix   : public Component
+{
+public:
+    void setNumElements (int n) { numEl = juce::jlimit (1, 4, n); repaint(); }
+
+    void paint (Graphics& g) override
+    {
+        auto area = getLocalBounds().toFloat().reduced (4.0f);
+        const float left = area.getX() + 14.0f;
+        const float mixX = area.getCentreX();
+        const float outX = area.getRight() - 14.0f;
+        const float top  = area.getY() + 6.0f;
+        const float bot  = area.getBottom() - 6.0f;
+        const float midY = (top + bot) * 0.5f;
+
+        g.setColour (SYColLabel.withAlpha (0.6f));
+        g.drawLine (mixX, top, mixX, bot, 1.0f);             // mixeur (barre centrale)
+        g.drawLine (mixX, midY, outX, top + 4.0f, 1.0f);     // -> L
+        g.drawLine (mixX, midY, outX, bot - 4.0f, 1.0f);     // -> R
+        g.setColour (SYColLabel);
+        g.drawText ("L", outX, top - 3.0f, 14.0f, 14.0f, Justification::left);
+        g.drawText ("R", outX, bot - 11.0f, 14.0f, 14.0f, Justification::left);
+
+        for (int i = 0; i < 4; ++i)
+        {
+            const float ey = top + (bot - top) * (i + 0.5f) / 4.0f;
+            const bool active = i < numEl;
+            g.setColour (active ? SYColSelected : SYColLabel.withAlpha (0.25f));
+            g.fillEllipse (left - 3.0f, ey - 3.0f, 6.0f, 6.0f);
+            g.drawText ("E" + String (i + 1), left + 6.0f, ey - 8.0f, 26.0f, 16.0f, Justification::left);
+            g.drawLine (left + 3.0f, ey, mixX, midY, active ? 1.4f : 0.7f); // lignes croisées
+        }
+    }
+
+    int numEl = 1;
+};
+
 //==============================================================================
 struct VoicePage   : public Component, public Slider::Listener, public ComboBox::Listener, public TextEditor::Listener, public TextButton::Listener,public ChangeListener, public ChangeBroadcaster, public Value::Listener, public ValueTree::Listener, public KeyListener , public Timer
 {
@@ -159,6 +201,14 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
             addAndMakeVisible (*gp);
         }
         labelMode.setVisible (false); // remplacé par le cadre "VOICE"
+
+        addAndMakeVisible (routingMatrix);
+        for (auto* l : { &labReverbHall, &labReverbRoom })
+        {
+            l->setJustificationType (Justification::centredLeft);
+            l->setColour (Label::textColourId, SYColLabel);
+            addAndMakeVisible (*l);
+        }
         
 // init master volume slider
 //   { 0x43, 0x10, 0x34, 0x02, 0x00, 0x00, 0x3f, 0x00, 0x00 };
@@ -472,6 +522,7 @@ void setNombreElements (int nombre)
             els[i]->setEnabled (active);
             els[i]->setAlpha (active ? 1.0f : 0.35f);
         }
+        routingMatrix.setNumElements (nombre);
         Logger::writeToLog("setNombre elements");
         resized();
     }
@@ -539,8 +590,15 @@ void setNombreElements (int nombre)
 
         const int rest  = jmax (40, getHeight() - (topElem + voiceH + 8) - 8);
         const int algoH = (int) (rest * 0.55f);
-        grpAlgo.setBounds    (rightX, topElem + voiceH + 8, rightW, algoH);
-        grpEffects.setBounds (rightX, topElem + voiceH + 8 + algoH + 6, rightW, rest - algoH - 6);
+        const int algoY = topElem + voiceH + 8;
+        grpAlgo.setBounds    (rightX, algoY, rightW, algoH);
+        routingMatrix.setBounds (rightX + 6, algoY + 18, rightW - 12, algoH - 24);
+
+        const int effY = algoY + algoH + 6;
+        const int effH = rest - algoH - 6;
+        grpEffects.setBounds (rightX, effY, rightW, effH);
+        labReverbHall.setBounds (rightX + 12, effY + 22, rightW - 24, 20);
+        labReverbRoom.setBounds (rightX + 12, effY + 46, rightW - 24, 20);
     }
     void addBtAndMakeStyle (TextButton& textButton)
     {
@@ -649,6 +707,9 @@ void setNombreElements (int nombre)
     GroupComponent grpVoiceBox { "grpVoice",   TRANS ("VOICE") };
     GroupComponent grpAlgo     { "grpAlgo",    TRANS ("ALGORITHME / ROUTAGE") };
     GroupComponent grpEffects  { "grpEffects", TRANS ("EFFETS") };
+    RoutingMatrix  routingMatrix;
+    Label labReverbHall { "", "REVERB HALL" };
+    Label labReverbRoom { "", "REVERB ROOM" };
 
     int nombreElements = 1;
     SysexBusSender sender;  // [2]
