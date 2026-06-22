@@ -284,6 +284,24 @@ public:
                 SyDraw::drawFilterResponse (g, fb, fMode, fCut, fRes, SYColSelected);
         }
 
+        // Deux sorties du pan (L / R) sur le bord droit de l'élément : point de départ
+        // du routage vers la matrice (à connecter ensuite).
+        {
+            auto pb = groupPan.getBounds().toFloat();
+            const float ox = (float) getWidth() - 4.0f;
+            const float lY = pb.getY() + pb.getHeight() * 0.32f;
+            const float rY = pb.getY() + pb.getHeight() * 0.68f;
+            g.setColour (SYColSelected);
+            g.fillEllipse (ox - 3.0f, lY - 3.0f, 6.0f, 6.0f);
+            g.fillEllipse (ox - 3.0f, rY - 3.0f, 6.0f, 6.0f);
+            g.drawLine (sliderPan.getRight(), lY, ox - 3.0f, lY, 1.0f);
+            g.drawLine (sliderPan.getRight(), rY, ox - 3.0f, rY, 1.0f);
+            g.setColour (SYColLabel);
+            g.setFont (10.0f);
+            g.drawText ("L", (int) ox - 30, (int) lY - 7, 14, 12, Justification::right);
+            g.drawText ("R", (int) ox - 30, (int) rY - 7, 14, 12, Justification::right);
+        }
+
         g.setColour (SYColBackground.contrasting());
         g.addTransform(AffineTransform::rotation(fAngle));
         String str = "OP" + String(operatorID) + " ";
@@ -339,7 +357,8 @@ public:
 
         const int panW = xEnd - xPan;
         groupPan.setBounds (xPan, 0, panW, H);
-        sliderPan.setBounds (xPan + 4, (H / 2) - (panW / 2), panW - 8, panW);
+        // Pan vertical (façon SynthWorks) ; les 2 sorties L/R sont dessinées à droite (paint).
+        sliderPan.setBounds (xPan + 6, 16, 16, H - 28);
     }
 enum mode
     {
@@ -375,7 +394,7 @@ private:
 //    Slider sliderPitch {Slider::SliderStyle::Rotary , Slider::NoTextBox};
  //   Slider sliderFine {Slider::SliderStyle::LinearBar,Slider::NoTextBox};
     MidiSlider sliderVolume;
-    Slider sliderPan {Slider::SliderStyle::Rotary , Slider::NoTextBox};
+    Slider sliderPan {Slider::SliderStyle::LinearVertical , Slider::NoTextBox};
     TextButton  btGroup1 {"1"};
     TextButton btGroup2 {"2"};
 
