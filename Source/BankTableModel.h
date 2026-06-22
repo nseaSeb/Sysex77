@@ -361,52 +361,12 @@ struct SourceItemListboxContents  : public ListBoxModel, public ChangeBroadcaste
         
         appDirPath.findChildFiles(BankFiles, File::TypesOfFileToFind::findFiles
                                   , true,"*.syx");
-        numRows=BankFiles.size();
-        
-        //Verifier si il s'agit bien d'une BANK YAMAHA SY
-        
-        
-        // Construction du XML
-        XmlElement bankList ("TABLE_DATA");
-        
-        //Construction du Headers
-        // create an inner element..
-        XmlElement* chien = new XmlElement ("HEADERS");
-        
-        // create an inner element..
-        XmlElement* poule = new XmlElement ("COLUMN");
-        
-        poule->setAttribute ("columnId", 1);
-        poule->setAttribute ("name", "ID");
-        poule->setAttribute ("width", 120);
-        
-        chien->addChildElement (poule);
-        // create an inner element..
-        XmlElement* mpoule = new XmlElement ("COLUMN");
-        
-        mpoule->setAttribute ("columnId", 2);
-        mpoule->setAttribute ("name", "BANK");
-        mpoule->setAttribute ("width", 120);
-        
-        chien->addChildElement (mpoule);
-        bankList.addChildElement (chien);
-        
-        
-        //Construction des DATA
-        XmlElement* xData = new XmlElement("DATA");
-        
-        for (int i = 0; i < numRows  ; ++i)
-        {
-            XmlElement* giraffe = new XmlElement ("ITEM");
-            giraffe->setAttribute ("ID", i);
-            giraffe->setAttribute ("BANK", BankFiles[i].getFileName());
-            arrayBank.add( BankFiles[i].getFileName());
-            xData->addChildElement (giraffe);
-        }
-        bankList.addChildElement(xData);
-        // dataList = &BankList;
-        
-        bankList.writeTo(appDirPath.getChildFile("Bank.xml"));
+        numRows = BankFiles.size();
+
+        // La liste affichée s'appuie sur arrayBank (et BankFiles). L'ancienne
+        // construction d'un Bank.xml n'était jamais relue -> supprimée (code mort).
+        for (int i = 0; i < numRows; ++i)
+            arrayBank.add (BankFiles[i].getFileName());
 
     }
     
