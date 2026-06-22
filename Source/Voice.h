@@ -141,6 +141,14 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         addLabelStyle(labelOpOn);
         addLabelStyle(labelMode);
         addLabelStyle(labelName);
+
+        for (auto* l : { &labColPitch, &labColWave, &labColFilter, &labColVolume, &labColPan })
+        {
+            l->setJustificationType (Justification::centred);
+            l->setColour (Label::textColourId, SYColLabel);
+            l->setFont (Font (12.0f, Font::bold));
+            addAndMakeVisible (*l);
+        }
         
 // init master volume slider
 //   { 0x43, 0x10, 0x34, 0x02, 0x00, 0x00, 0x3f, 0x00, 0x00 };
@@ -482,15 +490,26 @@ void setNombreElements (int nombre)
         
         grid = getWidth()/10;
         auto wGrid = (getWidth()-20) * 0.7;
-        auto hGrid = (getHeight() - 50)/nombreElements;
+        const int topElem = 68;                 // sous la barre du haut + les en-têtes de colonnes
+        auto hGrid = (getHeight() - topElem - 2)/nombreElements;
         comboMode.setBounds(getWidth()/2, 4, 160, 24);
-        
+
+        // En-têtes de colonnes alignés sur la structure interne d'un Element (1/8 de largeur :
+        // PITCH 0-2, WAVE 2-3, FILTER 3-5, VOLUME 5-7, PAN 7-8).
+        const float unit = (float) wGrid / 8.0f;
+        const int hy = 48, hh = 18;
+        labColPitch .setBounds (10,                 hy, (int) (2*unit), hh);
+        labColWave  .setBounds (10 + (int)(2*unit), hy, (int) (unit),   hh);
+        labColFilter.setBounds (10 + (int)(3*unit), hy, (int) (2*unit), hh);
+        labColVolume.setBounds (10 + (int)(5*unit), hy, (int) (2*unit), hh);
+        labColPan   .setBounds (10 + (int)(7*unit), hy, (int) (unit),   hh);
+
 // Redraw celon le nombre d'elements
-     
-        element1.setBounds(10, 48, wGrid, hGrid);
-        element2.setBounds(10, 48 + hGrid,wGrid, hGrid );
-        element3.setBounds(10,  48 + (hGrid * 2),wGrid, hGrid);
-        element4.setBounds(10,  48 + (hGrid*3), wGrid,hGrid) ;
+
+        element1.setBounds(10, topElem, wGrid, hGrid);
+        element2.setBounds(10, topElem + hGrid, wGrid, hGrid );
+        element3.setBounds(10, topElem + (hGrid * 2), wGrid, hGrid);
+        element4.setBounds(10, topElem + (hGrid*3), wGrid, hGrid) ;
         
         op1.setBounds (10,4,24,24);
         op2.setBounds (10+24, 4,24,24);
@@ -601,6 +620,14 @@ void setNombreElements (int nombre)
 
     
     Label   labelMasterVolume{"M",TRANS("Master Volume")};
+
+    // En-têtes de colonnes (façon SynthWorks) au-dessus des rangées d'éléments.
+    Label labColPitch  { "", "PITCH" };
+    Label labColWave   { "", "WAVE" };
+    Label labColFilter { "", "FILTER" };
+    Label labColVolume { "", "VOLUME" };
+    Label labColPan    { "", "PAN" };
+
     int nombreElements = 1;
     SysexBusSender sender;  // [2]
     CustomLookAndFeel myLookAndFeel;
