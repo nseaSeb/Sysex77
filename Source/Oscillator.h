@@ -169,6 +169,13 @@ public:
             sliderOsc5.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT1OSC5, &um));
             sliderOsc6.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT1OSC6, &um));
 
+            sliderFine1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT1OSCFINE1, &um));
+            sliderFine2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT1OSCFINE2, &um));
+            sliderFine3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT1OSCFINE3, &um));
+            sliderFine4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT1OSCFINE4, &um));
+            sliderFine5.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT1OSCFINE5, &um));
+            sliderFine6.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT1OSCFINE6, &um));
+
             btFix1.getToggleStateValue().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT1OSCFIX1, &um));
             btFix2.getToggleStateValue().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT1OSCFIX2, &um));
             btFix3.getToggleStateValue().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT1OSCFIX3, &um));
@@ -193,7 +200,14 @@ public:
             sliderOsc4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT2OSC4, &um));
             sliderOsc5.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT2OSC5, &um));
             sliderOsc6.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT2OSC6, &um));
-            
+
+            sliderFine1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT2OSCFINE1, &um));
+            sliderFine2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT2OSCFINE2, &um));
+            sliderFine3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT2OSCFINE3, &um));
+            sliderFine4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT2OSCFINE4, &um));
+            sliderFine5.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT2OSCFINE5, &um));
+            sliderFine6.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT2OSCFINE6, &um));
+
             btFix1.getToggleStateValue().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT2OSCFIX1, &um));
             btFix2.getToggleStateValue().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT2OSCFIX2, &um));
             btFix3.getToggleStateValue().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT2OSCFIX3, &um));
@@ -220,7 +234,14 @@ public:
             sliderOsc4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT3OSC4, &um));
             sliderOsc5.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT3OSC5, &um));
             sliderOsc6.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT3OSC6, &um));
-            
+
+            sliderFine1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT3OSCFINE1, &um));
+            sliderFine2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT3OSCFINE2, &um));
+            sliderFine3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT3OSCFINE3, &um));
+            sliderFine4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT3OSCFINE4, &um));
+            sliderFine5.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT3OSCFINE5, &um));
+            sliderFine6.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT3OSCFINE6, &um));
+
             btFix1.getToggleStateValue().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT3OSCFIX1, &um));
             btFix2.getToggleStateValue().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT3OSCFIX2, &um));
             btFix3.getToggleStateValue().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT3OSCFIX3, &um));
@@ -245,7 +266,14 @@ public:
             sliderOsc4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT4OSC4, &um));
             sliderOsc5.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT4OSC5, &um));
             sliderOsc6.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT4OSC6, &um));
-            
+
+            sliderFine1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT4OSCFINE1, &um));
+            sliderFine2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT4OSCFINE2, &um));
+            sliderFine3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT4OSCFINE3, &um));
+            sliderFine4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT4OSCFINE4, &um));
+            sliderFine5.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT4OSCFINE5, &um));
+            sliderFine6.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT4OSCFINE6, &um));
+
             btFix1.getToggleStateValue().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT4OSCFIX1, &um));
             btFix2.getToggleStateValue().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT4OSCFIX2, &um));
             btFix3.getToggleStateValue().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT4OSCFIX3, &um));

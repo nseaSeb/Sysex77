@@ -46,6 +46,14 @@ public:
         repaint();
     }
 
+    // Ratio de fréquence des 6 opérateurs (AFMELEMENTxOSCFINE1-6, déjà converti).
+    void setRatios (const float r[6])
+    {
+        for (int i = 0; i < 6; ++i) ratios[i] = r[i];
+        recompute();
+        repaint();
+    }
+
     void paint (Graphics& g) override
     {
         auto area = getLocalBounds().toFloat();
@@ -85,13 +93,14 @@ private:
         for (int i = 0; i <= n; ++i)
         {
             const float p = (float) i / (float) n * MathConstants<float>::twoPi;
-            samples.add (SyDraw::fmEval (waves, p, index));
+            samples.add (SyDraw::fmEval (waves, ratios, p, index));
         }
     }
 
     Array<float> samples;        // cache (normalisé -1..1)
     int algo = 1;
     int waves[6] = { 0, 0, 0, 0, 0, 0 };
+    float ratios[6] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
 };
 
 //==============================================================================
@@ -206,15 +215,22 @@ public:
         repaint();
     }
 
-    // Pousse les 6 waveforms d'opérateur (+ algo) de cet élément vers la vue FM.
+    // Pousse les 6 waveforms d'opérateur (+ ratios + algo) de cet élément vers la vue FM.
     void updateFmWave()
     {
-        int w[6];
+        int   w[6];
+        float r[6];
         for (int i = 0; i < 6; ++i)
+        {
             w[i] = (int) valueTreeVoice.getProperty (Identifier ("AFMELEMENT" + String (operatorID)
                                                                  + "OSC" + String (i + 1)), 0);
+            const int fine = (int) valueTreeVoice.getProperty (Identifier ("AFMELEMENT" + String (operatorID)
+                                                                 + "OSCFINE" + String (i + 1)), 0);
+            r[i] = (float) jmax (1, roundToInt (fine / 8.0)); // 0-127 -> ratio harmonique ~1..16
+        }
         elementFmWave.setWaves (w);
-        updateFmWave();
+        elementFmWave.setRatios (r);
+        elementFmWave.setAlgo (jmax (1, (int) algoValue.getValue()));
     }
     void addAndMakeSlider (Slider& slider)
     {
