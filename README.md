@@ -13,54 +13,18 @@ Inspiré, côté fonctionnalités, de l'éditeur *SynthWorks SY77*.
 
 ---
 
-## Build
+## Build (sans Projucer)
 
-Le projet se compile de deux façons. **Pas besoin de Projucer pour la voie CMake** (recommandée,
-notamment hors macOS).
-
-### Option A — CMake / `build.sh` (macOS, Linux) — recommandé
-
-```bash
-./build.sh            # build Release dans ./build
-./build.sh --debug    # build Debug
-./build.sh --test     # build puis lance les tests unitaires
-```
-
-Ou directement en CMake (toutes plateformes, y compris Windows) :
+Compilation via CMake — **pas besoin de Projucer**, et **JUCE est téléchargé
+automatiquement** s'il est absent. Idéal pour les utilisateurs **non-Mac** (l'app pré-compilée
+n'est fournie que pour macOS).
 
 ```bash
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release
+./build.sh --test     # macOS / Linux
+build.bat  --test     # Windows
 ```
 
-**JUCE** est résolu automatiquement :
-1. `-DJUCE_DIR=/chemin/vers/JUCE` (ou variable d'env `JUCE_DIR`) si vous avez une copie locale,
-2. sinon `/Applications/JUCE` (install Projucer macOS),
-3. sinon **téléchargé automatiquement** (JUCE 8.0.7) — aucune installation manuelle requise.
-
-**Dépendances Linux** (Debian/Ubuntu) :
-
-```bash
-sudo apt install build-essential cmake libasound2-dev libjack-jackd2-dev \
-  libfreetype6-dev libx11-dev libxcomposite-dev libxcursor-dev libxext-dev \
-  libxinerama-dev libxrandr-dev libxrender-dev libwebkit2gtk-4.1-dev \
-  libglu1-mesa-dev libcurl4-openssl-dev
-```
-
-### Option B — Projucer / Xcode (macOS, historique)
-
-Ouvrir `Sysex77.jucer` dans Projucer, exporter, puis compiler sous Xcode
-(`Builds/MacOSX/Sysex77.xcodeproj`).
-
-### Tests
-
-Les tests unitaires (logique sysex « pure ») tournent via l'argument `--test` du binaire :
-
-```bash
-./build.sh --test
-# ou
-build/Sysex77_artefacts/Sysex77.app/Contents/MacOS/Sysex77 --test
-```
+📖 **Guide complet** (prérequis par OS, options, dépannage) : voir **[BUILD.md](BUILD.md)**.
 
 ---
 
