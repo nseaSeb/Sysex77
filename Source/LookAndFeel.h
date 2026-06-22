@@ -328,6 +328,37 @@ public:
         g.setColour (SYColLabel);  g.fillPath (p);
     }
 
+    // Sliders linéaires plats : rail fin, niveau plein, curseur rectangulaire (GEM).
+    void drawLinearSlider (Graphics& g, int x, int y, int w, int h,
+                           float sliderPos, float minPos, float maxPos,
+                           Slider::SliderStyle style, Slider& s) override
+    {
+        if (style == Slider::LinearVertical)
+        {
+            const float cx = x + w * 0.5f;
+            g.setColour (SYColLabel.withAlpha (0.4f));
+            g.fillRect (cx - 1.0f, (float) y, 2.0f, (float) h);                       // rail
+            g.setColour (SYColSelected);
+            g.fillRect (cx - 1.0f, sliderPos, 2.0f, (float) (y + h) - sliderPos);     // niveau
+            g.setColour (SYColLabel);
+            g.fillRect ((float) x + 2.0f, sliderPos - 3.0f, (float) w - 4.0f, 6.0f);  // curseur
+        }
+        else if (style == Slider::LinearHorizontal)
+        {
+            const float cy = y + h * 0.5f;
+            g.setColour (SYColLabel.withAlpha (0.4f));
+            g.fillRect ((float) x, cy - 1.0f, (float) w, 2.0f);
+            g.setColour (SYColSelected);
+            g.fillRect ((float) x, cy - 1.0f, sliderPos - (float) x, 2.0f);
+            g.setColour (SYColLabel);
+            g.fillRect (sliderPos - 3.0f, (float) y + 2.0f, 6.0f, (float) h - 4.0f);
+        }
+        else
+        {
+            LookAndFeel_V4::drawLinearSlider (g, x, y, w, h, sliderPos, minPos, maxPos, style, s);
+        }
+    }
+
     // Onglets plats : rectangle plein, bord noir, inversé pour l'onglet actif.
     void drawTabButton (TabBarButton& button, Graphics& g,
                         bool isOver, bool /*isDown*/) override

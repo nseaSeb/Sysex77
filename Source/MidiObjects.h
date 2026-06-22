@@ -159,12 +159,12 @@ public:
         {
             boolNegative = true;
             intNegativeDelta = max +2;  //correction for sysex
-            setLookAndFeel(&lookPan);  // Look and feel for pan
+            setLookAndFeel(nullptr);   // suit le LnF du thème (plat en Light)
             setSliderStyle(SliderStyle::Rotary);
         }
         else
         {
-            setLookAndFeel(&lookNormal);
+            setLookAndFeel(nullptr);   // suit le LnF du thème (plat en Light)
         }
         setRange(min, max, 1);
         setNumDecimalPlacesToDisplay(0);
