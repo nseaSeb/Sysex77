@@ -411,12 +411,13 @@ public:
                                                       incomingMidiLabel, midiMonitor));
         tabs.addTab (TRANS("Midi Setting"), SYColBackground, midiSettingsPage.get(), false);
 
-        tabs.setVisible(false);
+        // Barre de navigation visible dès le démarrage (on n'atterrit plus sur une vue
+        // sans menu). On ouvre "Midi Setting" en premier : choix de l'interface.
+        tabs.setVisible(true);
         tabs.setAlwaysOnTop(true);
 
-
         setSize (732, 520);
-        tabs.setCurrentTabIndex(1);
+        tabs.setCurrentTabIndex(3); // Midi Setting
         startTimer (500);
     }
     
