@@ -92,11 +92,9 @@ void oscMessageReceived (const OSCMessage& message)
         {
             // FIXME (à tester sur matériel) : cette fonctionnalité « envoi du nom de voix »
             // est aujourd'hui inactive — oscMidiMessage est déclaré `const` et n'est jamais
-            // rempli (voir Voice.h::textEditorReturnKeyPressed, l'écriture y est perdue car
-            // l'array est const). La boucle ci-dessous est rendue défensive (bornée par la
-            // taille réelle ET par le nombre demandé) pour ne plus risquer de lecture hors
-            // limites / boucle infinie. Avant de réactiver l'envoi réel, vérifier le format
-            // sysex (l'adresse du caractère de nom ne semble pas incrémentée).
+            // Envoi du nom de voix : oscMidiMessage contient les 10 messages VNAM0..VNAM9
+            // construits dans Voice.h. Boucle bornée par la taille réelle ET le nombre
+            // demandé (défense contre toute incohérence).
             const int requested = jmin (message[0].getInt32(), oscMidiMessage.size());
             for (int i = 0; i < requested; ++i)
                 sendToOutputs (oscMidiMessage[i]);

@@ -48,6 +48,7 @@
  *******************************************************************************/
 #include "Values.h"
 #include "SysexBus.h"
+#include "SysexUtils.h"   // SyVoice:: (builder sysex, device, helpers) — visible par tous les widgets
 
 static const String adresseOscFoot = "/77Foot";
 static const String adresseOscMod = "/77Mod";
@@ -79,7 +80,7 @@ static const String oscVoiceFixe1 = "/77VoiceFixe1";
 static const String oscVoiceFixe2 = "/77VoiceFixe2";
 static const String oscVoiceFixe3 = "/77VoiceFixe3";
 static const String oscVoiceFixe4 = "/77VoiceFixe4";
-static const Array<MidiMessage>    oscMidiMessage;
+static Array<MidiMessage>    oscMidiMessage; // tampon des 10 messages du nom de voix (cf. Voice.h)
 static const String oscSendMidiMessage = "/77MidiMessage";
 
 static   StringArray  arrayBank;    //la liste des banques

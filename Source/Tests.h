@@ -121,6 +121,29 @@ struct SysexUtilsTests : public juce::UnitTest
             expect (  SyVoice::acceptsDevice (0x13, 5, true));    // omni : accepte
             expect (! SyVoice::acceptsDevice (0x25, 5, true));    // pas un 0x1n -> refusé
         }
+
+        beginTest ("paramBytes builds the 9-byte SY77 message");
+        {
+            auto b = SyVoice::paramBytes (1, 0x02, 0x00, 0x00, 0x3F, 0x40); // volume voix
+            const juce::uint8 expected[9] = { 0x43, 0x10, 0x34, 0x02, 0x00, 0x00, 0x3F, 0x00, 0x40 };
+            for (int i = 0; i < 9; ++i)
+                expectEquals ((int) b[(size_t) i], (int) expected[i]);
+
+            // le device se reflète dans l'octet [1]
+            expectEquals ((int) SyVoice::paramBytes (5, 0, 0, 0, 0, 0)[1], 0x14);
+        }
+
+        beginTest ("elementAddrHi and afmOperatorGroup encodings");
+        {
+            expectEquals ((int) SyVoice::elementAddrHi (0), 0x00);
+            expectEquals ((int) SyVoice::elementAddrHi (1), 0x20);
+            expectEquals ((int) SyVoice::elementAddrHi (2), 0x40);
+            expectEquals ((int) SyVoice::elementAddrHi (3), 0x60);
+            // OP6..OP1 = 0x06,0x16,0x26,0x36,0x46,0x56
+            expectEquals ((int) SyVoice::afmOperatorGroup (0), 0x06);
+            expectEquals ((int) SyVoice::afmOperatorGroup (4), 0x46);
+            expectEquals ((int) SyVoice::afmOperatorGroup (5), 0x56);
+        }
     }
 };
 

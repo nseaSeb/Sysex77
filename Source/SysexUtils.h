@@ -137,4 +137,41 @@ namespace SyVoice
             return false;
         return omni || n == juce::jlimit (1, 16, selectedDeviceNumber);
     }
+
+    //==============================================================================
+    // Builder de message paramétrique SY77 — une seule définition du format filaire
+    // { 0x43, device, 0x34, group, addrHi, addrLo, param, dataHi, dataLo }.
+    // (cf. SY77_PARAMETERS.md et la spec « SY77 MIDI Data Format ».)
+
+    /** Corps 9 octets (sans F0/F7) d'un message paramétrique, device inclus. */
+    inline std::array<juce::uint8, 9> paramBytes (int deviceNumber, juce::uint8 group,
+                                                  juce::uint8 addrHi, juce::uint8 addrLo,
+                                                  juce::uint8 param,  juce::uint8 value)
+    {
+        return { { 0x43, deviceByte (deviceNumber), 0x34, group,
+                   addrHi, addrLo, param, 0x00, value } };
+    }
+
+    /** Octet addrHi encodant le numéro d'élément (0..3) : element << 5
+        (0x00, 0x20, 0x40, 0x60). Vaut pour les groupes 03/05/07/09. */
+    inline juce::uint8 elementAddrHi (int elementIndex)
+    {
+        return (juce::uint8) ((juce::jlimit (0, 3, elementIndex) & 0x03) << 5);
+    }
+
+    /** Groupe d'un opérateur AFM (op 0..5 = OP6..OP1) : (op << 4) | 0x06
+        -> 0x06, 0x16, 0x26, 0x36, 0x46, 0x56. */
+    inline juce::uint8 afmOperatorGroup (int op)
+    {
+        return (juce::uint8) (((juce::jlimit (0, 5, op) & 0x0F) << 4) | 0x06);
+    }
+
+    /** Message Sysex paramétrique SY77 prêt à émettre (ajoute F0/F7). */
+    inline juce::MidiMessage paramMessage (int deviceNumber, juce::uint8 group,
+                                           juce::uint8 addrHi, juce::uint8 addrLo,
+                                           juce::uint8 param,  juce::uint8 value)
+    {
+        auto b = paramBytes (deviceNumber, group, addrHi, addrLo, param, value);
+        return juce::MidiMessage::createSysExMessage (b.data(), (int) b.size());
+    }
 }

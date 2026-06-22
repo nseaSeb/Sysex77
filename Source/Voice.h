@@ -333,16 +333,20 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
     void textEditorReturnKeyPressed	(	TextEditor & 	editText	) override
     {
         Logger::writeToLog("Voice TextEditor return");
-        String str = editText.getText();
-        uint8 sysexdata[9] = { 0x43, 0X10, 0x34, 0x02, 0x00, 0x00, 0x01, 0x00, 0x00 };
-       const char* data = str.toRawUTF8();
-        for (auto i=0; i<10; i++) {
-            sysexdata[8] = data[i];
-            oscMidiMessage[i] = MidiMessage::createSysExMessage(sysexdata, 9);
+        // Nom de voix = 10 caractères -> Voice Common (groupe 0x02), params VNAM0..VNAM9
+        // = 0x01..0x0A (spec « SY77 MIDI Data Format », table 1-3). Le nom est complété
+        // à droite par des espaces (convention Yamaha). Un message par caractère.
+        const String name = editText.getText();
+        oscMidiMessage.clearQuick();
+        for (int i = 0; i < 10; ++i)
+        {
+            const juce::uint8 ch = (juce::uint8) (i < name.length()
+                                                  ? (int) (juce::juce_wchar) name[i]
+                                                  : 0x20); // espace de remplissage
+            oscMidiMessage.set (i, SyVoice::paramMessage (sysexDeviceNumber, 0x02, 0x00, 0x00,
+                                                          (juce::uint8) (0x01 + i), ch));
         }
-            if (! sender.send (oscSendMidiMessage, (int) 10)) // [5]
-                Logger::writeToLog ("OSC erreur voice opMode");;
-
+        sender.send (oscSendMidiMessage, (int) oscMidiMessage.size());
         }
   
 

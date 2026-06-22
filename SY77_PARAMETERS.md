@@ -75,8 +75,9 @@ rang d'EG) — voir le fichier indiqué pour la logique de calcul.
 
 | Groupe | Paramètre (P) | Sens | Fichier(s) |
 |-------|--------------|------|-----------|
-| `02` | `3F` | Volume total de la voix | Voice.h |
-| `02` | `01` | (voice common, ex. nom — cf. FIXME voice-name) | Voice.h |
+| `02` | `3F` | Volume total de la voix (VWOL) ✅ validé spec | Voice.h |
+| `02` | `01`→`0A` | **Nom de voix** (VNAM0..9, 10 car.) ✅ corrigé+validé | Voice.h |
+| `02` | `00` | Mode d'élément (ELMODE) | — |
 | `03` | `00` groupe / `01` fine / `02` pitch / `08` … (par élément `ee<<5`) | Pitch/pan/groupe d'élément | Element.h, Pitch.h, MidiObjects.h, MidiSysex.h |
 | `05` | … | AFM element common | Operator.h |
 | `46`,`56` (`(op<<4)\|06`) | `26`, `17` … | AFM operator (OSC) | Oscillator.h |
@@ -93,6 +94,44 @@ rang d'EG) — voir le fichier indiqué pour la logique de calcul.
 > de format vers le matériel.
 
 ---
+
+## 5. Tables confirmées (extraites de la spec — pilotent la complétude)
+
+Builder de référence : `SyVoice::paramMessage(device, group, addrHi, addrLo, param, value)`,
+`SyVoice::elementAddrHi(elem)` (= elem<<5), `SyVoice::afmOperatorGroup(op)` (= (op<<4)|0x06).
+
+### Voice Common — groupe `0x02`, addr `00 00` (table 1-3)
+| param | nom | plage | sens |
+|------:|-----|-------|------|
+| `00` | ELMODE | 0..10 | mode d'élément (1AFM_mono … DRUM_SET) |
+| `01`..`0A` | VNAM0..9 | ascii | **nom de voix** (10 car.) |
+| `28` | WPBR | 0..12 | wheel pitch bend range |
+| `29` | ATPBR | ±12 | aftertouch pitch bend range |
+| `3A` | MCTUN | 0..65 | micro tuning table select |
+| `3B` | RNDP | 0..7 | random pitch |
+| `3F` | VWOL | 0..127 | volume de la voix |
+
+### Voice Element — groupe `0x03`, `addrHi = elem<<5`, `addrLo 00` (table 1-4)
+| param | nom | plage | sens |
+|------:|-----|-------|------|
+| `00` | ELVL | 0..127 | niveau de l'élément |
+| `01` | ELDT | ±7 | désaccord (fine) |
+| `02` | ELNS | ±63 | note shift (pitch) |
+| `03`/`04` | ENLL/ENLH | note | limites de note basse/haute |
+| `05`/`06` | EVLL/EVLH | 0..127 | limites de vélocité |
+| `07` | PANNM | 0..95 | pan (table) |
+| `08` | MCTEN/OUTSEL | bits | micro-tuning sw / sorties |
+
+### Adressage opérateurs/éléments AFM-AWM
+- **AFM operator** (table 1-7) : groupe = `afmOperatorGroup(op)` (`0x06`=OP6 … `0x56`=OP1),
+  `addrHi = elem<<5`. Params : EG rates/levels `00`..`0C`, `HT 0D`, `AMS 10`, `VSON 11`,
+  oscillateur `13`..`1A` (sources, waveform `PWAVE 17`, `FREQ 18`, `PHASE 19`, `FPD 1A`)…
+- **AFM element common** (table 1-6) : groupe `0x05`, `addrHi = elem<<5`. `ALGNUM 00` (algo 0..44),
+  Pitch-EG `01`..`0C`, LFO `0D`..`19`.
+- **AWM element** (table 1-8) : groupe `0x07`, `addrHi = elem<<5`. `WSOURCE 00`, `WAWMWAVE 01`,
+  `PPM 02` (normal/fixed), `PNOTE 03`, `PPF 04`, Pitch-EG `06`..`11`, LFO `12`..`19`,
+  Amplitude-EG `4F`..`62`.
+- **Filtre** (table 1-11) : groupe `0x09`, `addrHi = 0ee00fff` (elem + n° filtre).
 
 ## 4. Manques pour une édition de voix complète (gap vs spec — pilote l'Étape 4)
 - AFM : 6 opérateurs × (les non-op `05` + operator `*6` + enable) pour les 4 éléments.
