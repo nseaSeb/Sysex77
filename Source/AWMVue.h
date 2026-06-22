@@ -11,6 +11,21 @@
 #pragma once
 //==============================================================================
 
+/** Nom de la wave AWM d'index donné, lu dans SY77Waves.xml / SY99Waves.xml.
+    Documents parsés une fois (cache statique). */
+inline juce::String awmWaveName (int index, bool sy99)
+{
+    static std::unique_ptr<juce::XmlElement> doc77, doc99;
+    auto& doc = sy99 ? doc99 : doc77;
+    if (doc == nullptr)
+        doc = juce::XmlDocument::parse (sy99 ? BinaryData::SY99Waves_xml : BinaryData::SY77Waves_xml);
+    if (doc != nullptr)
+        if (auto* data = doc->getChildByName ("DATA"))
+            if (auto* row = data->getChildElement (index))
+                return row->getStringAttribute ("NAME");
+    return {};
+}
+
 class TableTutorialComponent    : public Component, public Value::Listener,
 public TableListBoxModel
 {

@@ -126,9 +126,10 @@ public:
         // Nom de la wave (mode AWM), par-dessus le bouton WAVE, non-cliquable.
         addAndMakeVisible(waveNameLabel);
         waveNameLabel.setJustificationType(Justification::centred);
-        waveNameLabel.setFont(Font(13.0f, Font::bold));
-        waveNameLabel.setColour(Label::textColourId, SYColSelected);
-        waveNameLabel.setColour(Label::backgroundColourId, SYColBackground.withAlpha(0.82f));
+        waveNameLabel.setFont(Font(14.0f, Font::bold));
+        // Contraste maximal : fond inversé OPAQUE + texte couleur du fond.
+        waveNameLabel.setColour(Label::textColourId, SYColBackground);
+        waveNameLabel.setColour(Label::backgroundColourId, SYColBackground.contrasting());
         waveNameLabel.setInterceptsMouseClicks(false, false);
         waveNameLabel.setVisible(false);
         /*
@@ -215,7 +216,7 @@ public:
         if (value.refersToSameSourceAs (algoValue))
             elementFmWave.setAlgo (jmax (1, (int) algoValue.getValue()));
         if (value.refersToSameSourceAs (waveNameValue))
-            waveNameLabel.setText (waveNameValue.getValue().toString(), dontSendNotification);
+            waveNameLabel.setText (awmWaveName ((int) waveNameValue.getValue(), SYModel == 3), dontSendNotification);
 /*        if(operatorID == 1)
             sliderVolume.setValue(intVolumeOP1);
   
@@ -275,10 +276,11 @@ public:
         algoValue.addListener (this);
         elementFmWave.setAlgo (jmax (1, (int) algoValue.getValue()));
 
-        // Nom de la wave AWM choisie pour cet élément.
-        waveNameValue = valueTreeVoice.getPropertyAsValue (Identifier ("ELEMENT" + String (operatorID) + "WAVENAME"), &undoManager);
+        // Wave AWM choisie pour cet élément : on suit l'INDEX (WAVEFORM) et on affiche
+        // le NOM via le lookup XML (vrai nom même par défaut, pas seulement après sélection).
+        waveNameValue = valueTreeVoice.getPropertyAsValue (Identifier ("ELEMENT" + String (operatorID) + "WAVEFORM"), &undoManager);
         waveNameValue.addListener (this);
-        waveNameLabel.setText (waveNameValue.getValue().toString(), dontSendNotification);
+        waveNameLabel.setText (awmWaveName ((int) waveNameValue.getValue(), SYModel == 3), dontSendNotification);
         if(operatorID == 1)
         {
 //            btFilter.setShape(pathFilter1, false, false, true);
@@ -337,7 +339,7 @@ public:
                          0.0f);
         elementFmWave.setVisible (false); // AWM : pas de forme d'onde FM
         waveNameLabel.setVisible (true);  // AWM : montre le nom de la wave
-        waveNameLabel.setText (waveNameValue.getValue().toString(), dontSendNotification);
+        waveNameLabel.setText (awmWaveName ((int) waveNameValue.getValue(), SYModel == 3), dontSendNotification);
         repaint();
     }
     void setAfmMode()

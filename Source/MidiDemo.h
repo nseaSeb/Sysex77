@@ -428,7 +428,7 @@ public:
         tabs.setVisible(true);
         tabs.setAlwaysOnTop(true);
 
-        setSize (732, 520);
+        setSize (1280, 820);
         tabs.setCurrentTabIndex(3); // Midi Setting
         startTimer (500);
     }
