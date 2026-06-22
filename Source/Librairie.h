@@ -206,10 +206,10 @@ private:
     
     //    TableListBox table { {}, this };;
     //   TableListBox tableBank { {}, this };;
-    BankATableModel voicesListA;
-    BankBTableModel voicesListB;
-    BankCTableModel voicesListC;
-    BankDTableModel voicesListD;
+    BankVoicesTable voicesListA { 0,  "Bank A" };
+    BankVoicesTable voicesListB { 16, "Bank B" };
+    BankVoicesTable voicesListC { 32, "Bank C" };
+    BankVoicesTable voicesListD { 48, "Bank D" };
     BankTableModel bankList;
     
     int rowSelected;
