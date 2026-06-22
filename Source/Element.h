@@ -30,11 +30,13 @@ public:
     void paint (Graphics& g) override
     {
         SyDraw::drawFmWave (g, getLocalBounds().toFloat(), algo, SYColSelected);
-        // Numéro d'algorithme en overlay.
-        g.setColour (SYColLabel);
+        // Numéro d'algorithme en overlay (petit fond contrasté pour la lisibilité).
         g.setFont (Font (11.0f, Font::bold));
-        g.drawText ("ALG " + String (algo), getLocalBounds().reduced (5),
-                    Justification::topLeft, false);
+        Rectangle<int> tb (4, 4, 48, 16);
+        g.setColour (SYColBackground.withAlpha (0.65f));
+        g.fillRect (tb);
+        g.setColour (SYColBackground.contrasting());
+        g.drawText ("ALG " + String (algo), tb.reduced (4, 0), Justification::left, false);
     }
     int algo = 1;
 };
@@ -79,7 +81,8 @@ public:
         // Nom de la wave (mode AWM), par-dessus le bouton WAVE, non-cliquable.
         addAndMakeVisible(waveNameLabel);
         waveNameLabel.setJustificationType(Justification::centred);
-        waveNameLabel.setColour(Label::textColourId, SYColLabel);
+        waveNameLabel.setColour(Label::textColourId, SYColBackground.contrasting());
+        waveNameLabel.setColour(Label::backgroundColourId, SYColBackground.withAlpha(0.6f));
         waveNameLabel.setInterceptsMouseClicks(false, false);
         waveNameLabel.setVisible(false);
         /*
@@ -116,12 +119,9 @@ public:
    
     
   
-   btVCA.setImages (false, true, true,
-                          imgVCA, 0.7f, Colours::transparentBlack,
-                          imgVCA, 1.0f, Colours::transparentBlack,
-                          imgVCA, 0.6f, Colours::transparentBlack,
-                          0.0f);
-        
+   // btVCA reste cliquable (ouvre l'éditeur d'EG de volume) mais sans image :
+   // l'enveloppe de volume est dessinée dans paint() (cf. SyDraw::drawEnvelope).
+
         // In your constructor, you should add any child components, and
         // initialise any special settings that your component needs.
 
@@ -332,6 +332,17 @@ public:
             auto fb = groupFilter.getBounds().toFloat().reduced (5.0f, 14.0f);
             if (fb.getWidth() > 12.0f && fb.getHeight() > 12.0f)
                 SyDraw::drawFilterResponse (g, fb, fMode, fCut, fRes, SYColSelected);
+
+            // Enveloppe de volume (même approche que le filtre) : sustain = volume réel
+            // de l'élément. (EG complet à câbler plus tard.)
+            const int vol = (int) valueTreeVoice.getProperty (idFor ("VOLUME"), 100);
+            auto vb = btVCA.getBounds().toFloat().reduced (2.0f);
+            if (vb.getWidth() > 12.0f && vb.getHeight() > 12.0f)
+            {
+                juce::Array<float> levels  { 0.0f, 127.0f, (float) vol, 0.0f };
+                juce::Array<float> weights { 1.0f, 2.0f, 3.0f };
+                SyDraw::drawEnvelope (g, vb, levels, weights, 127.0f, SYColSelected);
+            }
         }
 
         // Deux sorties du pan (L / R) sur le bord droit de l'élément : point de départ
