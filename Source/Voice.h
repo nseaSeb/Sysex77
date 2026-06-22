@@ -149,6 +149,16 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
             l->setFont (Font (12.0f, Font::bold));
             addAndMakeVisible (*l);
         }
+
+        // Cadres décoratifs de la colonne droite (transparents, ne captent pas la souris).
+        for (auto* gp : { &grpVoiceBox, &grpAlgo, &grpEffects })
+        {
+            gp->setColour (GroupComponent::textColourId,    SYColLabel);
+            gp->setColour (GroupComponent::outlineColourId, SYColLabel);
+            gp->setInterceptsMouseClicks (false, false);
+            addAndMakeVisible (*gp);
+        }
+        labelMode.setVisible (false); // remplacé par le cadre "VOICE"
         
 // init master volume slider
 //   { 0x43, 0x10, 0x34, 0x02, 0x00, 0x00, 0x3f, 0x00, 0x00 };
@@ -492,7 +502,6 @@ void setNombreElements (int nombre)
         auto wGrid = (getWidth()-20) * 0.7;
         const int topElem = 68;                 // sous la barre du haut + les en-têtes de colonnes
         auto hGrid = (getHeight() - topElem - 2)/nombreElements;
-        comboMode.setBounds(getWidth()/2, 4, 160, 24);
 
         // En-têtes de colonnes alignés sur la structure interne d'un Element (1/8 de largeur :
         // PITCH 0-2, WAVE 2-3, FILTER 3-5, VOLUME 5-7, PAN 7-8).
@@ -518,12 +527,21 @@ void setNombreElements (int nombre)
         editName.setBounds(20 + 96, 4, 100, 24);
         labelName.setBounds(116,20,100,24);
         
-        sliderMaster.setBounds(getWidth() -106, 4, 96, 20);
-        
-        labelMode.setBounds(getWidth()/2 + 24, 20, 96, 24);
         labelOpOn.setBounds(10, 20, 96, 24);
-        labelMasterVolume.setBounds(getWidth()-106, 20, 96, 24);
 
+        // --- Colonne droite (façon SynthWorks) : VOICE (mode + master) / ALGO / EFFETS ---
+        const int rightX = 10 + (int) wGrid + 12;
+        const int rightW = jmax (40, getWidth() - rightX - 10);
+        const int voiceH = 76;
+        grpVoiceBox.setBounds (rightX, topElem, rightW, voiceH);
+        comboMode.setBounds    (rightX + 10, topElem + 28, rightW - 70, 24);
+        sliderMaster.setBounds (rightX + rightW - 48, topElem + 16, 38, voiceH - 26);
+        labelMasterVolume.setBounds (rightX + rightW - 54, topElem + voiceH - 14, 50, 12);
+
+        const int rest  = jmax (40, getHeight() - (topElem + voiceH + 8) - 8);
+        const int algoH = (int) (rest * 0.55f);
+        grpAlgo.setBounds    (rightX, topElem + voiceH + 8, rightW, algoH);
+        grpEffects.setBounds (rightX, topElem + voiceH + 8 + algoH + 6, rightW, rest - algoH - 6);
     }
     void addBtAndMakeStyle (TextButton& textButton)
     {
@@ -627,6 +645,11 @@ void setNombreElements (int nombre)
     Label labColFilter { "", "FILTER" };
     Label labColVolume { "", "VOLUME" };
     Label labColPan    { "", "PAN" };
+
+    // Colonne droite (façon SynthWorks).
+    GroupComponent grpVoiceBox { "grpVoice",   TRANS ("VOICE") };
+    GroupComponent grpAlgo     { "grpAlgo",    TRANS ("ALGORITHME / ROUTAGE") };
+    GroupComponent grpEffects  { "grpEffects", TRANS ("EFFETS") };
 
     int nombreElements = 1;
     SysexBusSender sender;  // [2]
