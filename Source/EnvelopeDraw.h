@@ -243,4 +243,47 @@ namespace SyDraw
         g.setColour (colour);
         g.strokePath (p, juce::PathStrokeType (1.4f, juce::PathStrokeType::curved));
     }
+
+    //==============================================================================
+    // Moteur FM (approché) — Étape 1 : utilise les vraies formes d'onde des opérateurs.
+    // Les 16 formes d'onde AFM sont approximées en maths (assez pour un rendu indicatif ;
+    // le SY77 a son propre jeu exact). idx 0..15, phase en radians.
+    inline float afmWaveform (int idx, float p)
+    {
+        const float tp = juce::MathConstants<float>::twoPi;
+        const float pi = juce::MathConstants<float>::pi;
+        p = std::fmod (p, tp); if (p < 0) p += tp;
+        const float s = std::sin (p);
+        switch (((idx % 16) + 16) % 16)
+        {
+            case 0:  return s;                                              // sine
+            case 1:  return s > 0 ? s : 0.0f;                               // half sine
+            case 2:  return std::abs (s);                                   // rectified sine
+            case 3:  return p < pi ? std::sin (2.0f * p) : 0.0f;            // quarter sine
+            case 4:  return s > 0 ? std::sin (2.0f * p) : 0.0f;             // even sine
+            case 5:  return s > 0 ? std::abs (std::sin (2.0f * p)) : 0.0f;  // even rectified
+            case 6:  return s * std::abs (s);                              // sine^2 signé
+            case 7:  return std::sin (p + 0.5f * std::sin (p));            // sine "feedback"
+            case 8:  return s >= 0 ? 1.0f : -1.0f;                          // square
+            case 9:  return 2.0f * (p / tp) - 1.0f;                         // saw montant
+            case 10: return 1.0f - 2.0f * (p / tp);                        // saw descendant
+            case 11: return p < pi ? (2.0f * p / pi - 1.0f) : (3.0f - 2.0f * p / pi); // triangle
+            case 12: return std::sin (p) * std::cos (2.0f * p);            // produit
+            case 13: return std::sin (3.0f * p);                           // 3e harmonique
+            case 14: return 0.5f * (std::sin (p) + std::sin (2.0f * p));   // sine + 2e
+            case 15: return std::tanh (3.0f * s);                          // sine saturé
+            default: return s;
+        }
+    }
+
+    /** Sortie FM d'un élément (chaîne sérielle OP6->OP1) à partir des index de waveform
+        des 6 opérateurs. Approximation Étape 1 : ratios=1, index de modulation fixe.
+        (Étapes suivantes : ratio/niveau réels par op + matrices d'algo exactes.) */
+    inline float fmEval (const int waves[6], float phase, float index)
+    {
+        float mod = 0.0f;
+        for (int op = 5; op >= 0; --op)            // OP6 (waves[5]) ... OP1 (waves[0])
+            mod = afmWaveform (waves[op], phase + index * mod);
+        return mod;                                // sortie = OP1
+    }
 }

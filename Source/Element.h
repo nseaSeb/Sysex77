@@ -38,6 +38,14 @@ public:
         repaint();
     }
 
+    // Index des waveforms des 6 opérateurs (AFMELEMENTxOSC1-6).
+    void setWaves (const int w[6])
+    {
+        for (int i = 0; i < 6; ++i) waves[i] = w[i];
+        recompute();
+        repaint();
+    }
+
     void paint (Graphics& g) override
     {
         auto area = getLocalBounds().toFloat();
@@ -68,22 +76,22 @@ public:
     }
 
 private:
-    // Modèle FM 2-op approché (cf. SyDraw::drawFmWave) ; varie avec l'algorithme.
+    // Moteur FM (Étape 1) : chaîne sérielle des 6 opérateurs avec leurs vraies waveforms.
     void recompute()
     {
         samples.clearQuick();
-        const int   n     = 160;
-        const float ratio = 1.0f + (float) (jmax (1, algo) % 4);
-        const float index = 0.8f + (float) (jmax (1, algo) % 6) * 0.7f;
+        const int   n     = 256;
+        const float index = 0.6f + 0.25f * (float) (jmax (1, algo) % 6); // profondeur ~ algo
         for (int i = 0; i <= n; ++i)
         {
-            const float t = (float) i / (float) n * MathConstants<float>::twoPi;
-            samples.add (std::sin (t + index * std::sin (ratio * t)));
+            const float p = (float) i / (float) n * MathConstants<float>::twoPi;
+            samples.add (SyDraw::fmEval (waves, p, index));
         }
     }
 
-    Array<float> samples;   // cache (normalisé -1..1)
+    Array<float> samples;        // cache (normalisé -1..1)
     int algo = 1;
+    int waves[6] = { 0, 0, 0, 0, 0, 0 };
 };
 
 //==============================================================================
@@ -187,8 +195,27 @@ public:
         valueTreeVoice.removeListener(this);
     }
 
-    // Repeinture live des vignettes (filtre, enveloppe de volume) à chaque édition.
-    void valueTreePropertyChanged (ValueTree&, const Identifier&) override { repaint(); }
+    // Repeinture live des vignettes (filtre, enveloppe de volume) à chaque édition ;
+    // si une waveform/algo d'opérateur de CET élément change, on recalcule la forme FM.
+    void valueTreePropertyChanged (ValueTree&, const Identifier& property) override
+    {
+        const auto p = property.toString();
+        if (p.startsWith ("AFMELEMENT" + String (operatorID))
+            || p == ("AFMALGOELEMENT" + String (operatorID)))
+            updateFmWave();
+        repaint();
+    }
+
+    // Pousse les 6 waveforms d'opérateur (+ algo) de cet élément vers la vue FM.
+    void updateFmWave()
+    {
+        int w[6];
+        for (int i = 0; i < 6; ++i)
+            w[i] = (int) valueTreeVoice.getProperty (Identifier ("AFMELEMENT" + String (operatorID)
+                                                                 + "OSC" + String (i + 1)), 0);
+        elementFmWave.setWaves (w);
+        updateFmWave();
+    }
     void addAndMakeSlider (Slider& slider)
     {
         addAndMakeVisible(slider);
@@ -219,7 +246,7 @@ public:
     {
         Logger::writeToLog("Element value change");
         if (value.refersToSameSourceAs (algoValue))
-            elementFmWave.setAlgo (jmax (1, (int) algoValue.getValue()));
+            updateFmWave();
         if (value.refersToSameSourceAs (waveNameValue))
             waveNameLabel.setText (awmWaveName ((int) waveNameValue.getValue(), SYModel == 3), dontSendNotification);
 /*        if(operatorID == 1)
@@ -279,7 +306,7 @@ public:
         // Lien vers l'algo FM de cet élément -> mini-vue (mise à jour live).
         algoValue = valueTreeVoice.getPropertyAsValue (Identifier ("AFMALGOELEMENT" + String (operatorID)), &undoManager);
         algoValue.addListener (this);
-        elementFmWave.setAlgo (jmax (1, (int) algoValue.getValue()));
+        updateFmWave();
 
         // Wave AWM choisie pour cet élément : on suit l'INDEX (WAVEFORM) et on affiche
         // le NOM via le lookup XML (vrai nom même par défaut, pas seulement après sélection).
@@ -358,7 +385,7 @@ public:
                           imgAFM, 0.6f, Colours::transparentBlack,
                           0.0f);
         elementFmWave.setVisible (true);  // AFM : forme d'onde FM (+ n° algo en overlay)
-        elementFmWave.setAlgo (jmax (1, (int) algoValue.getValue()));
+        updateFmWave();
         waveNameLabel.setVisible (false); // AFM : pas de nom de wave
         repaint();
     }
