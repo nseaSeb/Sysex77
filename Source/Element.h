@@ -17,6 +17,7 @@
 #include "WaveVue.h"
 #include "FilterVue.h"
 #include "AfmVue.h"
+#include "AlgoDraw.h"
 
 
 
@@ -52,6 +53,11 @@ public:
         addAndMakeVisible(groupVolume);
         addAndMakeVisible(groupPan);
         addAndMakeVisible(btWave);
+        // Mini-vue de l'algo FM par-dessus le bouton WAVE (n'intercepte pas la souris :
+        // le bouton dessous reste cliquable pour ouvrir l'éditeur d'opérateurs).
+        addAndMakeVisible(elementAlgo);
+        elementAlgo.setInterceptsMouseClicks(false, false);
+        elementAlgo.setVisible(false);
         /*
         Path shape;
         shape.lineTo(0.0f, 1.0f);
@@ -136,6 +142,8 @@ public:
     void valueChanged(Value & value) override
     {
         Logger::writeToLog("Element value change");
+        if (value.refersToSameSourceAs (algoValue))
+            elementAlgo.setAlgo ((int) algoValue.getValue());
 /*        if(operatorID == 1)
             sliderVolume.setValue(intVolumeOP1);
   
@@ -189,6 +197,11 @@ public:
         Logger::writeToLog(String(operatorNumber));
         operatorID = operatorNumber;
         pitch.setOperator(operatorNumber, undoManager);
+
+        // Lien vers l'algo FM de cet élément -> mini-vue (mise à jour live).
+        algoValue = valueTreeVoice.getPropertyAsValue (Identifier ("AFMALGOELEMENT" + String (operatorID)), &undoManager);
+        algoValue.addListener (this);
+        elementAlgo.setAlgo ((int) algoValue.getValue());
         if(operatorID == 1)
         {
 //            btFilter.setShape(pathFilter1, false, false, true);
@@ -245,18 +258,21 @@ public:
                          imgAudio, 1.0f, Colours::transparentBlack,
                           imgAudio, 0.6f, Colours::transparentBlack,
                          0.0f);
+        elementAlgo.setVisible (false);   // AWM : pas d'algo FM
         repaint();
     }
     void setAfmMode()
     {
         btWave.setButtonText("AFM");
         btWave.setButtonText("AFM");
-        
+
         btWave.setImages (false, true, true,
                           imgAFM, 0.7f, Colours::transparentBlack,
                           imgAFM, 1.0f, Colours::transparentBlack,
                           imgAFM, 0.6f, Colours::transparentBlack,
                           0.0f);
+        elementAlgo.setVisible (true);    // AFM : montre l'algo choisi
+        elementAlgo.setAlgo ((int) algoValue.getValue());
         repaint();
     }
     void paint (Graphics& g) override
@@ -346,6 +362,7 @@ public:
 
         groupWave.setBounds (xWave, 0, xFilter - xWave, H);
         btWave.setBounds (groupWave.getBounds().reduced (4, 16));
+        elementAlgo.setBounds (btWave.getBounds().reduced (2)); // mini-algo par-dessus le bouton
 
         groupFilter.setBounds (xFilter, 0, xVol - xFilter, H);
         btFilter.setBounds (groupFilter.getBounds().reduced (4, 16));
@@ -394,6 +411,8 @@ private:
 //    Slider sliderPitch {Slider::SliderStyle::Rotary , Slider::NoTextBox};
  //   Slider sliderFine {Slider::SliderStyle::LinearBar,Slider::NoTextBox};
     MidiSlider sliderVolume;
+    AlgoDraw elementAlgo;   // mini-vue de l'algo FM (colonne WAVE, mode AFM)
+    Value    algoValue;     // -> AFMALGOELEMENTx
     Slider sliderPan {Slider::SliderStyle::LinearVertical , Slider::NoTextBox};
     TextButton  btGroup1 {"1"};
     TextButton btGroup2 {"2"};
