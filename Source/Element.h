@@ -54,6 +54,14 @@ public:
         repaint();
     }
 
+    // Amplitude 0..1 des 6 opérateurs (AFMELEMENTxLEVEL1-6, déjà normalisé).
+    void setLevels (const float l[6])
+    {
+        for (int i = 0; i < 6; ++i) levels[i] = l[i];
+        recompute();
+        repaint();
+    }
+
     void paint (Graphics& g) override
     {
         auto area = getLocalBounds().toFloat();
@@ -93,7 +101,7 @@ private:
         for (int i = 0; i <= n; ++i)
         {
             const float p = (float) i / (float) n * MathConstants<float>::twoPi;
-            samples.add (SyDraw::fmEval (waves, ratios, p, index));
+            samples.add (SyDraw::fmEval (waves, ratios, levels, p, index));
         }
     }
 
@@ -101,6 +109,7 @@ private:
     int algo = 1;
     int waves[6] = { 0, 0, 0, 0, 0, 0 };
     float ratios[6] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
+    float levels[6] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
 };
 
 //==============================================================================
@@ -220,6 +229,8 @@ public:
     {
         int   w[6];
         float r[6];
+        float l[6];
+        int   lvlSum = 0;
         for (int i = 0; i < 6; ++i)
         {
             w[i] = (int) valueTreeVoice.getProperty (Identifier ("AFMELEMENT" + String (operatorID)
@@ -227,9 +238,19 @@ public:
             const int fine = (int) valueTreeVoice.getProperty (Identifier ("AFMELEMENT" + String (operatorID)
                                                                  + "OSCFINE" + String (i + 1)), 0);
             r[i] = (float) jmax (1, roundToInt (fine / 8.0)); // 0-127 -> ratio harmonique ~1..16
+
+            const int lvl = (int) valueTreeVoice.getProperty (Identifier ("AFMELEMENT" + String (operatorID)
+                                                                 + "LEVEL" + String (i + 1)), 0);
+            l[i] = (float) lvl / 127.0f;                       // amplitude normalisée
+            lvlSum += lvl;
         }
+        // Aucun niveau stocké (preset sans données de niveau) -> tout plein, rendu visible.
+        if (lvlSum == 0)
+            for (int i = 0; i < 6; ++i) l[i] = 1.0f;
+
         elementFmWave.setWaves (w);
         elementFmWave.setRatios (r);
+        elementFmWave.setLevels (l);
         elementFmWave.setAlgo (jmax (1, (int) algoValue.getValue()));
     }
     void addAndMakeSlider (Slider& slider)

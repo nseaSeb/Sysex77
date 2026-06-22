@@ -114,7 +114,24 @@ public:
         btPhase4.setTextOnOff("Sync Off", "Sync On");
         btPhase5.setTextOnOff("Sync Off", "Sync On");
         btPhase6.setTextOnOff("Sync Off", "Sync On");
-        
+
+        setSliderLevel(sliderLevel1);
+        setSliderLevel(sliderLevel2);
+        setSliderLevel(sliderLevel3);
+        setSliderLevel(sliderLevel4);
+        setSliderLevel(sliderLevel5);
+        setSliderLevel(sliderLevel6);
+    }
+
+    void setSliderLevel (Slider& slider)
+    {
+        addAndMakeVisible(slider);
+        slider.setSliderStyle(Slider::SliderStyle::LinearBar);
+        slider.setTextValueSuffix(" Lvl");
+        slider.setRange(0, 127, 1);
+        slider.setNumDecimalPlacesToDisplay(0);
+        slider.setPopupDisplayEnabled(true, true, this);
+        slider.setColour(Slider::ColourIds::trackColourId, SYColSelected);
     }
 
     ~Oscillator()
@@ -176,6 +193,13 @@ public:
             sliderFine5.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT1OSCFINE5, &um));
             sliderFine6.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT1OSCFINE6, &um));
 
+            sliderLevel1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT1LEVEL1, &um));
+            sliderLevel2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT1LEVEL2, &um));
+            sliderLevel3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT1LEVEL3, &um));
+            sliderLevel4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT1LEVEL4, &um));
+            sliderLevel5.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT1LEVEL5, &um));
+            sliderLevel6.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT1LEVEL6, &um));
+
             btFix1.getToggleStateValue().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT1OSCFIX1, &um));
             btFix2.getToggleStateValue().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT1OSCFIX2, &um));
             btFix3.getToggleStateValue().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT1OSCFIX3, &um));
@@ -207,6 +231,13 @@ public:
             sliderFine4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT2OSCFINE4, &um));
             sliderFine5.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT2OSCFINE5, &um));
             sliderFine6.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT2OSCFINE6, &um));
+
+            sliderLevel1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT2LEVEL1, &um));
+            sliderLevel2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT2LEVEL2, &um));
+            sliderLevel3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT2LEVEL3, &um));
+            sliderLevel4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT2LEVEL4, &um));
+            sliderLevel5.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT2LEVEL5, &um));
+            sliderLevel6.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT2LEVEL6, &um));
 
             btFix1.getToggleStateValue().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT2OSCFIX1, &um));
             btFix2.getToggleStateValue().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT2OSCFIX2, &um));
@@ -242,6 +273,13 @@ public:
             sliderFine5.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT3OSCFINE5, &um));
             sliderFine6.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT3OSCFINE6, &um));
 
+            sliderLevel1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT3LEVEL1, &um));
+            sliderLevel2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT3LEVEL2, &um));
+            sliderLevel3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT3LEVEL3, &um));
+            sliderLevel4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT3LEVEL4, &um));
+            sliderLevel5.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT3LEVEL5, &um));
+            sliderLevel6.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT3LEVEL6, &um));
+
             btFix1.getToggleStateValue().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT3OSCFIX1, &um));
             btFix2.getToggleStateValue().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT3OSCFIX2, &um));
             btFix3.getToggleStateValue().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT3OSCFIX3, &um));
@@ -273,6 +311,13 @@ public:
             sliderFine4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT4OSCFINE4, &um));
             sliderFine5.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT4OSCFINE5, &um));
             sliderFine6.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT4OSCFINE6, &um));
+
+            sliderLevel1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT4LEVEL1, &um));
+            sliderLevel2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT4LEVEL2, &um));
+            sliderLevel3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT4LEVEL3, &um));
+            sliderLevel4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT4LEVEL4, &um));
+            sliderLevel5.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT4LEVEL5, &um));
+            sliderLevel6.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT4LEVEL6, &um));
 
             btFix1.getToggleStateValue().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT4OSCFIX1, &um));
             btFix2.getToggleStateValue().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT4OSCFIX2, &um));
@@ -458,7 +503,14 @@ public:
         roundSize(sliderOsc6);
         btFix6.setBoundsRelative(0.86f, 0.8f, 0.12f, 0.06f);
         btPhase6.setBoundsRelative(0.86f, 0.9f, 0.12f, 0.06f);
-        
+
+        // Niveau de sortie : barre fine en bas de chaque cellule d'opérateur.
+        sliderLevel1.setBoundsRelative(0.01f, 0.455f, 0.30f, 0.035f);
+        sliderLevel2.setBoundsRelative(0.34f, 0.455f, 0.30f, 0.035f);
+        sliderLevel3.setBoundsRelative(0.67f, 0.455f, 0.30f, 0.035f);
+        sliderLevel4.setBoundsRelative(0.01f, 0.955f, 0.30f, 0.035f);
+        sliderLevel5.setBoundsRelative(0.34f, 0.955f, 0.30f, 0.035f);
+        sliderLevel6.setBoundsRelative(0.67f, 0.955f, 0.30f, 0.035f);
     }
     void roundSize (Slider& slider)
     {
@@ -522,7 +574,15 @@ private:
     Label labelFine6 {"f1", "Coarse Fine"};
     Label labelDetune6 {"f1", "Detune"};
     Label labelPhase6 {"f1", "Phase"};
-    
+
+    // Niveau de sortie par opérateur (alimente le rendu FM ; pas d'envoi sysex pour l'instant)
+    MidiSlider sliderLevel1;
+    MidiSlider sliderLevel2;
+    MidiSlider sliderLevel3;
+    MidiSlider sliderLevel4;
+    MidiSlider sliderLevel5;
+    MidiSlider sliderLevel6;
+
     MidiButton  btFix1;
     MidiButton  btFix2;
     MidiButton  btFix3;

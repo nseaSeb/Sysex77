@@ -279,13 +279,23 @@ namespace SyDraw
     /** Sortie FM d'un élément (chaîne sérielle OP6->OP1) à partir des index de waveform
         des 6 opérateurs. Approximation Étape 1 : ratios=1, index de modulation fixe.
         (Étapes suivantes : ratio/niveau réels par op + matrices d'algo exactes.) */
-    // ratios[op] = multiplicateur de fréquence de l'opérateur (1 = fondamentale).
-    inline float fmEval (const int waves[6], const float ratios[6], float phase, float index)
+    // ratios[op] = multiplicateur de fréquence ; levels[op] = amplitude 0..1 de l'opérateur.
+    inline float fmEval (const int waves[6], const float ratios[6], const float levels[6],
+                         float phase, float index)
     {
         float mod = 0.0f;
         for (int op = 5; op >= 0; --op)            // OP6 (waves[5]) ... OP1 (waves[0])
-            mod = afmWaveform (waves[op], ratios[op] * phase + index * mod);
-        return mod;                                // sortie = OP1
+        {
+            const float out = afmWaveform (waves[op], ratios[op] * phase + index * mod);
+            mod = out * levels[op];                // le niveau pondère la contribution de l'op
+        }
+        return mod;                                // sortie = OP1 (déjà pondérée par son niveau)
+    }
+
+    inline float fmEval (const int waves[6], const float ratios[6], float phase, float index)
+    {
+        const float l[6] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
+        return fmEval (waves, ratios, l, phase, index);
     }
 
     inline float fmEval (const int waves[6], float phase, float index)
