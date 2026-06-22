@@ -315,33 +315,31 @@ public:
 
     void resized() override
     {
-        int wGrid = getWidth()/4;
-        int wwGrid = wGrid/2;
-//        int hGrid = getHeight()/5;
-   
-        // This method is where you should set the bounds of any child
-        // components that your component contains..
+        // Colonnes homogènes (mêmes fractions que les en-têtes de VoicePage) :
+        // PITCH .18 | WAVE .18 | FILTER .26 | VOLUME .26 | PAN .12
+        const float W = (float) getWidth();
+        const int   H = getHeight();
+        auto col = [W] (float f) { return (int) (W * f); };
+        const int xPitch = col (0.0f),  xWave = col (0.18f), xFilter = col (0.36f),
+                  xVol   = col (0.62f), xPan  = col (0.88f), xEnd   = col (1.0f);
 
-        pitch.setBounds(30,0,wGrid - 30,getHeight());
-   //     sliderPitch.setBounds(10, 20, wGrid -20, hGrid);
-    //    sliderFine.setBounds(10, hGrid + 30, wGrid - 20, hGrid);
-        
-        groupWave.setBounds(wGrid, 0, wwGrid, getHeight());
-        btWave.setBounds(groupWave.getBounds().reduced(4, 16));
-        
-        groupFilter.setBounds(wGrid + wwGrid, 0, wGrid, getHeight());
-        
-        btFilter.setBounds(groupFilter.getBounds().reduced(4, 16));
-        
-        groupVolume.setBounds(wwGrid * 5, 0, wGrid, getHeight());
-        btVCA.setBounds(wwGrid * 5 + 4, 4, wGrid - 34, getHeight() -8);
-        sliderVolume.setBounds(wwGrid * 7 - 30, 16, 24, getHeight() - 24);
-        
-        groupPan.setBounds(wwGrid * 7 , 0, wwGrid, getHeight());
-        sliderPan.setBounds(4 + wwGrid * 7, (getHeight()/2)-(wwGrid/2),wwGrid - 8, wwGrid);
-        
+        const int labelMargin = 22; // place pour le libellé vertical "OPx ..." à gauche
+        pitch.setBounds (xPitch + labelMargin, 0, (xWave - xPitch) - labelMargin - 2, H);
 
-        
+        groupWave.setBounds (xWave, 0, xFilter - xWave, H);
+        btWave.setBounds (groupWave.getBounds().reduced (4, 16));
+
+        groupFilter.setBounds (xFilter, 0, xVol - xFilter, H);
+        btFilter.setBounds (groupFilter.getBounds().reduced (4, 16));
+
+        const int volW = xPan - xVol;
+        groupVolume.setBounds (xVol, 0, volW, H);
+        btVCA.setBounds (xVol + 4, 4, volW - 34, H - 8);
+        sliderVolume.setBounds (xPan - 30, 16, 24, H - 24);
+
+        const int panW = xEnd - xPan;
+        groupPan.setBounds (xPan, 0, panW, H);
+        sliderPan.setBounds (xPan + 4, (H / 2) - (panW / 2), panW - 8, panW);
     }
 enum mode
     {

@@ -502,15 +502,15 @@ void setNombreElements (int nombre)
         // Hauteur de rangée FIXE (toujours 4 rangées affichées, façon SynthWorks).
         auto hGrid = (getHeight() - topElem - 2)/4;
 
-        // En-têtes de colonnes alignés sur la structure interne d'un Element (1/8 de largeur :
-        // PITCH 0-2, WAVE 2-3, FILTER 3-5, VOLUME 5-7, PAN 7-8).
-        const float unit = (float) wGrid / 8.0f;
+        // En-têtes de colonnes alignés sur les fractions internes d'un Element :
+        // PITCH .18 | WAVE .18 | FILTER .26 | VOLUME .26 | PAN .12
         const int hy = 48, hh = 18;
-        labColPitch .setBounds (10,                 hy, (int) (2*unit), hh);
-        labColWave  .setBounds (10 + (int)(2*unit), hy, (int) (unit),   hh);
-        labColFilter.setBounds (10 + (int)(3*unit), hy, (int) (2*unit), hh);
-        labColVolume.setBounds (10 + (int)(5*unit), hy, (int) (2*unit), hh);
-        labColPan   .setBounds (10 + (int)(7*unit), hy, (int) (unit),   hh);
+        auto fx = [wGrid] (float f) { return 10 + (int) (wGrid * f); };
+        labColPitch .setBounds (fx (0.00f), hy, fx (0.18f) - fx (0.00f), hh);
+        labColWave  .setBounds (fx (0.18f), hy, fx (0.36f) - fx (0.18f), hh);
+        labColFilter.setBounds (fx (0.36f), hy, fx (0.62f) - fx (0.36f), hh);
+        labColVolume.setBounds (fx (0.62f), hy, fx (0.88f) - fx (0.62f), hh);
+        labColPan   .setBounds (fx (0.88f), hy, fx (1.00f) - fx (0.88f), hh);
 
 // Redraw celon le nombre d'elements
 
