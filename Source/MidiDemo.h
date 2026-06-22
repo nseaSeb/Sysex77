@@ -175,7 +175,8 @@ struct DemoTabbedComponent  : public TabbedComponent
         addTab (TRANS("Librairie"),     colour, new LibrairiePage (), true);
        // addTab (TRANS("Midi"),     colour, new ControllerPage (), true);
         addTab (TRANS("Voice"), colour, new VoicePage(), true);
-        addTab (TRANS("Midi Setting"),colour,nullptr,false);
+        // L'onglet "Midi Setting" (index 3) est ajouté par MidiDemo avec un vrai
+        // contenu (MidiSettingsPage), car il réutilise des composants de MidiDemo.
 
         // ConfigPage (1er onglet) a appliqué le thème pendant sa construction :
         // on aligne donc le fond des onglets sur la couleur de fond du thème.
@@ -233,7 +234,59 @@ struct DemoTabbedComponent  : public TabbedComponent
 };
 
 //==============================================================================
+/** Vue "Midi Setting" : héberge le choix des interfaces (in/out), le bouton
+    Bluetooth, le Bulk Protect et le moniteur MIDI. Ces composants restent la
+    propriété de MidiDemo (câblés à sa logique MIDI) ; cette page ne fait que les
+    re-parenter et les disposer, pour en faire un onglet à part entière (la barre
+    de navigation ne disparaît donc plus). */
+struct MidiSettingsPage : public Component
+{
+    MidiSettingsPage (Label& inLabel, Component& inSel,
+                      Label& outLabel, Component& outSel,
+                      TextButton& pair, TextButton& bulk,
+                      Label& monLabel, TextEditor& monitor)
+        : inLab (inLabel), inSelector (inSel), outLab (outLabel), outSelector (outSel),
+          pairBtn (pair), bulkBtn (bulk), monLab (monLabel), monitorRef (monitor)
+    {
+        setOpaque (false);
+        addAndMakeVisible (inLab);
+        addAndMakeVisible (inSelector);
+        addAndMakeVisible (outLab);
+        addAndMakeVisible (outSelector);
+        addAndMakeVisible (pairBtn);
+        addAndMakeVisible (bulkBtn);
+        addAndMakeVisible (monLab);
+        addAndMakeVisible (monitorRef);
+    }
 
+    void resized() override
+    {
+        const int m = 10;
+        const int half = getWidth() / 2;
+        const int selH = getHeight() / 2 - 80;
+
+        inLab .setBounds (m,        m,       half - 2*m, 24);
+        outLab.setBounds (half + m, m,       half - 2*m, 24);
+        inSelector .setBounds (m,        m + 28, half - 2*m, selH);
+        outSelector.setBounds (half + m, m + 28, half - 2*m, selH);
+
+        const int rowY = m + 28 + selH + m;
+        pairBtn.setBounds (m,        rowY, half - 2*m, 24);
+        bulkBtn.setBounds (half + m, rowY, half - 2*m, 24);
+
+        monLab    .setBounds (m, rowY + 32,      getWidth() - 2*m, 24);
+        monitorRef.setBounds (m, rowY + 32 + 26, getWidth() - 2*m, getHeight() - (rowY + 32 + 26) - m);
+    }
+
+    Label&      inLab;
+    Component&  inSelector;
+    Label&      outLab;
+    Component&  outSelector;
+    TextButton& pairBtn;
+    TextButton& bulkBtn;
+    Label&      monLab;
+    TextEditor& monitorRef;
+};
 
 //==============================================================================
 class MidiDemo  : public Component,
@@ -349,10 +402,19 @@ public:
         // Plus aucune connexion UDP : le bus est intra-processus (voir SysexBus.h).
         // addOscListener() installe le callback du bus au lieu de binder un port.
         addOscListener();
+
+        // Onglet "Midi Setting" : vraie page (choix interfaces + Bluetooth + Bulk + moniteur).
+        // Réutilise les composants de MidiDemo (re-parentés dans la page).
+        midiSettingsPage.reset (new MidiSettingsPage (midiInputLabel, *midiInputSelector,
+                                                      midiOutputLabel, *midiOutputSelector,
+                                                      pairButton, btBulk,
+                                                      incomingMidiLabel, midiMonitor));
+        tabs.addTab (TRANS("Midi Setting"), SYColBackground, midiSettingsPage.get(), false);
+
         tabs.setVisible(false);
         tabs.setAlwaysOnTop(true);
-        
-        
+
+
         setSize (732, 520);
         tabs.setCurrentTabIndex(1);
         startTimer (500);
@@ -399,13 +461,8 @@ public:
     //==============================================================================
     void timerCallback() override
     {
-        if(tabs.getCurrentTabIndex()==3)
-        {
-            tabs.setCurrentTabIndex(intTabIndex);
-           tabs.setVisible(false);
-            
-            //repaint();
-        }
+        // "Midi Setting" est désormais un onglet à part entière (MidiSettingsPage) :
+        // plus besoin de masquer la barre de navigation à sa sélection.
         updateDeviceList (true);
         updateDeviceList (false);
     }
@@ -469,28 +526,9 @@ public:
         
         
         
-        midiInputLabel.setBounds (margin, margin + 34,
-                                  (getWidth() / 2) - (2 * margin), 24);
-        
-        midiOutputLabel.setBounds ((getWidth() / 2) + margin, margin + 34,
-                                   (getWidth() / 2) - (2 * margin), 24);
-        
-        midiInputSelector->setBounds (margin, (2 * margin) + 48,
-                                      (getWidth() / 2) - (2 * margin),
-                                      (getHeight() / 2) - ((4 * margin) + 64 ));
-        
-        midiOutputSelector->setBounds ((getWidth() / 2) + margin, (2 * margin) + 48,
-                                       (getWidth() / 2) - (2 * margin),
-                                       (getHeight() / 2) - ((4 * margin) + 64 ));
-        
-        pairButton.setBounds (margin, (getHeight() / 2) - (margin + 24),
-                              getWidth() - (2 * margin), 24);
-        
-        incomingMidiLabel.setBounds (margin, getHeight() / 2, getWidth() - (2 * margin), 24);
-        
-        midiMonitor.setBounds (margin, (getHeight()/2 + (24 + margin)), getWidth() - (2 * margin), getHeight()/2 - 128);
-        btBulk.setBounds(getWidth()/2, getHeight()/2, getWidth()/4, 24);
-        
+        // Les composants MIDI (interfaces, moniteur, pair, bulk) sont désormais
+        // disposés par MidiSettingsPage (onglet 3) — plus ici.
+
         tabs.setBounds (0,10,getWidth(),getHeight()-84);
         
         
@@ -898,6 +936,7 @@ public:
     
     TextButton  btBulk {"Bulk Protect"};
     std::unique_ptr<MidiDeviceListBox> midiInputSelector, midiOutputSelector;
+    std::unique_ptr<MidiSettingsPage>  midiSettingsPage;
     ReferenceCountedArray<MidiDeviceListEntry> midiInputs, midiOutputs;
     
     CriticalSection midiMonitorLock;
