@@ -127,7 +127,7 @@ public:
         slider.setSliderStyle(Slider::SliderStyle::Rotary);
         slider.setRange(-15, 15);
         slider.setNumDecimalPlacesToDisplay(0);
-        slider.setLookAndFeel(&myLookAndFeel);
+        slider.setLookAndFeel(nullptr);   // suit le LnF du thème (plat en Light)
         slider.setPopupDisplayEnabled(true, true,this);
 
         
