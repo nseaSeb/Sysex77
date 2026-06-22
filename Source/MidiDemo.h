@@ -49,6 +49,7 @@
 #include "Values.h"
 #include "SysexBus.h"
 #include "SysexUtils.h"   // SyVoice:: (builder sysex, device, helpers) — visible par tous les widgets
+#include "Version.h"      // Sysex77::kVersion / versionString()
 
 //==============================================================================
 // État partagé de l'application.

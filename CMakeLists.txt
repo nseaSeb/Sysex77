@@ -12,7 +12,7 @@
 #   ./build/Sysex77_artefacts/Sysex77.app/Contents/MacOS/Sysex77 --test
 # =============================================================================
 cmake_minimum_required(VERSION 3.22)
-project(Sysex77 VERSION 1.0.0 LANGUAGES C CXX)
+project(Sysex77 VERSION 1.1.0 LANGUAGES C CXX)
 
 # --- Résolution de JUCE -------------------------------------------------------
 # 1) -DJUCE_DIR=/chemin/vers/JUCE (arbre source local), sinon

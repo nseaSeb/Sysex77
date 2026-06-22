@@ -144,8 +144,8 @@ public:
         
     }
 
-    const String getApplicationName() override       { return "MidiDemo"; }
-    const String getApplicationVersion() override    { return "1.0.0"; }
+    const String getApplicationName() override       { return "Sysex77"; }
+    const String getApplicationVersion() override    { return Sysex77::kVersion; }
 
     void initialise (const String& commandLine) override
     {
@@ -155,7 +155,7 @@ public:
             return;
         }
 
-        mainWindow.reset (new MainWindow ("MidiDemo", new MidiDemo(), *this));
+        mainWindow.reset (new MainWindow ("Sysex77 v" + String (Sysex77::kVersion), new MidiDemo(), *this));
 
 
         auto splash = new SplashScreen ("SYSEX77",ImageFileFormat::loadFrom(BinaryData::SY77_YAMAHA_png, (size_t) BinaryData::SY77_YAMAHA_pngSize),true);

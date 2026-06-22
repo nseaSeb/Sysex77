@@ -52,6 +52,11 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
         comboModel.addItem("SY 99", 3);
         comboModel.addListener(this);
 
+        addAndMakeVisible(labVersion);
+        labVersion.setText (Sysex77::versionString(), dontSendNotification);
+        labVersion.setJustificationType (Justification::centredRight);
+        labVersion.setColour (Label::textColourId, SYColLabel);
+
         addAndMakeVisible(labTheme);
         addAndMakeVisible(comboTheme);
         comboTheme.addItem(TRANS("Dark"), 1);
@@ -250,6 +255,7 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
         comboEngine.setBounds(getWidth()/2 +10, 58, getWidth()/2 - 20, 24);
         labTheme.setBounds(getWidth()/2 +10, 92, getWidth()/2 - 20, 20);
         comboTheme.setBounds(getWidth()/2 +10, 112, getWidth()/2 - 20, 24);
+        labVersion.setBounds(10, getHeight() - 22, getWidth() - 20, 18);
     }
     void initProperties()
     {
@@ -300,6 +306,7 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
     ComboBox comboEngine;
     Label labTheme {"", TRANS("Theme")};
     ComboBox comboTheme;
+    Label labVersion;
 
     ApplicationProperties props;  // object pour sauver les paramètres
     ComboBox    comboModel;
