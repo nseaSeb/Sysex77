@@ -89,7 +89,7 @@ private:
 //==============================================================================
 /*
 */
-class Element    : public Component, TextButton::Listener, public ChangeBroadcaster, public Slider::Listener, public Value::Listener,public ChangeListener
+class Element    : public Component, TextButton::Listener, public ChangeBroadcaster, public Slider::Listener, public Value::Listener,public ChangeListener, public ValueTree::Listener
 {
 public:
     Element()
@@ -132,6 +132,8 @@ public:
         waveNameLabel.setColour(Label::backgroundColourId, SYColBackground.contrasting());
         waveNameLabel.setInterceptsMouseClicks(false, false);
         waveNameLabel.setVisible(false);
+        // Repeint l'élément (filtre + enveloppe de volume) dès qu'une de ses valeurs change.
+        valueTreeVoice.addListener(this);
         /*
         Path shape;
         shape.lineTo(0.0f, 1.0f);
@@ -182,8 +184,11 @@ public:
         sliderPan.setLookAndFeel(nullptr);
         sliderPan.removeMouseListener(this);
         sliderVolume.removeListener(this);
-
+        valueTreeVoice.removeListener(this);
     }
+
+    // Repeinture live des vignettes (filtre, enveloppe de volume) à chaque édition.
+    void valueTreePropertyChanged (ValueTree&, const Identifier&) override { repaint(); }
     void addAndMakeSlider (Slider& slider)
     {
         addAndMakeVisible(slider);
@@ -381,14 +386,24 @@ public:
             if (fb.getWidth() > 12.0f && fb.getHeight() > 12.0f)
                 SyDraw::drawFilterResponse (g, fb, fMode, fCut, fRes, SYColSelected);
 
-            // Enveloppe de volume (même style que le filtre). Forme indicative pour
-            // l'instant (les paramètres d'EG de volume ne sont pas encore stockés) :
-            // INDÉPENDANTE du slider de volume (qui, lui, est le niveau de sortie).
+            // Enveloppe de VOLUME (data-driven, comme le filtre) : niveaux/rates lus
+            // depuis l'EG de volume (édité dans l'onglet "Volume EG").
+            auto eg = [&] (const char* s) { return (float) (int) valueTreeVoice.getProperty (idFor (s), 0); };
             auto vb = btVCA.getBounds().toFloat().reduced (2.0f);
             if (vb.getWidth() > 12.0f && vb.getHeight() > 12.0f)
             {
-                juce::Array<float> levels  { 0.0f, 120.0f, 84.0f, 0.0f }; // A / D->sustain / R
-                juce::Array<float> weights { 1.0f, 2.0f, 3.0f };
+                juce::Array<float> levels  { eg ("EGVOLLEVEL0"), eg ("EGVOLLEVEL1"), eg ("EGVOLLEVEL2"),
+                                             eg ("EGVOLLEVEL3"), eg ("EGVOLLEVEL4") };
+                juce::Array<float> weights { jmax (1.0f, eg ("EGVOLR1")), jmax (1.0f, eg ("EGVOLR2")),
+                                             jmax (1.0f, eg ("EGVOLR3")), jmax (1.0f, eg ("EGVOLR4")) };
+                // Si l'EG de volume n'est pas (encore) réglé, montrer une forme par défaut.
+                float maxL = 0.0f;
+                for (auto l : levels) maxL = jmax (maxL, l);
+                if (maxL <= 0.0f)
+                {
+                    levels  = { 0.0f, 120.0f, 84.0f, 84.0f, 0.0f };
+                    weights = { 1.0f, 2.0f, 4.0f, 3.0f };
+                }
                 SyDraw::drawEnvelope (g, vb, levels, weights, 127.0f, SYColSelected);
             }
         }
