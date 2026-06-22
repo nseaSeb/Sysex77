@@ -35,7 +35,12 @@ void oscMessageReceived (const OSCMessage& message)
             //     Logger::writeToLog("Foot " + String( message[0].getInt32()));
             for(int i =0; i < message.size() ;i++)
                 sysexdata[i] = message[i].getInt32();
-            
+
+            // Canal : l'octet device est imposé ici (source de vérité unique), ce qui
+            // rend le device sélectionnable pour TOUS les widgets sans toucher aux
+            // ~30 tableaux sysexdata[9] qui codent 0x10 en dur ailleurs.
+            sysexdata[1] = SyVoice::deviceByte (sysexDeviceNumber);
+
             MidiMessage m = MidiMessage::createSysExMessage(sysexdata, 9);
       //      m.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
             sendToOutputs (m);
@@ -46,11 +51,11 @@ void oscMessageReceived (const OSCMessage& message)
     
     // Table OSC -> paramètre Sysex SY77 (remplace ~20 blocs copier-collés identiques).
     // Chaque message paramétrique a la forme { 0x43, canal, 0x34, group, addrHi, addrLo, param, 0x00, valeur }.
-    // Le canal est 0x10 partout sauf le Foot Controller qui utilise sysexEngine.
-    // Construite localement à chaque appel car sysexEngine peut changer à l'exécution.
+    // L'octet canal indiqué ici n'a pas d'importance : il est réécrit avec le device
+    // global dans sendSysex() (source de vérité unique pour le canal).
     const struct { const String& osc; uint8 channel, group, addrHi, addrLo, param; } sysexMap[] =
     {
-        { adresseOscFoot,      sysexEngine, 0x0f, 0x00, 0x00, 0x2d },
+        { adresseOscFoot,      0x10, 0x0f, 0x00, 0x00, 0x2d },
         { adresseOscMod,       0x10,        0x0f, 0x00, 0x00, 0x2c },
         { oscTotalVoiceVolume, 0x10,        0x02, 0x00, 0x00, 0x3f },
         { adresseOpMode,       0x10,        0x02, 0x00, 0x00, 0x00 },
@@ -129,6 +134,7 @@ void sendSysex(const OSCMessage& message, uint8 sysexdata[0])
         //     Logger::writeToLog("Foot " + String( message[0].getInt32()));
         
         sysexdata[8] = message[0].getInt32();
+        sysexdata[1] = SyVoice::deviceByte (sysexDeviceNumber); // canal global (cf. /SYSEX)
         MidiMessage m = MidiMessage::createSysExMessage(sysexdata, 9);
         m.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
         sendToOutputs (m);

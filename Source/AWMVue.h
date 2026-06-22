@@ -24,8 +24,6 @@ public:
         table.setOutlineThickness (1);
         //       table.getHeader().addColumn("NAME", 1, getWidth());
         valueSysexIn.addListener(this); //Listen to the sysex in
-        if (! sender.connect ("127.0.0.1", 9001)) // [4]
-            Logger::writeToLog ("Error: could not connect to UDP port 9001.");
         
         if (columnList != nullptr)
         {

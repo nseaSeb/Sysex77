@@ -12,13 +12,11 @@
 
 #include "../JuceLibraryCode/JuceHeader.h"
 
-// Demande l'envoi au synthé de la voix d'index global donné (relais OSC -> MidiSysex).
+// Demande l'envoi au synthé de la voix d'index global donné (via le bus interne -> MidiSysex).
 inline void requestSendVoice (int globalVoiceIndex)
 {
     static SysexBusSender voiceSender;
-    static bool connected = voiceSender.connect ("127.0.0.1", 9001);
-    if (connected)
-        voiceSender.send ("/77SendVoice", globalVoiceIndex);
+    voiceSender.send ("/77SendVoice", globalVoiceIndex);
 }
 
 //==============================================================================

@@ -54,8 +54,6 @@ struct ControllerPage   : public Component, public ComboBox::Listener
         comboFoot.setSelectedId (1);
         comboMod.setSelectedId(2);
         // specify here where to send OSC messages to: host URL and UDP port number
-        if (! sender.connect ("127.0.0.1", 9001)) // [4]
-            Logger::writeToLog ("Error: could not connect to UDP port 9001.");
 
     }
     

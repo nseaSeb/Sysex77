@@ -40,6 +40,7 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
         comboEngine.addItem("10",10);
         comboEngine.addItem("11",11);
         comboEngine.addItem("12",12);
+        comboEngine.addItem("13",13);
         comboEngine.addItem("14",14);
         comboEngine.addItem("15",15);
         comboEngine.addItem("16",16);
@@ -67,8 +68,6 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
         initProperties();
         loadParams();
         
-        if (! sender.connect ("127.0.0.1", 9001)) // [4]
-            Logger::writeToLog ("Error: could not connect to UDP port 9001.");
         
         setState();
         
@@ -140,11 +139,18 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
     void 	comboBoxChanged (ComboBox *comboBoxThatHasChanged) override
     {
         Logger::writeToLog("ConfigPage: comboBox Listener");
-        sysexEngine = comboEngine.getSelectedItemIndex();
-        if(sysexEngine == 16)
-            sysexEngine = 0x10;
+        // Device number global (canal). id 1..16 = device, id 17 = "ALL" (réception omni).
+        {
+            const int id = comboEngine.getSelectedId();
+            if (id == 17)
+                sysexReceiveOmni = true;
+            else if (id >= 1 && id <= 16)
+            {
+                sysexDeviceNumber = id;
+                sysexReceiveOmni  = false;
+            }
+        }
 
-        
         sysexModel = comboModel.getSelectedItemIndex();
 
         if (comboBoxThatHasChanged == &comboTheme)
@@ -266,6 +272,11 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
         comboModel.setSelectedId(props.getUserSettings()->getIntValue("Model"));
         SYModel = props.getUserSettings()->getIntValue("Model");
         valueTreeVoice.setProperty(IDs::COMMONFOOT, props.getUserSettings()->getIntValue(IDs::COMMONFOOT), nullptr);
+
+        // Device number (canal) global
+        sysexDeviceNumber = jlimit (1, 16, props.getUserSettings()->getIntValue ("Device", 1));
+        sysexReceiveOmni  = props.getUserSettings()->getBoolValue ("Omni", false);
+        comboEngine.setSelectedId (sysexReceiveOmni ? 17 : sysexDeviceNumber, dontSendNotification);
         
     }
     void saveParams()
@@ -274,6 +285,8 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
         Logger::writeToLog(comboModel.getSelectedIdAsValue().toString());
         props.getUserSettings()->setValue("Model", comboModel.getSelectedIdAsValue());
      props.getUserSettings()->setValue("commonFoot", valueTreeVoice.getPropertyAsValue(IDs::COMMONFOOT, nullptr));
+        props.getUserSettings()->setValue ("Device", sysexDeviceNumber);
+        props.getUserSettings()->setValue ("Omni",   sysexReceiveOmni);
         
    
      //   props.getUserSettings()->setValue("mySlider", mySlider.getValue());

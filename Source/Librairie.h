@@ -60,8 +60,6 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         btVoice.setToggleState(true, NotificationType::dontSendNotification);
         
         
-        if (! sender.connect ("127.0.0.1", 9001)) // [4]
-            Logger::writeToLog ("Error: could not connect to UDP port 9001.");
     }
     ~LibrairiePage()
     {

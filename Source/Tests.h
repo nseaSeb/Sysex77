@@ -96,6 +96,31 @@ struct SysexUtilsTests : public juce::UnitTest
             const juce::uint8 wrongSize[]  = { 0x43, 0x10, 0x34 };
             expect (! SyVoice::parseParam9 (wrongSize, 3, p));
         }
+
+        beginTest ("deviceByte encodes 0x1n and clamps to 1..16");
+        {
+            expectEquals ((int) SyVoice::deviceByte (1),  0x10);
+            expectEquals ((int) SyVoice::deviceByte (4),  0x13);
+            expectEquals ((int) SyVoice::deviceByte (16), 0x1F);
+            expectEquals ((int) SyVoice::deviceByte (0),  0x10); // borné en bas
+            expectEquals ((int) SyVoice::deviceByte (99), 0x1F); // borné en haut
+        }
+
+        beginTest ("deviceNumberFromByte decodes 0x1n, -1 otherwise");
+        {
+            expectEquals (SyVoice::deviceNumberFromByte (0x10), 1);
+            expectEquals (SyVoice::deviceNumberFromByte (0x1F), 16);
+            expectEquals (SyVoice::deviceNumberFromByte (0x20), -1);
+            expectEquals (SyVoice::deviceNumberFromByte (0x00), -1);
+        }
+
+        beginTest ("acceptsDevice honours selection and omni");
+        {
+            expect (  SyVoice::acceptsDevice (0x13, 4, false));   // device 4 attendu, reçu 4
+            expect (! SyVoice::acceptsDevice (0x13, 5, false));   // device 5 attendu, reçu 4
+            expect (  SyVoice::acceptsDevice (0x13, 5, true));    // omni : accepte
+            expect (! SyVoice::acceptsDevice (0x25, 5, true));    // pas un 0x1n -> refusé
+        }
     }
 };
 

@@ -91,8 +91,6 @@ public:
         Slider::addListener(this);
         //connect by default
         valueSysexIn.addListener(this); //Listen to the sysex in
-        if (! sender.connect ("127.0.0.1", 9001)) // [4]
-            Logger::writeToLog ("Error: could not connect to UDP port 9001.");
         
 
     }
@@ -138,7 +136,7 @@ public:
                             }
                 Logger::writeToLog ("signed minus  " + String(val));
                         }
-                                Slider::setValue(val);
+                                Slider::setValue(val, dontSendNotification); // pas de renvoi -> évite la boucle d'écho
                                 
                             }
                         }
@@ -258,8 +256,6 @@ public:
         setClickingTogglesState(true);
         TextButton::addListener(this);
         valueSysexIn.addListener(this); //Listen to the sysex in
-        if (! sender.connect ("127.0.0.1", 9001)) // [4]
-            Logger::writeToLog ("Error: could not connect to UDP port 9001.");
         
     }
     
@@ -463,8 +459,6 @@ public:
         
         ComboBox::addListener(this);
         valueSysexIn.addListener(this); //Listen to the sysex in
-        if (! sender.connect ("127.0.0.1", 9001)) // [4]
-            Logger::writeToLog ("Error: could not connect to UDP port 9001.");
         
     }
     
@@ -511,7 +505,7 @@ public:
                     if(sysexData[6] ==  val)
                     {
                         val =value.getValue()[5];
-                        setSelectedId(val + 1);
+                        setSelectedId(val + 1, dontSendNotification); // pas de renvoi -> évite la boucle d'écho
                     }
                 }
             }

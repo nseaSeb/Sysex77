@@ -107,4 +107,34 @@ namespace SyVoice
                 sysex[5], sysex[6], sysex[7], sysex[8] };
         return true;
     }
+
+    //==============================================================================
+    // Device number (canal sysex SY77). Les messages paramétriques portent en
+    // octet [1] la valeur 0x1n, où n = (deviceNumber - 1), deviceNumber ∈ [1..16].
+
+    /** Octet device à émettre pour un numéro de device 1..16 (borné). */
+    inline juce::uint8 deviceByte (int deviceNumber)
+    {
+        const int n = juce::jlimit (1, 16, deviceNumber) - 1;
+        return (juce::uint8) (0x10 | (n & 0x0F));
+    }
+
+    /** Numéro de device (1..16) encodé dans un octet 0x1n, ou -1 si l'octet
+        n'est pas de la forme 0x1n. */
+    inline int deviceNumberFromByte (juce::uint8 b)
+    {
+        if ((b & 0xF0) != 0x10)
+            return -1;
+        return (b & 0x0F) + 1;
+    }
+
+    /** Faut-il accepter un message reçu (octet device = b) pour le device
+        sélectionné ? En mode omni, tout message 0x1n est accepté. */
+    inline bool acceptsDevice (juce::uint8 b, int selectedDeviceNumber, bool omni)
+    {
+        const int n = deviceNumberFromByte (b);
+        if (n < 0)
+            return false;
+        return omni || n == juce::jlimit (1, 16, selectedDeviceNumber);
+    }
 }

@@ -107,7 +107,9 @@ static Value valueSysexIn; //values from sysex midi in
 static bool boolStopReceive; //to shunt the midi in when sending
 
 static int sysexModel;
-static uint8 sysexEngine;
+// Device number sysex SY77 (canal) : un seul réglage global, piloté par ConfigPage.
+static int  sysexDeviceNumber = 1;     // 1..16 ; octet émis = 0x10 | (n-1)
+static bool sysexReceiveOmni  = false; // "ALL" : accepte les messages entrants de tout device
 static     float fAngle = -90 * (juce::MathConstants<float>::pi  / 180.0); //Radiant to draw at 90°
 File appDirPath = File::getSpecialLocation(File::userApplicationDataDirectory ).getChildFile("Application Support/Sysex77");
 
@@ -328,13 +330,8 @@ public:
         if(comboMod.getSelectedItemIndex()<1)
             comboMod.setSelectedId(1);
 // ----------------------------
-        // Plus de connexion UDP entrante : le bus est intra-processus (voir SysexBus.h).
-        // addOscListener() installe désormais le callback du bus au lieu de binder le port 9001.
-
-        if (! senderMidiIn.connect ("127.0.0.1", 9002)) // [4]
-            Logger::writeToLog ("Error: could not connect to UDP port 9001.");
-        
-
+        // Plus aucune connexion UDP : le bus est intra-processus (voir SysexBus.h).
+        // addOscListener() installe le callback du bus au lieu de binder un port.
         addOscListener();
         tabs.setVisible(false);
         tabs.setAlwaysOnTop(true);
@@ -376,7 +373,7 @@ public:
         if(button == &btBulk)
         {
             Logger::writeToLog("Bulk Protect");
-            uint8 sysexdata[9] = { 0x43, 0x10, 0x34, 0x0f, 0x00, 0x00, 0x34, 0x00, 0x00 };
+            uint8 sysexdata[9] = { 0x43, SyVoice::deviceByte (sysexDeviceNumber), 0x34, 0x0f, 0x00, 0x00, 0x34, 0x00, 0x00 };
             sysexdata[8] = btBulk.getToggleState();
             MidiMessage m = MidiMessage::createSysExMessage(sysexdata, 9);
             m.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
@@ -660,10 +657,6 @@ private:
                 }
                 else
                 {
-                    
-                    /*
-                   senderMidiIn.send("/SYSEXinput", (int) message[0], message[1], message[2], message[3], message[4], message[5], message[6], message[7], message[8]);
-                    */
                     Logger::writeToLog("other message");
                 }
                 
@@ -700,9 +693,11 @@ private:
             if(message.getSysExDataSize()==9)
             {
                 memcpy(&data, message.getSysExData(), message.getSysExDataSize());
-                if(data[0]==0x43)
-                    if(data[2] == 0x34)
-                        valueSysexIn = make_var_array(data[3], data[4],data[5],data[6],data[7],data[8]);
+                // Message paramétrique SY77 (0x43 .. 0x34) ET adressé au device sélectionné
+                // (ou tout device en mode ALL). On ignore le reste (autres machines/canaux).
+                if (data[0] == 0x43 && data[2] == 0x34
+                    && SyVoice::acceptsDevice (data[1], sysexDeviceNumber, sysexReceiveOmni))
+                    valueSysexIn = make_var_array(data[3], data[4],data[5],data[6],data[7],data[8]);
                 
                 
             }
@@ -828,7 +823,7 @@ public:
     {
         if(comboBoxThatHasChanged == &comboFoot)
         {
-        uint8 sysexdata[9] = { 0x43, sysexEngine, 0x34, 0x0f, 0x00, 0x00, 0x2d, 0x00, 0x00 };
+        uint8 sysexdata[9] = { 0x43, SyVoice::deviceByte (sysexDeviceNumber), 0x34, 0x0f, 0x00, 0x00, 0x2d, 0x00, 0x00 };
         sysexdata[8] = comboFoot.getSelectedItemIndex()+1;
         MidiMessage m = MidiMessage::createSysExMessage(sysexdata, 9);
         m.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
@@ -836,7 +831,7 @@ public:
         }
         if(comboBoxThatHasChanged == &comboMod)
         {
-            uint8 sysexdata[9] = { 0x43, 0x10, 0x34, 0x0f, 0x00, 0x00, 0x2c, 0x00, 0x00 };
+            uint8 sysexdata[9] = { 0x43, SyVoice::deviceByte (sysexDeviceNumber), 0x34, 0x0f, 0x00, 0x00, 0x2c, 0x00, 0x00 };
             sysexdata[8] = comboMod.getSelectedItemIndex()+1;
             MidiMessage m = MidiMessage::createSysExMessage(sysexdata, 9);
             m.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
@@ -893,7 +888,6 @@ public:
     Array<MidiMessage> incomingMessages;
     DemoTabbedComponent tabs;
     Image imgBack;
-    OSCSender   senderMidiIn;
 
     uint8 data[12];
     
