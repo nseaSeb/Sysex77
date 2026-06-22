@@ -56,6 +56,19 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         addAndMakeVisible(voicesListB);
         addAndMakeVisible(voicesListC);
         addAndMakeVisible(voicesListD);
+
+        // Sélection unique parmi les 64 voix : sélectionner dans une colonne
+        // désélectionne les trois autres.
+        auto selectOnlyThis = [this] (BankVoicesTable* selected)
+        {
+            for (auto* col : { &voicesListA, &voicesListB, &voicesListC, &voicesListD })
+                if (col != selected)
+                    col->deselectAllRows();
+        };
+        voicesListA.onRowSelected = selectOnlyThis;
+        voicesListB.onRowSelected = selectOnlyThis;
+        voicesListC.onRowSelected = selectOnlyThis;
+        voicesListD.onRowSelected = selectOnlyThis;
         
         btVoice.setToggleState(true, NotificationType::dontSendNotification);
         

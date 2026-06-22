@@ -29,13 +29,20 @@ class BankVoicesTable    : public Component
 {
 public:
     BankVoicesTable (int baseOffset, String bankLabel)
-        : sourceModel (baseOffset), label (std::move (bankLabel))
+        : sourceModel (baseOffset, *this), label (std::move (bankLabel))
     {
         setName (label);
         sourceListBox.setModel (&sourceModel);
         sourceListBox.setHeaderComponent (std::make_unique<Header> (*this));
         addAndMakeVisible (sourceListBox);
     }
+
+    /** Appelé quand une voix est sélectionnée dans CETTE colonne (pour que
+        LibrairiePage désélectionne les autres → une seule voix active parmi les 64). */
+    std::function<void (BankVoicesTable*)> onRowSelected;
+
+    /** Retire la sélection de cette colonne (sans déclencher onRowSelected). */
+    void deselectAllRows() { sourceListBox.deselectAllRows(); }
 
     void resized() override
     {
@@ -52,9 +59,18 @@ private:
     //==============================================================================
     struct SourceItemListboxContents  : public ListBoxModel
     {
-        explicit SourceItemListboxContents (int off) : offset (off) {}
+        SourceItemListboxContents (int off, BankVoicesTable& o) : offset (off), owner (o) {}
 
         int getNumRows() override { return 16; }
+
+        // Sélection unique parmi les 64 voix : prévient le parent pour qu'il
+        // désélectionne les 3 autres colonnes. (lastRowSelected = -1 lors d'une
+        // désélection -> on n'émet rien, ce qui évite toute récursion.)
+        void selectedRowsChanged (int lastRowSelected) override
+        {
+            if (lastRowSelected >= 0 && owner.onRowSelected != nullptr)
+                owner.onRowSelected (&owner);
+        }
 
         void paintListBoxItem (int rowNumber, Graphics& g,
                                int width, int height, bool rowIsSelected) override
@@ -87,6 +103,7 @@ private:
         }
 
         int offset;
+        BankVoicesTable& owner;
     };
 
     //==============================================================================
