@@ -462,20 +462,18 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
 void setNombreElements (int nombre)
     {
         nombreElements = nombre;
-        element2.setVisible(false);
-        element3.setVisible(false);
-        element4.setVisible(false);
-        if(nombre > 1)
-        element2.setVisible(true);
-        if(nombre > 2)
+        // Façon SynthWorks : on affiche toujours les 4 rangées ; les éléments hors du
+        // mode courant sont grisés et non interactifs (structure visible en permanence).
+        Element* els[4] = { &element1, &element2, &element3, &element4 };
+        for (int i = 0; i < 4; ++i)
         {
-        element3.setVisible(true);
-        element4.setVisible(true);
+            const bool active = (i < nombre);
+            els[i]->setVisible (true);
+            els[i]->setEnabled (active);
+            els[i]->setAlpha (active ? 1.0f : 0.35f);
         }
-        
         Logger::writeToLog("setNombre elements");
         resized();
-        
     }
 
     void resized() override
@@ -501,7 +499,8 @@ void setNombreElements (int nombre)
         grid = getWidth()/10;
         auto wGrid = (getWidth()-20) * 0.7;
         const int topElem = 68;                 // sous la barre du haut + les en-têtes de colonnes
-        auto hGrid = (getHeight() - topElem - 2)/nombreElements;
+        // Hauteur de rangée FIXE (toujours 4 rangées affichées, façon SynthWorks).
+        auto hGrid = (getHeight() - topElem - 2)/4;
 
         // En-têtes de colonnes alignés sur la structure interne d'un Element (1/8 de largeur :
         // PITCH 0-2, WAVE 2-3, FILTER 3-5, VOLUME 5-7, PAN 7-8).
