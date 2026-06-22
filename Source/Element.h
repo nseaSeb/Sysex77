@@ -22,14 +22,42 @@
 
 
 //==============================================================================
-/** Petite vue de la forme d'onde FM (approximée) d'un élément AFM. */
+/** Vue de la forme d'onde FM (approximée) d'un élément AFM, avec CACHE :
+    les échantillons (normalisés -1..1) ne sont recalculés qu'au changement d'algo
+    (ni à chaque paint, ni au redimensionnement). Prépare le terrain pour un calcul
+    FM exact (plus coûteux). */
 class FmWaveView   : public Component
 {
 public:
-    void setAlgo (int a) { algo = a; repaint(); }
+    void setAlgo (int a)
+    {
+        if (a == algo && ! samples.isEmpty())
+            return;
+        algo = a;
+        recompute();   // -> remplit le cache
+        repaint();
+    }
+
     void paint (Graphics& g) override
     {
-        SyDraw::drawFmWave (g, getLocalBounds().toFloat(), algo, SYColSelected);
+        auto area = getLocalBounds().toFloat();
+        SyDraw::drawPanel (g, area, SYColSelected);
+
+        if (samples.size() > 1)
+        {
+            Path p;
+            const int last = samples.size() - 1;
+            for (int i = 0; i <= last; ++i)
+            {
+                const float x = area.getX() + (float) i / (float) last * area.getWidth();
+                const float y = area.getCentreY() - samples[i] * area.getHeight() * 0.40f;
+                if (i == 0) p.startNewSubPath (x, y);
+                else        p.lineTo (x, y);
+            }
+            g.setColour (SYColSelected);
+            g.strokePath (p, PathStrokeType (1.4f, PathStrokeType::curved));
+        }
+
         // Numéro d'algorithme en overlay (petit fond contrasté pour la lisibilité).
         g.setFont (Font (11.0f, Font::bold));
         Rectangle<int> tb (4, 4, 48, 16);
@@ -38,6 +66,23 @@ public:
         g.setColour (SYColBackground.contrasting());
         g.drawText ("ALG " + String (algo), tb.reduced (4, 0), Justification::left, false);
     }
+
+private:
+    // Modèle FM 2-op approché (cf. SyDraw::drawFmWave) ; varie avec l'algorithme.
+    void recompute()
+    {
+        samples.clearQuick();
+        const int   n     = 160;
+        const float ratio = 1.0f + (float) (jmax (1, algo) % 4);
+        const float index = 0.8f + (float) (jmax (1, algo) % 6) * 0.7f;
+        for (int i = 0; i <= n; ++i)
+        {
+            const float t = (float) i / (float) n * MathConstants<float>::twoPi;
+            samples.add (std::sin (t + index * std::sin (ratio * t)));
+        }
+    }
+
+    Array<float> samples;   // cache (normalisé -1..1)
     int algo = 1;
 };
 
