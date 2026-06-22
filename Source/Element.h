@@ -36,7 +36,7 @@ public:
         sliderVolume.setNumDecimalPlacesToDisplay(0);
         sliderVolume.addListener(this);
         addAndMakeSlider(sliderPan);
-        sliderPan.setLookAndFeel(&myLookAndFeel);
+        sliderPan.setLookAndFeel(nullptr);   // suit le LnF du thème (plat en Light)
         sliderPan.setPopupDisplayEnabled(true, true,this);
        
         addAndMakeVisible(pitch);
