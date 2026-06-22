@@ -211,7 +211,7 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         }
 
         // Cadres décoratifs de la colonne droite (transparents, ne captent pas la souris).
-        for (auto* gp : { &grpVoiceBox, &grpAlgo })
+        for (auto* gp : { &grpAlgo })
         {
             gp->setColour (GroupComponent::textColourId,    SYColLabel);
             gp->setColour (GroupComponent::outlineColourId, SYColLabel);
@@ -594,14 +594,13 @@ void setNombreElements (int nombre)
         // --- Colonne droite (façon SynthWorks) : VOICE (mode + master) / ALGO / EFFETS ---
         const int rightX = 10 + (int) wGrid + 12;
         const int rightW = jmax (40, getWidth() - rightX - 10);
-        const int voiceH = 76;
-        grpVoiceBox.setBounds (rightX, topElem, rightW, voiceH);
-        comboMode.setBounds    (rightX + 10, topElem + 28, rightW - 70, 24);
-        sliderMaster.setBounds (rightX + rightW - 48, topElem + 16, 38, voiceH - 26);
-        labelMasterVolume.setBounds (rightX + rightW - 54, topElem + voiceH - 14, 50, 12);
+        // Mode + Master tout en haut (l'algo récupère toute la hauteur, comme l'original).
+        comboMode.setBounds (rightX, 6, rightW, 24);
+        labelMasterVolume.setBounds (rightX, 34, 56, 18);
+        sliderMaster.setBounds (rightX + 58, 36, rightW - 58, 16);
 
-        // Algo/routage : occupe toute la hauteur sous le bloc VOICE (aligné aux éléments).
-        const int algoY = topElem + voiceH + 8;
+        // Algo/routage : du sommet des rangées d'éléments jusqu'en bas.
+        const int algoY = topElem;
         const int algoH = jmax (60, getHeight() - algoY - 4);
         grpAlgo.setBounds (rightX, algoY, rightW, algoH);
         routingMatrix.setBounds (rightX + 6, algoY + 18, rightW - 12, algoH - 24);
@@ -710,7 +709,6 @@ void setNombreElements (int nombre)
     Label labColPan    { "", "PAN" };
 
     // Colonne droite (façon SynthWorks).
-    GroupComponent grpVoiceBox { "grpVoice",   TRANS ("VOICE") };
     GroupComponent grpAlgo     { "grpAlgo",    TRANS ("ALGORITHME / ROUTAGE") };
     RoutingMatrix  routingMatrix;
 
