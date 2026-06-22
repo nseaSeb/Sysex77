@@ -290,7 +290,7 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
 
     ApplicationProperties props;  // object pour sauver les paramètres
     ComboBox    comboModel;
-    OSCSender sender;  // [2]
+    SysexBusSender sender;  // [2]
     
 };
 

@@ -210,7 +210,7 @@ private:
     MidiSlider sliderL2;
     MidiSlider sliderL3;
     MidiButton btHold;
-    OSCSender sender;
+    SysexBusSender sender;
     
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Volume)
 };

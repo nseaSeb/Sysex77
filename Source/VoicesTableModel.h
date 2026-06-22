@@ -15,7 +15,7 @@
 // Demande l'envoi au synthé de la voix d'index global donné (relais OSC -> MidiSysex).
 inline void requestSendVoice (int globalVoiceIndex)
 {
-    static juce::OSCSender voiceSender;
+    static SysexBusSender voiceSender;
     static bool connected = voiceSender.connect ("127.0.0.1", 9001);
     if (connected)
         voiceSender.send ("/77SendVoice", globalVoiceIndex);

@@ -238,7 +238,7 @@ private:
     XmlElement* columnList = nullptr;
     XmlElement* dataList = nullptr;
     int numRows = 0;
-    OSCSender sender;
+    SysexBusSender sender;
     int sysexData[9] = { 0x43, 0X10, 0x34, 0x07, 0x00, 0x00, 0x01, 0x00, 0x00 };
     
     

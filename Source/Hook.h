@@ -253,7 +253,7 @@ private:
     Hook hook;
     String strOscRate;
     String strOscLevel;
-    OSCSender sender;
+    SysexBusSender sender;
     String oscAddressPatern {"/SYSEX"};
     String strName ="";
     int intLevel = 0;

@@ -87,7 +87,7 @@ struct ControllerPage   : public Component, public ComboBox::Listener
     ComboBox comboMod  { "Molette de modulation" };
     Label   labelFoot { "","Pedale de sustain :"};
     Label   labelMod { "","Molette de modulation :"};
-  OSCSender sender;  // [2]
+  SysexBusSender sender;  // [2]
     
     //==============================================================================
 

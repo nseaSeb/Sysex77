@@ -600,7 +600,7 @@ void setNombreElements (int nombre)
     
     Label   labelMasterVolume{"M",TRANS("Master Volume")};
     int nombreElements = 1;
-    OSCSender sender;  // [2]
+    SysexBusSender sender;  // [2]
     CustomLookAndFeel myLookAndFeel;
 
     

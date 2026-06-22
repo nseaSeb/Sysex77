@@ -47,6 +47,7 @@
  
  *******************************************************************************/
 #include "Values.h"
+#include "SysexBus.h"
 
 static const String adresseOscFoot = "/77Foot";
 static const String adresseOscMod = "/77Mod";
@@ -224,9 +225,7 @@ private MidiInputCallback,
 private AsyncUpdater,
 private TextButton::Listener,
  public ComboBox::Listener,
- public Value::Listener,
-private OSCReceiver,                                                          // [1]
-private OSCReceiver::ListenerWithOSCAddress<OSCReceiver::MessageLoopCallback> // [2]
+ public Value::Listener
 {
 public:
     //==============================================================================
@@ -329,12 +328,9 @@ public:
         if(comboMod.getSelectedItemIndex()<1)
             comboMod.setSelectedId(1);
 // ----------------------------
-        if (! connect (9001))                   // [3]
-            Logger::writeToLog ("Error: could not connect to UDP port 9001.");
-        // tell the component to listen for OSC messages matching this address:
-        //       addListener (this, "/77Foot"); // [4]
-        //       addListener (this, "/77Mod");
-        
+        // Plus de connexion UDP entrante : le bus est intra-processus (voir SysexBus.h).
+        // addOscListener() installe désormais le callback du bus au lieu de binder le port 9001.
+
         if (! senderMidiIn.connect ("127.0.0.1", 9002)) // [4]
             Logger::writeToLog ("Error: could not connect to UDP port 9001.");
         

@@ -176,7 +176,7 @@ public:
     bool initOscSender(String adress, int port)
     {
         sender.disconnect();
-        return (! sender.connect (adress, port)); // [4]
+        return sender.connect (adress, port); // renvoie true si la connexion a réussi
    
     }
     
@@ -216,16 +216,16 @@ public:
 private:
     bool boolNegative = false;   // set if neg value like pan
     bool boolInvert = false;
-    int intNegativeDelta; // correction for sysex
+    int intNegativeDelta = 0; // correction for sysex
     String oscAddressPatern {"/SYSEX"};
     String strOscAdress;
 //    MidiMessage midiMessage;
     CustomLookAndFeel lookPan;
     CustomLookAndFeelV2 lookNormal;
 
-    OSCSender sender;
-    uint8 sysexData[9];
-    uint8 inputData[9];
+    SysexBusSender sender;
+    uint8 sysexData[9] {};
+    uint8 inputData[9] {};
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MidiSlider)
 };
 
@@ -275,7 +275,7 @@ public:
     bool initOscSender(String adress, int port)
     {
         sender.disconnect();
-        return (! sender.connect (adress, port)); // [4]
+        return sender.connect (adress, port); // renvoie true si la connexion a réussi
         
     }
     void setTextOnOff(String stringOn, String stringOff)
@@ -354,9 +354,9 @@ private:
     String oscAddressPatern {"/SYSEX"};
     String strOscAdress;
  //   MidiMessage midiMessage;
-    OSCSender sender;
-    uint8 sysexData[9];
-    uint8 inputData[9];
+    SysexBusSender sender;
+    uint8 sysexData[9] {};
+    uint8 inputData[9] {};
     String  strOn;
     String  strOff;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MidiButton)
@@ -480,7 +480,7 @@ public:
     bool initOscSender(String adress, int port)
     {
         sender.disconnect();
-        return (! sender.connect (adress, port)); // [4]
+        return sender.connect (adress, port); // renvoie true si la connexion a réussi
         
     }
     
@@ -534,9 +534,9 @@ private:
     String oscAddressPatern {"/SYSEX"};
     String strOscAdress;
 
-    OSCSender sender;
-    uint8 sysexData[9];
-    uint8 inputData[9];
+    SysexBusSender sender;
+    uint8 sysexData[9] {};
+    uint8 inputData[9] {};
     String  strOn;
     String  strOff;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MidiCombo)

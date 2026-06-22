@@ -11,51 +11,19 @@
 #pragma once
 #include "SysexUtils.h"
 
+// Installe le gestionnaire du bus intra-processus (remplace l'ancien enregistrement
+// d'écouteurs OSC sur le port UDP 9001). Un seul abonné : cette instance de MidiDemo.
+// Le dispatch par adresse se fait toujours dans oscMessageReceived ci-dessous.
 void addOscListener ()
 {
-
-    addListener (this, adresseOscFoot); // [4]
-    addListener (this, adresseOscMod);
-    addListener(this, adresseOpMode);
-    addListener(this, adresseOscSendBank);
-    addListener(this, adresseOscSendVoice);
-    addListener(this,adresseOscRepaint);
-    addListener(this, oscTotalVoiceVolume);
-
-    
-
-    addListener(this, oscVoicePan1);
-    addListener(this, oscVoicePan2);
-        addListener(this, oscVoicePan3);
-        addListener(this, oscVoicePan4);
-    addListener(this,oscVoiceGrp1);
-     addListener(this,oscVoiceGrp2);
-        addListener(this,oscVoiceGrp3);
-        addListener(this,oscVoiceGrp4);
-    addListener(this, oscVoicePitch1);
-        addListener(this, oscVoicePitch2);
-        addListener(this, oscVoicePitch3);
-        addListener(this, oscVoicePitch4);
-    addListener(this, oscVoiceFine1);
-        addListener(this, oscVoiceFine2);
-        addListener(this, oscVoiceFine3);
-        addListener(this, oscVoiceFine4);
-    addListener(this, oscVoiceFixe1);
-    addListener(this, oscVoiceFixe2);
-        addListener(this, oscVoiceFixe3);
-        addListener(this, oscVoiceFixe4);
-    addListener(this, oscSendMidiMessage);
-
-    
-
-    addListener(this, "/SYSEX");
+    SysexBus::get().onMessage = [this] (const OSCMessage& message) { oscMessageReceived (message); };
 }
 
 
 
 
 
-void oscMessageReceived (const OSCMessage& message) override
+void oscMessageReceived (const OSCMessage& message)
 {
     auto address = message.getAddressPattern();
 
@@ -76,117 +44,57 @@ void oscMessageReceived (const OSCMessage& message) override
     if (address.matches(adresseOscRepaint))
         repaint();
     
-    if (address.matches(adresseOscFoot))
+    // Table OSC -> paramètre Sysex SY77 (remplace ~20 blocs copier-collés identiques).
+    // Chaque message paramétrique a la forme { 0x43, canal, 0x34, group, addrHi, addrLo, param, 0x00, valeur }.
+    // Le canal est 0x10 partout sauf le Foot Controller qui utilise sysexEngine.
+    // Construite localement à chaque appel car sysexEngine peut changer à l'exécution.
+    const struct { const String& osc; uint8 channel, group, addrHi, addrLo, param; } sysexMap[] =
     {
-        uint8 sysexdata[9] = { 0x43, sysexEngine, 0x34, 0x0f, 0x00, 0x00, 0x2d, 0x00, 0x00 };
-        sendSysex(message, sysexdata);
-    }
-    
-    if (address.matches(adresseOscMod))
+        { adresseOscFoot,      sysexEngine, 0x0f, 0x00, 0x00, 0x2d },
+        { adresseOscMod,       0x10,        0x0f, 0x00, 0x00, 0x2c },
+        { oscTotalVoiceVolume, 0x10,        0x02, 0x00, 0x00, 0x3f },
+        { adresseOpMode,       0x10,        0x02, 0x00, 0x00, 0x00 },
+        { oscVoiceGrp1,        0x10,        0x03, 0x00, 0x00, 0x08 },
+        { oscVoiceGrp2,        0x10,        0x03, 0x20, 0x00, 0x08 },
+        { oscVoiceGrp3,        0x10,        0x03, 0x40, 0x00, 0x08 },
+        { oscVoiceGrp4,        0x10,        0x03, 0x60, 0x00, 0x08 },
+        { oscVoicePitch1,      0x10,        0x03, 0x00, 0x00, 0x02 },
+        { oscVoicePitch2,      0x10,        0x03, 0x20, 0x00, 0x02 },
+        { oscVoicePitch3,      0x10,        0x03, 0x40, 0x00, 0x02 },
+        { oscVoicePitch4,      0x10,        0x03, 0x60, 0x00, 0x02 },
+        { oscVoiceFine1,       0x10,        0x03, 0x00, 0x00, 0x01 },
+        { oscVoiceFine2,       0x10,        0x03, 0x20, 0x00, 0x01 },
+        { oscVoiceFine3,       0x10,        0x03, 0x40, 0x00, 0x01 },
+        { oscVoiceFine4,       0x10,        0x03, 0x60, 0x00, 0x01 },
+        { oscVoiceFixe1,       0x10,        0x07, 0x00, 0x00, 0x02 },
+        { oscVoiceFixe2,       0x10,        0x07, 0x20, 0x00, 0x02 },
+        { oscVoiceFixe3,       0x10,        0x07, 0x40, 0x00, 0x02 },
+        { oscVoiceFixe4,       0x10,        0x07, 0x60, 0x00, 0x02 },
+    };
+
+    for (auto& e : sysexMap)
     {
-        uint8 sysexdata[9] = { 0x43, 0x10, 0x34, 0x0f, 0x00, 0x00, 0x2c, 0x00, 0x00 };
-        sendSysex(message, sysexdata);
-    }
-    if (address.matches(oscTotalVoiceVolume))
-    {
-        uint8 sysexdata[9] = { 0x43, 0x10, 0x34, 0x02, 0x00, 0x00, 0x3f, 0x00, 0x00 };
-        sendSysex(message, sysexdata);
-    }
-    
-   
-     if (address.matches(oscVoiceGrp1))
-    {
-        uint8 sysexdata[9] = { 0x43, 0x10, 0x34, 0x03, 0x00, 0x00, 0x08, 0x00, 0x00 };
-        sendSysex(message, sysexdata);
-    }
-    if (address.matches(oscVoiceGrp2))
-    {
-        uint8 sysexdata[9] = { 0x43, 0x10, 0x34, 0x03, 0x20, 0x00, 0x08, 0x00, 0x00 };
-        sendSysex(message, sysexdata);
-    }
-    if (address.matches(oscVoiceGrp3))
-    {
-        uint8 sysexdata[9] = { 0x43, 0x10, 0x34, 0x03, 0x40, 0x00, 0x08, 0x00, 0x00 };
-        sendSysex(message, sysexdata);
-    }
-    if (address.matches(oscVoiceGrp4))
-    {
-        uint8 sysexdata[9] = { 0x43, 0x10, 0x34, 0x03, 0x60, 0x00, 0x08, 0x00, 0x00 };
-        sendSysex(message, sysexdata);
-    }
-    if (address.matches(oscVoicePitch1))
-    {
-        uint8 sysexdata[9] = { 0x43, 0x10, 0x34, 0x03, 0x00, 0x00, 0x02, 0x00, 0x00 };
-        sendSysex(message, sysexdata);
-    }
-    if (address.matches(oscVoicePitch2))
-    {
-        uint8 sysexdata[9] = { 0x43, 0x10, 0x34, 0x03, 0x20, 0x00, 0x02, 0x00, 0x00 };
-        sendSysex(message, sysexdata);
-    }
-    if (address.matches(oscVoicePitch3))
-    {
-        uint8 sysexdata[9] = { 0x43, 0x10, 0x34, 0x03, 0x40, 0x00, 0x02, 0x00, 0x00 };
-        sendSysex(message, sysexdata);
-    }
-    if (address.matches(oscVoicePitch4))
-    {
-        uint8 sysexdata[9] = { 0x43, 0x10, 0x34, 0x03, 0x60, 0x00, 0x02, 0x00, 0x00 };
-        sendSysex(message, sysexdata);
-    }
-    if (address.matches(oscVoiceFine1))
-    {
-        uint8 sysexdata[9] = { 0x43, 0x10, 0x34, 0x03, 0x00, 0x00, 0x01, 0x00, 0x00 };
-        sendSysex(message, sysexdata);
-    }
-    if (address.matches(oscVoiceFine2))
-    {
-        uint8 sysexdata[9] = { 0x43, 0x10, 0x34, 0x03, 0x20, 0x00, 0x01, 0x00, 0x00 };
-        sendSysex(message, sysexdata);
-    }
-    if (address.matches(oscVoiceFine3))
-    {
-        uint8 sysexdata[9] = { 0x43, 0x10, 0x34, 0x03, 0x40, 0x00, 0x01, 0x00, 0x00 };
-        sendSysex(message, sysexdata);
-    }
-    if (address.matches(oscVoiceFine4))
-    {
-        uint8 sysexdata[9] = { 0x43, 0x10, 0x34, 0x03, 0x60, 0x00, 0x01, 0x00, 0x00 };
-        sendSysex(message, sysexdata);
-    }
-    if (address.matches(oscVoiceFixe1))
-    {
-        uint8 sysexdata[9] = { 0x43, 0x10, 0x34, 0x07, 0x00, 0x00, 0x02, 0x00, 0x00 };
-        sendSysex(message, sysexdata);
-    }
-    if (address.matches(oscVoiceFixe2))
-    {
-        uint8 sysexdata[9] = { 0x43, 0x10, 0x34, 0x07, 0x20, 0x00, 0x02, 0x00, 0x00 };
-        sendSysex(message, sysexdata);
-    }
-    if (address.matches(oscVoiceFixe3))
-    {
-        uint8 sysexdata[9] = { 0x43, 0x10, 0x34, 0x07, 0x40, 0x00, 0x02, 0x00, 0x00 };
-        sendSysex(message, sysexdata);
-    }
-    if (address.matches(oscVoiceFixe4))
-    {
-        uint8 sysexdata[9] = { 0x43, 0x10, 0x34, 0x07, 0x60, 0x00, 0x02, 0x00, 0x00 };
-        sendSysex(message, sysexdata);
-    }
-    if (address.matches(adresseOpMode))
-    {
-        Logger::writeToLog("Operateur mode envoi");
-        uint8 sysexdata[9] = { 0x43, 0X10, 0x34, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00 };
-        sendSysex(message, sysexdata);
-        
+        if (address.matches (e.osc))
+        {
+            uint8 sysexdata[9] = { 0x43, e.channel, 0x34, e.group, e.addrHi, e.addrLo, e.param, 0x00, 0x00 };
+            sendSysex (message, sysexdata);
+            break; // les adresses sont mutuellement exclusives
+        }
     }
     if (address.matches ( oscSendMidiMessage))
     {
         if (message.size() == 1 && message[0].isInt32())
         {
-            for(auto i = 0 ; 0 == message[0].getInt32(); i++)
-                 sendToOutputs (oscMidiMessage[i]);
+            // FIXME (à tester sur matériel) : cette fonctionnalité « envoi du nom de voix »
+            // est aujourd'hui inactive — oscMidiMessage est déclaré `const` et n'est jamais
+            // rempli (voir Voice.h::textEditorReturnKeyPressed, l'écriture y est perdue car
+            // l'array est const). La boucle ci-dessous est rendue défensive (bornée par la
+            // taille réelle ET par le nombre demandé) pour ne plus risquer de lecture hors
+            // limites / boucle infinie. Avant de réactiver l'envoi réel, vérifier le format
+            // sysex (l'adresse du caractère de nom ne semble pas incrémentée).
+            const int requested = jmin (message[0].getInt32(), oscMidiMessage.size());
+            for (int i = 0; i < requested; ++i)
+                sendToOutputs (oscMidiMessage[i]);
         }
     }
     if (address.matches(adresseOscSendBank))

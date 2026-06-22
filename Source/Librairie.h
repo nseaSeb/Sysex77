@@ -213,7 +213,7 @@ private:
     int oldSize;
     
     int numRows;
-    OSCSender sender;  // [2]
+    SysexBusSender sender;  // [2]
     
 };
 //==============================================================================
