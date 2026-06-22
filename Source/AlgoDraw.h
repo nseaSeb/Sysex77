@@ -118,9 +118,8 @@ public:
     //==============================================================================
     void paint (Graphics& g) override
     {
+        g.fillAll (SYColBackground);   // fond opaque (couvre ce qu'il y a dessous)
 
-     
-        
         auto colour = SYColSelected;
         g.setColour (colour);
         g.drawRect(0, 0, getWidth(), getHeight());

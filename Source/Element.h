@@ -143,7 +143,7 @@ public:
     {
         Logger::writeToLog("Element value change");
         if (value.refersToSameSourceAs (algoValue))
-            elementAlgo.setAlgo ((int) algoValue.getValue());
+            elementAlgo.setAlgo (jmax (1, (int) algoValue.getValue()));
 /*        if(operatorID == 1)
             sliderVolume.setValue(intVolumeOP1);
   
@@ -201,7 +201,7 @@ public:
         // Lien vers l'algo FM de cet élément -> mini-vue (mise à jour live).
         algoValue = valueTreeVoice.getPropertyAsValue (Identifier ("AFMALGOELEMENT" + String (operatorID)), &undoManager);
         algoValue.addListener (this);
-        elementAlgo.setAlgo ((int) algoValue.getValue());
+        elementAlgo.setAlgo (jmax (1, (int) algoValue.getValue()));
         if(operatorID == 1)
         {
 //            btFilter.setShape(pathFilter1, false, false, true);
@@ -272,7 +272,7 @@ public:
                           imgAFM, 0.6f, Colours::transparentBlack,
                           0.0f);
         elementAlgo.setVisible (true);    // AFM : montre l'algo choisi
-        elementAlgo.setAlgo ((int) algoValue.getValue());
+        elementAlgo.setAlgo (jmax (1, (int) algoValue.getValue()));
         repaint();
     }
     void paint (Graphics& g) override
