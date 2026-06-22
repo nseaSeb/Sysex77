@@ -58,6 +58,12 @@ public:
         addAndMakeVisible(elementAlgo);
         elementAlgo.setInterceptsMouseClicks(false, false);
         elementAlgo.setVisible(false);
+        // Nom de la wave (mode AWM), par-dessus le bouton WAVE, non-cliquable.
+        addAndMakeVisible(waveNameLabel);
+        waveNameLabel.setJustificationType(Justification::centred);
+        waveNameLabel.setColour(Label::textColourId, SYColLabel);
+        waveNameLabel.setInterceptsMouseClicks(false, false);
+        waveNameLabel.setVisible(false);
         /*
         Path shape;
         shape.lineTo(0.0f, 1.0f);
@@ -144,6 +150,8 @@ public:
         Logger::writeToLog("Element value change");
         if (value.refersToSameSourceAs (algoValue))
             elementAlgo.setAlgo (jmax (1, (int) algoValue.getValue()));
+        if (value.refersToSameSourceAs (waveNameValue))
+            waveNameLabel.setText (waveNameValue.getValue().toString(), dontSendNotification);
 /*        if(operatorID == 1)
             sliderVolume.setValue(intVolumeOP1);
   
@@ -202,6 +210,11 @@ public:
         algoValue = valueTreeVoice.getPropertyAsValue (Identifier ("AFMALGOELEMENT" + String (operatorID)), &undoManager);
         algoValue.addListener (this);
         elementAlgo.setAlgo (jmax (1, (int) algoValue.getValue()));
+
+        // Nom de la wave AWM choisie pour cet élément.
+        waveNameValue = valueTreeVoice.getPropertyAsValue (Identifier ("ELEMENT" + String (operatorID) + "WAVENAME"), &undoManager);
+        waveNameValue.addListener (this);
+        waveNameLabel.setText (waveNameValue.getValue().toString(), dontSendNotification);
         if(operatorID == 1)
         {
 //            btFilter.setShape(pathFilter1, false, false, true);
@@ -259,6 +272,8 @@ public:
                           imgAudio, 0.6f, Colours::transparentBlack,
                          0.0f);
         elementAlgo.setVisible (false);   // AWM : pas d'algo FM
+        waveNameLabel.setVisible (true);  // AWM : montre le nom de la wave
+        waveNameLabel.setText (waveNameValue.getValue().toString(), dontSendNotification);
         repaint();
     }
     void setAfmMode()
@@ -273,6 +288,7 @@ public:
                           0.0f);
         elementAlgo.setVisible (true);    // AFM : montre l'algo choisi
         elementAlgo.setAlgo (jmax (1, (int) algoValue.getValue()));
+        waveNameLabel.setVisible (false); // AFM : pas de nom de wave
         repaint();
     }
     void paint (Graphics& g) override
@@ -363,6 +379,10 @@ public:
         groupWave.setBounds (xWave, 0, xFilter - xWave, H);
         btWave.setBounds (groupWave.getBounds().reduced (4, 16));
         elementAlgo.setBounds (btWave.getBounds().reduced (2)); // mini-algo par-dessus le bouton
+        {
+            auto wb = btWave.getBounds();
+            waveNameLabel.setBounds (wb.getX(), wb.getCentreY() - 12, wb.getWidth(), 24); // nom de wave (AWM)
+        }
 
         groupFilter.setBounds (xFilter, 0, xVol - xFilter, H);
         btFilter.setBounds (groupFilter.getBounds().reduced (4, 16));
@@ -413,6 +433,8 @@ private:
     MidiSlider sliderVolume;
     AlgoDraw elementAlgo;   // mini-vue de l'algo FM (colonne WAVE, mode AFM)
     Value    algoValue;     // -> AFMALGOELEMENTx
+    Label    waveNameLabel; // nom de la wave (colonne WAVE, mode AWM)
+    Value    waveNameValue; // -> ELEMENT<n>WAVENAME
     Slider sliderPan {Slider::SliderStyle::LinearVertical , Slider::NoTextBox};
     TextButton  btGroup1 {"1"};
     TextButton btGroup2 {"2"};

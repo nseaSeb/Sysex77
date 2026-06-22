@@ -216,11 +216,18 @@ public:
     void selectedRowsChanged	(	int 	lastRowSelected	) override
     {
         rowSelected = lastRowSelected;
-        
+
         sysexData[8] = lastRowSelected;
-        
+
         sender.send(oscAddressPatern, (uint8) sysexData[0], sysexData[1], sysexData[2], sysexData[3], sysexData[4], sysexData[5], sysexData[6], sysexData[7], sysexData[8]);
-        
+
+        // Persiste l'index + le NOM de la wave choisie pour cet élément, afin de
+        // l'afficher sur la vue Voice (sysexData[4] encode l'élément : 0x00/20/40/60).
+        const int el = (sysexData[4] >> 5) + 1;
+        valueTreeVoice.setProperty (Identifier ("ELEMENT" + String (el) + "WAVEFORM"), lastRowSelected, nullptr);
+        if (auto* row = dataList->getChildElement (lastRowSelected))
+            valueTreeVoice.setProperty (Identifier ("ELEMENT" + String (el) + "WAVENAME"),
+                                        row->getStringAttribute ("NAME"), nullptr);
     }
     
     int selectedRowChanged ()
