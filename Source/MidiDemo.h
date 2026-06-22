@@ -328,6 +328,7 @@ public:
 
         // Toggle d'affichage du clavier (gardé en bas) — masque/affiche le clavier.
         addAndMakeVisible (btToggleKeyboard);
+        btToggleKeyboard.setAlwaysOnTop (true);   // reste visible au-dessus des onglets (barre de nav)
         btToggleKeyboard.setClickingTogglesState (true);
         btToggleKeyboard.setToggleState (true, dontSendNotification);
         btToggleKeyboard.setColour (TextButton::ColourIds::buttonOnColourId, SYColSelected);
@@ -551,8 +552,7 @@ public:
         if (kb)
         {
             tabs.setBounds (0, 10, getWidth(), getHeight() - 84);
-            midiKeyboard.setBounds (margin + 140, getHeight() - 70, getWidth() - (2 * margin) - 140 - 56, 70);
-            btToggleKeyboard.setBounds (getWidth() - margin - 52, getHeight() - 70, 52, 22);
+            midiKeyboard.setBounds (margin + 140, getHeight() - 70, getWidth() - (2 * margin) - 140, 70);
             labelFoot.setBounds (margin, getHeight() - 77, 134, 20);
             comboFoot.setBounds (margin, getHeight() - 58, 134, 20);
             labelMod .setBounds (margin, getHeight() - 40, 134, 20);
@@ -560,11 +560,13 @@ public:
         }
         else
         {
-            // Clavier masqué : la vue prend toute la hauteur, ne reste qu'une fine
-            // barre en bas pour le bouton de réaffichage.
-            tabs.setBounds (0, 10, getWidth(), getHeight() - 34);
-            btToggleKeyboard.setBounds (getWidth() - margin - 52, getHeight() - 26, 52, 20);
+            // Clavier masqué : la vue prend toute la hauteur.
+            tabs.setBounds (0, 10, getWidth(), getHeight() - 14);
         }
+
+        // Bouton de toggle calé à droite, sur la rangée d'onglets (barre de nav en bas).
+        const int barTop = tabs.getBottom() - 32; // 32 = profondeur de la barre d'onglets
+        btToggleKeyboard.setBounds (getWidth() - margin - 70, barTop + 3, 70, 26);
     }
     
     void openDevice (bool isInput, int index)

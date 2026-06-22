@@ -22,31 +22,49 @@ public:
 
     void paint (Graphics& g) override
     {
+        // Routage façon SynthWorks : sorties des 4 éléments -> lignes croisées vers
+        // deux bus d'effet (Reverb Hall / Room) -> sorties L / R.
         auto area = getLocalBounds().toFloat().reduced (4.0f);
-        const float left = area.getX() + 14.0f;
-        const float mixX = area.getCentreX();
-        const float outX = area.getRight() - 14.0f;
-        const float top  = area.getY() + 6.0f;
-        const float bot  = area.getBottom() - 6.0f;
-        const float midY = (top + bot) * 0.5f;
+        const float x0  = area.getX();
+        const float W   = area.getWidth();
+        const float top = area.getY() + 6.0f;
+        const float bot = area.getBottom() - 6.0f;
+        const float H   = bot - top;
 
-        g.setColour (SYColLabel.withAlpha (0.6f));
-        g.drawLine (mixX, top, mixX, bot, 1.0f);             // mixeur (barre centrale)
-        g.drawLine (mixX, midY, outX, top + 4.0f, 1.0f);     // -> L
-        g.drawLine (mixX, midY, outX, bot - 4.0f, 1.0f);     // -> R
-        g.setColour (SYColLabel);
-        g.drawText ("L", outX, top - 3.0f, 14.0f, 14.0f, Justification::left);
-        g.drawText ("R", outX, bot - 11.0f, 14.0f, 14.0f, Justification::left);
+        const float elemX = x0 + 8.0f;
+        const float boxL  = x0 + W * 0.34f;
+        const float boxR  = x0 + W * 0.80f;
+        const float outX  = area.getRight() - 12.0f;
+        const float hallY = top + H * 0.27f;
+        const float roomY = top + H * 0.73f;
+        const float boxH  = jmin (H * 0.30f, 36.0f);
 
         for (int i = 0; i < 4; ++i)
         {
-            const float ey = top + (bot - top) * (i + 0.5f) / 4.0f;
+            const float ey = top + H * (i + 0.5f) / 4.0f;
             const bool active = i < numEl;
-            g.setColour (active ? SYColSelected : SYColLabel.withAlpha (0.25f));
-            g.fillEllipse (left - 3.0f, ey - 3.0f, 6.0f, 6.0f);
-            g.drawText ("E" + String (i + 1), left + 6.0f, ey - 8.0f, 26.0f, 16.0f, Justification::left);
-            g.drawLine (left + 3.0f, ey, mixX, midY, active ? 1.4f : 0.7f); // lignes croisées
+            g.setColour (active ? SYColSelected : SYColLabel.withAlpha (0.22f));
+            g.fillEllipse (elemX - 3.0f, ey - 3.0f, 6.0f, 6.0f);
+            g.drawText ("E" + String (i + 1), elemX + 6.0f, ey - 8.0f, 22.0f, 16.0f, Justification::left);
+            const float lw = active ? 1.3f : 0.6f;
+            g.drawLine (elemX + 3.0f, ey, boxL, hallY, lw); // -> Hall (lignes croisées)
+            g.drawLine (elemX + 3.0f, ey, boxL, roomY, lw); // -> Room
         }
+
+        g.setColour (SYColLabel);
+        auto drawBox = [&] (float cy, const String& txt)
+        {
+            Rectangle<float> b (boxL, cy - boxH * 0.5f, boxR - boxL, boxH);
+            g.drawRect (b, 1.0f);
+            g.drawFittedText (txt, b.toNearestInt(), Justification::centred, 2);
+        };
+        drawBox (hallY, "REVERB\nHALL");
+        drawBox (roomY, "REVERB\nROOM");
+
+        g.drawLine (boxR, hallY, outX, top + 6.0f, 1.0f);  // -> L
+        g.drawLine (boxR, roomY, outX, bot - 6.0f, 1.0f);  // -> R
+        g.drawText ("L", outX, top - 2.0f, 12.0f, 14.0f, Justification::left);
+        g.drawText ("R", outX, bot - 12.0f, 12.0f, 14.0f, Justification::left);
     }
 
     int numEl = 1;
@@ -193,7 +211,7 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         }
 
         // Cadres décoratifs de la colonne droite (transparents, ne captent pas la souris).
-        for (auto* gp : { &grpVoiceBox, &grpAlgo, &grpEffects })
+        for (auto* gp : { &grpVoiceBox, &grpAlgo })
         {
             gp->setColour (GroupComponent::textColourId,    SYColLabel);
             gp->setColour (GroupComponent::outlineColourId, SYColLabel);
@@ -203,12 +221,6 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         labelMode.setVisible (false); // remplacé par le cadre "VOICE"
 
         addAndMakeVisible (routingMatrix);
-        for (auto* l : { &labReverbHall, &labReverbRoom })
-        {
-            l->setJustificationType (Justification::centredLeft);
-            l->setColour (Label::textColourId, SYColLabel);
-            addAndMakeVisible (*l);
-        }
         
 // init master volume slider
 //   { 0x43, 0x10, 0x34, 0x02, 0x00, 0x00, 0x3f, 0x00, 0x00 };
@@ -588,17 +600,11 @@ void setNombreElements (int nombre)
         sliderMaster.setBounds (rightX + rightW - 48, topElem + 16, 38, voiceH - 26);
         labelMasterVolume.setBounds (rightX + rightW - 54, topElem + voiceH - 14, 50, 12);
 
-        const int rest  = jmax (40, getHeight() - (topElem + voiceH + 8) - 8);
-        const int algoH = (int) (rest * 0.55f);
+        // Algo/routage : occupe toute la hauteur sous le bloc VOICE (aligné aux éléments).
         const int algoY = topElem + voiceH + 8;
-        grpAlgo.setBounds    (rightX, algoY, rightW, algoH);
+        const int algoH = jmax (60, getHeight() - algoY - 4);
+        grpAlgo.setBounds (rightX, algoY, rightW, algoH);
         routingMatrix.setBounds (rightX + 6, algoY + 18, rightW - 12, algoH - 24);
-
-        const int effY = algoY + algoH + 6;
-        const int effH = rest - algoH - 6;
-        grpEffects.setBounds (rightX, effY, rightW, effH);
-        labReverbHall.setBounds (rightX + 12, effY + 22, rightW - 24, 20);
-        labReverbRoom.setBounds (rightX + 12, effY + 46, rightW - 24, 20);
     }
     void addBtAndMakeStyle (TextButton& textButton)
     {
@@ -706,10 +712,7 @@ void setNombreElements (int nombre)
     // Colonne droite (façon SynthWorks).
     GroupComponent grpVoiceBox { "grpVoice",   TRANS ("VOICE") };
     GroupComponent grpAlgo     { "grpAlgo",    TRANS ("ALGORITHME / ROUTAGE") };
-    GroupComponent grpEffects  { "grpEffects", TRANS ("EFFETS") };
     RoutingMatrix  routingMatrix;
-    Label labReverbHall { "", "REVERB HALL" };
-    Label labReverbRoom { "", "REVERB ROOM" };
 
     int nombreElements = 1;
     SysexBusSender sender;  // [2]
