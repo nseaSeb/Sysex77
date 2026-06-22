@@ -380,4 +380,5 @@ Value valueFilterRate1Element2;
 Value valueFilterRate1Element3;
 Value valueFilterRate1Element4;
 */
-ValueTree   valueTreeVoice ("Sysex77");
+// `inline` : défini dans un header mais une seule instance (ODR-safe, multi-TU/CMake).
+inline ValueTree   valueTreeVoice ("Sysex77");

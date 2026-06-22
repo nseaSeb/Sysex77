@@ -50,6 +50,18 @@
 #include "SysexBus.h"
 #include "SysexUtils.h"   // SyVoice:: (builder sysex, device, helpers) — visible par tous les widgets
 
+//==============================================================================
+// État partagé de l'application.
+//
+// Architecture : build « unity » (tout transite par Main.cpp -> MidiDemo.h), donc
+// cet état vit en variables de portée fichier. Les `static const String` ci-dessous
+// sont des CONSTANTES (adresses du bus interne, cf. SysexBus.h) ; le bloc « état de
+// session » plus bas regroupe l'état MUTABLE d'exécution (sélection courante, device,
+// thème via LookAndFeel.h…). NB : Declarations.h (anciens globals d'UI) a été supprimé,
+// c'était du code mort — les vrais objets d'UI sont des membres de MidiDemo.
+//==============================================================================
+
+// --- Adresses du bus interne (constantes) ---
 static const String adresseOscFoot = "/77Foot";
 static const String adresseOscMod = "/77Mod";
 static const String adresseOpMode = "/77OpMode";
@@ -95,6 +107,7 @@ int SYModel =1;
 int CommonFoot;
 int CommonMod;
 
+// --- État de session (mutable, runtime : sélection courante, flags, tampons) ---
 static bool newMessage;
 static bool requestSysex;
 static bool doubleClickBank = false;
