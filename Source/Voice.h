@@ -12,65 +12,6 @@
 #pragma once
 
 //==============================================================================
-/** Matrice de routage (façon SynthWorks) : les éléments actifs (à gauche) sont
-    reliés par des lignes croisées à un mixeur central, puis aux sorties L/R.
-    Version visuelle (reflète le nombre d'éléments) ; câblage des données à venir. */
-class RoutingMatrix   : public Component
-{
-public:
-    void setNumElements (int n) { numEl = juce::jlimit (1, 4, n); repaint(); }
-
-    void paint (Graphics& g) override
-    {
-        // Routage façon SynthWorks : sorties des 4 éléments -> lignes croisées vers
-        // deux bus d'effet (Reverb Hall / Room) -> sorties L / R.
-        auto area = getLocalBounds().toFloat().reduced (4.0f);
-        const float x0  = area.getX();
-        const float W   = area.getWidth();
-        const float top = area.getY() + 6.0f;
-        const float bot = area.getBottom() - 6.0f;
-        const float H   = bot - top;
-
-        const float elemX = x0 + 8.0f;
-        const float boxL  = x0 + W * 0.34f;
-        const float boxR  = x0 + W * 0.80f;
-        const float outX  = area.getRight() - 12.0f;
-        const float hallY = top + H * 0.27f;
-        const float roomY = top + H * 0.73f;
-        const float boxH  = jmin (H * 0.30f, 36.0f);
-
-        for (int i = 0; i < 4; ++i)
-        {
-            const float ey = top + H * (i + 0.5f) / 4.0f;
-            const bool active = i < numEl;
-            g.setColour (active ? SYColSelected : SYColLabel.withAlpha (0.22f));
-            g.fillEllipse (elemX - 3.0f, ey - 3.0f, 6.0f, 6.0f);
-            g.drawText ("E" + String (i + 1), elemX + 6.0f, ey - 8.0f, 22.0f, 16.0f, Justification::left);
-            const float lw = active ? 1.3f : 0.6f;
-            g.drawLine (elemX + 3.0f, ey, boxL, hallY, lw); // -> Hall (lignes croisées)
-            g.drawLine (elemX + 3.0f, ey, boxL, roomY, lw); // -> Room
-        }
-
-        g.setColour (SYColLabel);
-        auto drawBox = [&] (float cy, const String& txt)
-        {
-            Rectangle<float> b (boxL, cy - boxH * 0.5f, boxR - boxL, boxH);
-            g.drawRect (b, 1.0f);
-            g.drawFittedText (txt, b.toNearestInt(), Justification::centred, 2);
-        };
-        drawBox (hallY, "REVERB\nHALL");
-        drawBox (roomY, "REVERB\nROOM");
-
-        g.drawLine (boxR, hallY, outX, top + 6.0f, 1.0f);  // -> L
-        g.drawLine (boxR, roomY, outX, bot - 6.0f, 1.0f);  // -> R
-        g.drawText ("L", outX, top - 2.0f, 12.0f, 14.0f, Justification::left);
-        g.drawText ("R", outX, bot - 12.0f, 12.0f, 14.0f, Justification::left);
-    }
-
-    int numEl = 1;
-};
-
-//==============================================================================
 struct VoicePage   : public Component, public Slider::Listener, public ComboBox::Listener, public TextEditor::Listener, public TextButton::Listener,public ChangeListener, public ChangeBroadcaster, public Value::Listener, public ValueTree::Listener, public KeyListener , public Timer
 {
     VoicePage()
@@ -220,7 +161,6 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         }
         labelMode.setVisible (false); // remplacé par le cadre "VOICE"
 
-        addAndMakeVisible (routingMatrix);
         
 // init master volume slider
 //   { 0x43, 0x10, 0x34, 0x02, 0x00, 0x00, 0x3f, 0x00, 0x00 };
@@ -293,17 +233,50 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
     //    test.setVisible(true);
         
     }
+    // Routage façon SynthWorks : on relie les VRAIES sorties pan L/R des éléments
+    // actifs aux bus Reverb Hall/Room, puis aux sorties L/R. Dessiné ici (et pas dans
+    // un sous-composant) car VoicePage connaît la position des éléments ET de la zone algo.
     void paint (Graphics& g) override
     {
-            Logger::writeToLog("Voice: Paint");
-    /*
-        
-        // g.setColour(Colours::white);
-        ColourGradient myGradient {	Colour(0xff404040),static_cast<float>(getWidth()/2),0,Colour(0xff000000),static_cast<float>(getWidth()/2),static_cast<float>(getHeight()),false };
-        g.setGradientFill(myGradient);
-        //        g.setColour(Colour(0x10000000));
-        g.fillAll();
-        */
+        if (algoW <= 0)
+            return;
+
+        const float bx0  = (float) algoX;
+        const float boxL = bx0 + algoW * 0.34f;
+        const float boxR = bx0 + algoW * 0.74f;
+        const float outX = bx0 + algoW - 16.0f;
+        const float aTop = (float) algoY + 22.0f;
+        const float aBot = (float) (algoY + algoH) - 14.0f;
+        const float hallY = aTop + (aBot - aTop) * 0.30f;
+        const float roomY = aTop + (aBot - aTop) * 0.70f;
+        const float boxH  = jmin ((aBot - aTop) * 0.26f, 40.0f);
+
+        Element* els[4] = { &element1, &element2, &element3, &element4 };
+        for (int i = 0; i < nombreElements && i < 4; ++i)
+        {
+            auto b = els[i]->getBounds().toFloat();
+            const float ox = b.getRight() - 4.0f;            // sortie pan de l'élément
+            const float lY = b.getY() + b.getHeight() * 0.32f;
+            const float rY = b.getY() + b.getHeight() * 0.68f;
+            g.setColour (SYColSelected);
+            g.drawLine (ox, lY, boxL, hallY, 1.3f);          // -> Reverb Hall (croisé)
+            g.drawLine (ox, rY, boxL, roomY, 1.3f);          // -> Reverb Room
+        }
+
+        g.setColour (SYColLabel);
+        auto box = [&] (float cy, const String& t)
+        {
+            Rectangle<float> r (boxL, cy - boxH * 0.5f, boxR - boxL, boxH);
+            g.drawRect (r, 1.0f);
+            g.drawFittedText (t, r.toNearestInt(), Justification::centred, 2);
+        };
+        box (hallY, "REVERB\nHALL");
+        box (roomY, "REVERB\nROOM");
+
+        g.drawLine (boxR, hallY, outX, aTop, 1.0f);          // -> L
+        g.drawLine (boxR, roomY, outX, aBot, 1.0f);          // -> R
+        g.drawText ("L", (int) outX, (int) aTop - 8, 14, 14, Justification::left);
+        g.drawText ("R", (int) outX, (int) aBot - 6, 14, 14, Justification::left);
     }
     void valueChanged(Value & value) override
     {
@@ -534,9 +507,9 @@ void setNombreElements (int nombre)
             els[i]->setEnabled (active);
             els[i]->setAlpha (active ? 1.0f : 0.35f);
         }
-        routingMatrix.setNumElements (nombre);
         Logger::writeToLog("setNombre elements");
         resized();
+        repaint(); // redessine le routage (dépend du nombre d'éléments actifs)
     }
 
     void resized() override
@@ -599,11 +572,13 @@ void setNombreElements (int nombre)
         labelMasterVolume.setBounds (rightX, 34, 56, 18);
         sliderMaster.setBounds (rightX + 58, 36, rightW - 58, 16);
 
-        // Algo/routage : du sommet des rangées d'éléments jusqu'en bas.
-        const int algoY = topElem;
-        const int algoH = jmax (60, getHeight() - algoY - 4);
-        grpAlgo.setBounds (rightX, algoY, rightW, algoH);
-        routingMatrix.setBounds (rightX + 6, algoY + 18, rightW - 12, algoH - 24);
+        // Algo/routage : du sommet des rangées d'éléments jusqu'en bas. Le routage est
+        // dessiné dans paint() (lignes depuis les vraies sorties pan des éléments).
+        algoX = rightX;
+        algoY = topElem;
+        algoW = rightW;
+        algoH = jmax (60, getHeight() - topElem - 4);
+        grpAlgo.setBounds (algoX, algoY, algoW, algoH);
     }
     void addBtAndMakeStyle (TextButton& textButton)
     {
@@ -710,7 +685,7 @@ void setNombreElements (int nombre)
 
     // Colonne droite (façon SynthWorks).
     GroupComponent grpAlgo     { "grpAlgo",    TRANS ("ALGORITHME / ROUTAGE") };
-    RoutingMatrix  routingMatrix;
+    int algoX = 0, algoY = 0, algoW = 0, algoH = 0; // zone de la matrice (utilisée par paint)
 
     int nombreElements = 1;
     SysexBusSender sender;  // [2]
