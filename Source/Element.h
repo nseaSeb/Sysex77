@@ -81,8 +81,9 @@ public:
         // Nom de la wave (mode AWM), par-dessus le bouton WAVE, non-cliquable.
         addAndMakeVisible(waveNameLabel);
         waveNameLabel.setJustificationType(Justification::centred);
-        waveNameLabel.setColour(Label::textColourId, SYColBackground.contrasting());
-        waveNameLabel.setColour(Label::backgroundColourId, SYColBackground.withAlpha(0.6f));
+        waveNameLabel.setFont(Font(13.0f, Font::bold));
+        waveNameLabel.setColour(Label::textColourId, SYColSelected);
+        waveNameLabel.setColour(Label::backgroundColourId, SYColBackground.withAlpha(0.82f));
         waveNameLabel.setInterceptsMouseClicks(false, false);
         waveNameLabel.setVisible(false);
         /*
@@ -333,13 +334,13 @@ public:
             if (fb.getWidth() > 12.0f && fb.getHeight() > 12.0f)
                 SyDraw::drawFilterResponse (g, fb, fMode, fCut, fRes, SYColSelected);
 
-            // Enveloppe de volume (même approche que le filtre) : sustain = volume réel
-            // de l'élément. (EG complet à câbler plus tard.)
-            const int vol = (int) valueTreeVoice.getProperty (idFor ("VOLUME"), 100);
+            // Enveloppe de volume (même style que le filtre). Forme indicative pour
+            // l'instant (les paramètres d'EG de volume ne sont pas encore stockés) :
+            // INDÉPENDANTE du slider de volume (qui, lui, est le niveau de sortie).
             auto vb = btVCA.getBounds().toFloat().reduced (2.0f);
             if (vb.getWidth() > 12.0f && vb.getHeight() > 12.0f)
             {
-                juce::Array<float> levels  { 0.0f, 127.0f, (float) vol, 0.0f };
+                juce::Array<float> levels  { 0.0f, 120.0f, 84.0f, 0.0f }; // A / D->sustain / R
                 juce::Array<float> weights { 1.0f, 2.0f, 3.0f };
                 SyDraw::drawEnvelope (g, vb, levels, weights, 127.0f, SYColSelected);
             }
@@ -410,7 +411,7 @@ public:
         {
             auto wb = btWave.getBounds().reduced (2);
             elementFmWave.setBounds (wb);                         // AFM : forme d'onde FM plein-cellule
-            waveNameLabel.setBounds (wb.getX(), wb.getY() + 2, wb.getWidth(), 20); // AWM : nom en overlay (haut)
+            waveNameLabel.setBounds (wb.getX(), wb.getCentreY() - 13, wb.getWidth(), 26); // AWM : nom en overlay
         }
 
         groupFilter.setBounds (xFilter, 0, xVol - xFilter, H);
