@@ -213,4 +213,34 @@ namespace SyDraw
                         juce::Justification::topLeft, false);
         }
     }
+
+    //==============================================================================
+    /** Forme d'onde FM *approximée* (modèle 2 opérateurs : porteuse modulée en phase
+        par un modulateur) : out(t) = sin(t + I·sin(R·t)). Ce n'est PAS le rendu exact
+        du SY77 (Advanced FM, 6 op, 45 algos, feedback, EG…), mais un signal FM réel,
+        dont la richesse varie avec l'algorithme. À affiner si on câble les vrais
+        paramètres d'opérateurs + les matrices d'algorithme. */
+    inline void drawFmWave (juce::Graphics& g, juce::Rectangle<float> area,
+                            int algo, juce::Colour colour)
+    {
+        drawPanel (g, area, colour);
+
+        const float ratio = 1.0f + (float) (juce::jmax (1, algo) % 4);        // 1..4
+        const float index = 0.8f + (float) (juce::jmax (1, algo) % 6) * 0.7f; // profondeur de modulation
+
+        const int   n = juce::jmax (24, (int) area.getWidth());
+        juce::Path  p;
+        for (int i = 0; i <= n; ++i)
+        {
+            const float ph = (float) i / (float) n;                      // un cycle
+            const float t  = ph * juce::MathConstants<float>::twoPi;
+            const float y  = std::sin (t + index * std::sin (ratio * t)); // -1..1
+            const float x  = area.getX() + ph * area.getWidth();
+            const float py = area.getCentreY() - y * area.getHeight() * 0.40f;
+            if (i == 0) p.startNewSubPath (x, py);
+            else        p.lineTo (x, py);
+        }
+        g.setColour (colour);
+        g.strokePath (p, juce::PathStrokeType (1.4f, juce::PathStrokeType::curved));
+    }
 }

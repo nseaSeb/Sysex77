@@ -22,6 +22,19 @@
 
 
 //==============================================================================
+/** Petite vue de la forme d'onde FM (approximée) d'un élément AFM. */
+class FmWaveView   : public Component
+{
+public:
+    void setAlgo (int a) { algo = a; repaint(); }
+    void paint (Graphics& g) override
+    {
+        SyDraw::drawFmWave (g, getLocalBounds().toFloat(), algo, SYColSelected);
+    }
+    int algo = 1;
+};
+
+//==============================================================================
 /*
 */
 class Element    : public Component, TextButton::Listener, public ChangeBroadcaster, public Slider::Listener, public Value::Listener,public ChangeListener
@@ -58,6 +71,9 @@ public:
         addAndMakeVisible(elementAlgo);
         elementAlgo.setInterceptsMouseClicks(false, false);
         elementAlgo.setVisible(false);
+        addAndMakeVisible(elementFmWave);
+        elementFmWave.setInterceptsMouseClicks(false, false);
+        elementFmWave.setVisible(false);
         // Nom de la wave (mode AWM), par-dessus le bouton WAVE, non-cliquable.
         addAndMakeVisible(waveNameLabel);
         waveNameLabel.setJustificationType(Justification::centred);
@@ -149,7 +165,11 @@ public:
     {
         Logger::writeToLog("Element value change");
         if (value.refersToSameSourceAs (algoValue))
-            elementAlgo.setAlgo (jmax (1, (int) algoValue.getValue()));
+        {
+            const int a = jmax (1, (int) algoValue.getValue());
+            elementAlgo.setAlgo (a);
+            elementFmWave.setAlgo (a);
+        }
         if (value.refersToSameSourceAs (waveNameValue))
             waveNameLabel.setText (waveNameValue.getValue().toString(), dontSendNotification);
 /*        if(operatorID == 1)
@@ -272,6 +292,7 @@ public:
                           imgAudio, 0.6f, Colours::transparentBlack,
                          0.0f);
         elementAlgo.setVisible (false);   // AWM : pas d'algo FM
+        elementFmWave.setVisible (false);
         waveNameLabel.setVisible (true);  // AWM : montre le nom de la wave
         waveNameLabel.setText (waveNameValue.getValue().toString(), dontSendNotification);
         repaint();
@@ -287,7 +308,9 @@ public:
                           imgAFM, 0.6f, Colours::transparentBlack,
                           0.0f);
         elementAlgo.setVisible (true);    // AFM : montre l'algo choisi
+        elementFmWave.setVisible (true);  // AFM : montre la forme d'onde FM (approx)
         elementAlgo.setAlgo (jmax (1, (int) algoValue.getValue()));
+        elementFmWave.setAlgo (jmax (1, (int) algoValue.getValue()));
         waveNameLabel.setVisible (false); // AFM : pas de nom de wave
         repaint();
     }
@@ -378,9 +401,12 @@ public:
 
         groupWave.setBounds (xWave, 0, xFilter - xWave, H);
         btWave.setBounds (groupWave.getBounds().reduced (4, 16));
-        elementAlgo.setBounds (btWave.getBounds().reduced (2)); // mini-algo par-dessus le bouton
         {
-            auto wb = btWave.getBounds();
+            auto wb = btWave.getBounds().reduced (2);
+            // AFM : algo en haut (~58%), forme d'onde FM en bas (~42%).
+            const int split = wb.getY() + (int) (wb.getHeight() * 0.58f);
+            elementAlgo.setBounds (wb.getX(), wb.getY(), wb.getWidth(), split - wb.getY());
+            elementFmWave.setBounds (wb.getX(), split + 2, wb.getWidth(), wb.getBottom() - split - 2);
             waveNameLabel.setBounds (wb.getX(), wb.getCentreY() - 12, wb.getWidth(), 24); // nom de wave (AWM)
         }
 
@@ -431,7 +457,8 @@ private:
 //    Slider sliderPitch {Slider::SliderStyle::Rotary , Slider::NoTextBox};
  //   Slider sliderFine {Slider::SliderStyle::LinearBar,Slider::NoTextBox};
     MidiSlider sliderVolume;
-    AlgoDraw elementAlgo;   // mini-vue de l'algo FM (colonne WAVE, mode AFM)
+    AlgoDraw   elementAlgo;   // mini-vue de l'algo FM (colonne WAVE, mode AFM)
+    FmWaveView elementFmWave; // forme d'onde FM approximée (sous l'algo, mode AFM)
     Value    algoValue;     // -> AFMALGOELEMENTx
     Label    waveNameLabel; // nom de la wave (colonne WAVE, mode AWM)
     Value    waveNameValue; // -> ELEMENT<n>WAVENAME
