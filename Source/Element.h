@@ -30,6 +30,11 @@ public:
     void paint (Graphics& g) override
     {
         SyDraw::drawFmWave (g, getLocalBounds().toFloat(), algo, SYColSelected);
+        // Numéro d'algorithme en overlay.
+        g.setColour (SYColLabel);
+        g.setFont (Font (11.0f, Font::bold));
+        g.drawText ("ALG " + String (algo), getLocalBounds().reduced (5),
+                    Justification::topLeft, false);
     }
     int algo = 1;
 };
@@ -68,9 +73,6 @@ public:
         addAndMakeVisible(btWave);
         // Mini-vue de l'algo FM par-dessus le bouton WAVE (n'intercepte pas la souris :
         // le bouton dessous reste cliquable pour ouvrir l'éditeur d'opérateurs).
-        addAndMakeVisible(elementAlgo);
-        elementAlgo.setInterceptsMouseClicks(false, false);
-        elementAlgo.setVisible(false);
         addAndMakeVisible(elementFmWave);
         elementFmWave.setInterceptsMouseClicks(false, false);
         elementFmWave.setVisible(false);
@@ -165,11 +167,7 @@ public:
     {
         Logger::writeToLog("Element value change");
         if (value.refersToSameSourceAs (algoValue))
-        {
-            const int a = jmax (1, (int) algoValue.getValue());
-            elementAlgo.setAlgo (a);
-            elementFmWave.setAlgo (a);
-        }
+            elementFmWave.setAlgo (jmax (1, (int) algoValue.getValue()));
         if (value.refersToSameSourceAs (waveNameValue))
             waveNameLabel.setText (waveNameValue.getValue().toString(), dontSendNotification);
 /*        if(operatorID == 1)
@@ -229,7 +227,7 @@ public:
         // Lien vers l'algo FM de cet élément -> mini-vue (mise à jour live).
         algoValue = valueTreeVoice.getPropertyAsValue (Identifier ("AFMALGOELEMENT" + String (operatorID)), &undoManager);
         algoValue.addListener (this);
-        elementAlgo.setAlgo (jmax (1, (int) algoValue.getValue()));
+        elementFmWave.setAlgo (jmax (1, (int) algoValue.getValue()));
 
         // Nom de la wave AWM choisie pour cet élément.
         waveNameValue = valueTreeVoice.getPropertyAsValue (Identifier ("ELEMENT" + String (operatorID) + "WAVENAME"), &undoManager);
@@ -291,8 +289,7 @@ public:
                          imgAudio, 1.0f, Colours::transparentBlack,
                           imgAudio, 0.6f, Colours::transparentBlack,
                          0.0f);
-        elementAlgo.setVisible (false);   // AWM : pas d'algo FM
-        elementFmWave.setVisible (false);
+        elementFmWave.setVisible (false); // AWM : pas de forme d'onde FM
         waveNameLabel.setVisible (true);  // AWM : montre le nom de la wave
         waveNameLabel.setText (waveNameValue.getValue().toString(), dontSendNotification);
         repaint();
@@ -307,9 +304,7 @@ public:
                           imgAFM, 1.0f, Colours::transparentBlack,
                           imgAFM, 0.6f, Colours::transparentBlack,
                           0.0f);
-        elementAlgo.setVisible (true);    // AFM : montre l'algo choisi
-        elementFmWave.setVisible (true);  // AFM : montre la forme d'onde FM (approx)
-        elementAlgo.setAlgo (jmax (1, (int) algoValue.getValue()));
+        elementFmWave.setVisible (true);  // AFM : forme d'onde FM (+ n° algo en overlay)
         elementFmWave.setAlgo (jmax (1, (int) algoValue.getValue()));
         waveNameLabel.setVisible (false); // AFM : pas de nom de wave
         repaint();
@@ -403,11 +398,8 @@ public:
         btWave.setBounds (groupWave.getBounds().reduced (4, 16));
         {
             auto wb = btWave.getBounds().reduced (2);
-            // AFM : algo en haut (~58%), forme d'onde FM en bas (~42%).
-            const int split = wb.getY() + (int) (wb.getHeight() * 0.58f);
-            elementAlgo.setBounds (wb.getX(), wb.getY(), wb.getWidth(), split - wb.getY());
-            elementFmWave.setBounds (wb.getX(), split + 2, wb.getWidth(), wb.getBottom() - split - 2);
-            waveNameLabel.setBounds (wb.getX(), wb.getCentreY() - 12, wb.getWidth(), 24); // nom de wave (AWM)
+            elementFmWave.setBounds (wb);                         // AFM : forme d'onde FM plein-cellule
+            waveNameLabel.setBounds (wb.getX(), wb.getY() + 2, wb.getWidth(), 20); // AWM : nom en overlay (haut)
         }
 
         groupFilter.setBounds (xFilter, 0, xVol - xFilter, H);
@@ -457,8 +449,7 @@ private:
 //    Slider sliderPitch {Slider::SliderStyle::Rotary , Slider::NoTextBox};
  //   Slider sliderFine {Slider::SliderStyle::LinearBar,Slider::NoTextBox};
     MidiSlider sliderVolume;
-    AlgoDraw   elementAlgo;   // mini-vue de l'algo FM (colonne WAVE, mode AFM)
-    FmWaveView elementFmWave; // forme d'onde FM approximée (sous l'algo, mode AFM)
+    FmWaveView elementFmWave; // forme d'onde FM (toute la cellule WAVE, mode AFM) + n° algo en overlay
     Value    algoValue;     // -> AFMALGOELEMENTx
     Label    waveNameLabel; // nom de la wave (colonne WAVE, mode AWM)
     Value    waveNameValue; // -> ELEMENT<n>WAVENAME
