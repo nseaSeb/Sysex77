@@ -535,8 +535,6 @@ void setNombreElements (int nombre)
         grid = getWidth()/10;
         auto wGrid = (getWidth()-20) * 0.7;
         const int topElem = 68;                 // sous la barre du haut + les en-têtes de colonnes
-        // Hauteur de rangée FIXE (toujours 4 rangées affichées, façon SynthWorks).
-        auto hGrid = (getHeight() - topElem - 2)/4;
 
         // En-têtes de colonnes alignés sur les fractions internes d'un Element :
         // PITCH .18 | WAVE .18 | FILTER .26 | VOLUME .26 | PAN .12
@@ -548,12 +546,21 @@ void setNombreElements (int nombre)
         labColVolume.setBounds (fx (0.62f), hy, fx (0.88f) - fx (0.62f), hh);
         labColPan   .setBounds (fx (0.88f), hy, fx (1.00f) - fx (0.88f), hh);
 
-// Redraw celon le nombre d'elements
-
-        element1.setBounds(10, topElem, wGrid, hGrid);
-        element2.setBounds(10, topElem + hGrid, wGrid, hGrid );
-        element3.setBounds(10, topElem + (hGrid * 2), wGrid, hGrid);
-        element4.setBounds(10, topElem + (hGrid*3), wGrid, hGrid) ;
+        // Rangées : les éléments ACTIFS reçoivent la majeure partie de la hauteur,
+        // les inactifs sont réduits à une fine bande (l'algo/les contrôles de l'élément
+        // actif restent grands quelle que soit la taille de l'écran).
+        Element* els[4] = { &element1, &element2, &element3, &element4 };
+        const int nAct      = jlimit (1, 4, nombreElements);
+        const int inactiveH = 30;
+        const int avail     = jmax (80, getHeight() - topElem - 2);
+        const int actH      = jmax (60, (avail - (4 - nAct) * inactiveH) / nAct);
+        int yEl = topElem;
+        for (int i = 0; i < 4; ++i)
+        {
+            const int h = (i < nAct) ? actH : inactiveH;
+            els[i]->setBounds (10, yEl, (int) wGrid, h);
+            yEl += h;
+        }
         
         op1.setBounds (10,4,24,24);
         op2.setBounds (10+24, 4,24,24);
