@@ -567,6 +567,7 @@ public:
         // Bouton de toggle calé à droite, sur la rangée d'onglets (barre de nav en bas).
         const int barTop = tabs.getBottom() - 32; // 32 = profondeur de la barre d'onglets
         btToggleKeyboard.setBounds (getWidth() - margin - 70, barTop + 3, 70, 26);
+        btToggleKeyboard.toFront (false); // au-dessus de la barre d'onglets (sinon le clic part dans les onglets)
     }
     
     void openDevice (bool isInput, int index)
