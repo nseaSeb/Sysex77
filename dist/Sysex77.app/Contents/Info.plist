@@ -1,48 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
+
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-	<key>BuildMachineOSBuild</key>
-	<string>24G624</string>
-	<key>CFBundleDisplayName</key>
-	<string>Sysex77</string>
-	<key>CFBundleExecutable</key>
-	<string>Sysex77</string>
-	<key>CFBundleIdentifier</key>
-	<string>com.NseaProtector.Sysex77</string>
-	<key>CFBundleName</key>
-	<string>Sysex77</string>
-	<key>CFBundlePackageType</key>
-	<string>APPL</string>
-	<key>CFBundleShortVersionString</key>
-	<string>0.0.5</string>
-	<key>CFBundleSignature</key>
-	<string>????</string>
-	<key>CFBundleSupportedPlatforms</key>
-	<array>
-		<string>MacOSX</string>
-	</array>
-	<key>CFBundleVersion</key>
-	<string>0.0.5</string>
-	<key>DTCompiler</key>
-	<string>com.apple.compilers.llvm.clang.1_0</string>
-	<key>DTPlatformBuild</key>
-	<string>25C58</string>
-	<key>DTPlatformName</key>
-	<string>macosx</string>
-	<key>DTPlatformVersion</key>
-	<string>26.2</string>
-	<key>DTSDKBuild</key>
-	<string>25C58</string>
-	<key>DTSDKName</key>
-	<string>macosx26.2</string>
-	<key>DTXcode</key>
-	<string>2630</string>
-	<key>DTXcodeBuild</key>
-	<string>17C529</string>
-	<key>LSMinimumSystemVersion</key>
-	<string>10.13</string>
-	<key>NSHighResolutionCapable</key>
-	<true/>
-</dict>
+<plist>
+  <dict>
+    <key>CFBundleExecutable</key>
+    <string>Sysex77</string>
+    <key>CFBundleIconFile</key>
+    <string></string>
+    <key>CFBundleIdentifier</key>
+    <string>com.sebastienportrait.sysex77</string>
+    <key>CFBundleName</key>
+    <string>Sysex77</string>
+    <key>CFBundleDisplayName</key>
+    <string>Sysex77</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleSignature</key>
+    <string>????</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1.1.0</string>
+    <key>NSHumanReadableCopyright</key>
+    <string></string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+  </dict>
 </plist>

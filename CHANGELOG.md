@@ -21,6 +21,23 @@ et le projet suit un versionnage de type [SemVer](https://semver.org/lang/fr/).
   au démarrage et mise à jour en direct au changement de thème.
 
 ### Ajouté / Added
+- **Rendu FM exact (45 algorithmes)** : la forme d'onde FM affichée reproduit la
+  topologie réelle de chaque algorithme du SY77 (moteur OP6→OP1, thru/registres/
+  accumulateur), au lieu d'une chaîne sérielle fixe. Waveforms + ratio + niveau
+  par opérateur pris en compte (rendu).
+- **Édition des graphes à la souris** : réponse du **filtre** (cutoff X / résonance Y)
+  et nœuds des **enveloppes** (niveau Y + rate X) — vignettes d'élément ET éditeurs
+  plein-onglet (Volume/Pitch EG, Filter 1/2), avec surlignage du nœud survolé.
+- **Groupes de sortie** par élément (G1/G2) reliés au **schéma de routage** (Reverb Hall/Room).
+- **Onglet Effets** : Effect Mode + 2 unités Modulation + 2 unités Reverb (rendu/état seul).
+- **Ouvrir un preset dans l'éditeur** : double-clic en librairie → envoi au synthé +
+  chargement du **nom** et du **mode** dans l'éditeur + bascule sur l'onglet Voice + titre
+  de fenêtre. (Décodage complet des paramètres sonores : à venir, nécessite la carte d'offsets.)
+- **Persistance** des réglages : interfaces MIDI choisies, taille/position de fenêtre,
+  toggle clavier, onglet courant, et **couleurs personnalisées** (thème custom restauré au
+  lancement — assouplit le « thème déterministe » ci-dessus).
+- **diffVoiceBlocks** : outil testé de comparaison de blocs de voix (rétro-ingénierie des
+  offsets bulk, sans/avec synthé).
 - **Envoyer une voix de la librairie au synthé** : double-cliquer une voix dans
   une banque (A/B/C/D) envoie son bloc sysex (`F0…F7`) au SY77 via le relais OSC
   `/77SendVoice` → `MidiSysex`. Nouvelle fonction testée

@@ -11,6 +11,27 @@ Inspiré, côté fonctionnalités, de l'éditeur *SynthWorks SY77*.
 
 **Contributions bienvenues** — quiconque souhaite contribuer, voire reprendre le projet, est le bienvenu.
 
+![Éditeur de voix Sysex77](divers/editor.png)
+
+---
+
+## Fonctionnalités
+
+- **Éditeur de voix** AFM / AWM : opérateurs, oscillateurs, filtres, enveloppes, pan.
+- **Rendu de la forme d'onde FM** reproduisant la topologie réelle des **45 algorithmes** du SY77.
+- **Édition à la souris des graphes** : glisser sur la réponse du **filtre** (cutoff/résonance) et
+  sur les nœuds des **enveloppes** (niveau + rate) — vignettes d'élément et éditeurs complets.
+- **Groupes de sortie** par élément reliés au schéma de **routage** (→ Reverb Hall / Room).
+- **Onglet Effets** : Effect Mode + 2 unités Modulation + 2 unités Reverb.
+- **Librairie de banques** (`.SYX`) : dump, et **ouverture d'un preset dans l'éditeur** par
+  double-clic (envoi au synthé + bascule sur l'éditeur).
+- **Persistance** des réglages : interfaces MIDI, device number, taille de fenêtre, onglet,
+  clavier, et **couleurs personnalisées** (thème custom).
+- Synchronisation **tout-MIDI** bidirectionnelle (un seul *device number* global).
+
+> ⚠️ Certaines éditions (effets, groupes, enveloppes…) sont pour l'instant en **rendu/état seul**
+> côté éditeur ; l'envoi sysex complet vers le synthé est en cours de fiabilisation.
+
 ---
 
 ## Build (sans Projucer)
@@ -40,6 +61,8 @@ sur le synthé) pour autoriser les échanges de banques.
 - La **Librairie** permet de dumper des banques. On en trouve beaucoup au format `.SYX`, par ex.
   http://bobbyblues.recup.ch/yamaha_sy77/sy77_patches.html
   *(Pensez à sauvegarder vos banques et à désactiver le bulk protect avant.)*
+- **Double-cliquer une voix** de la librairie l'envoie au synthé **et l'ouvre dans l'éditeur**
+  (bascule automatique sur l'onglet *Voice*).
 
 ![AfmOsc](divers/AfmOsc.png)
 
@@ -55,7 +78,12 @@ Build (no Projucer needed): `./build.sh` (macOS/Linux) or `cmake -B build && cma
 Run unit tests with `--test`.
 
 On launch: pick your MIDI interface, then the device number (channel) in *Setting*; toggle bulk
-protect to allow bank exchanges. The Library dumps sound banks (`.SYX`).
+protect to allow bank exchanges. The Library dumps sound banks (`.SYX`); double-clicking a voice
+sends it to the synth and opens it in the editor.
+
+Highlights: AFM/AWM voice editor, FM-waveform render of the real 45 algorithms, mouse-editable
+filter & envelope graphs, output groups + routing, an Effects tab, and persistence of settings &
+custom colours. Some edits are editor-state-only for now (full sysex send is being firmed up).
 
 ---
 
