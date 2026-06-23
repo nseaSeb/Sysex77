@@ -460,10 +460,13 @@ public:
         }
 
         // Groupe de sortie (rendu/état seul) : lié par élément à valueTreeVoice.
-        btGroup1.getToggleStateValue().referTo (valueTreeVoice.getPropertyAsValue (
-            Identifier ("ELEMENT" + String (operatorID) + "GROUP1"), &undoManager));
-        btGroup2.getToggleStateValue().referTo (valueTreeVoice.getPropertyAsValue (
-            Identifier ("ELEMENT" + String (operatorID) + "GROUP2"), &undoManager));
+        const Identifier g1id ("ELEMENT" + String (operatorID) + "GROUP1");
+        const Identifier g2id ("ELEMENT" + String (operatorID) + "GROUP2");
+        // Défaut sensé (et schéma de routage non vide) : sortie vers le groupe 1 si rien n'est réglé.
+        if (! valueTreeVoice.hasProperty (g1id) && ! valueTreeVoice.hasProperty (g2id))
+            valueTreeVoice.setProperty (g1id, true, nullptr);
+        btGroup1.getToggleStateValue().referTo (valueTreeVoice.getPropertyAsValue (g1id, &undoManager));
+        btGroup2.getToggleStateValue().referTo (valueTreeVoice.getPropertyAsValue (g2id, &undoManager));
     }
 
    int getOpNumber ()

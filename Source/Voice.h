@@ -258,9 +258,13 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
             const float ox = b.getRight() - 4.0f;            // sortie pan de l'élément
             const float lY = b.getY() + b.getHeight() * 0.32f;
             const float rY = b.getY() + b.getHeight() * 0.68f;
+            // Routage piloté par les bascules de groupe de l'élément :
+            // Groupe 1 -> Reverb Hall, Groupe 2 -> Reverb Room (aucune = non routé).
+            const bool g1 = (bool) valueTreeVoice.getProperty (Identifier ("ELEMENT" + String (i + 1) + "GROUP1"), false);
+            const bool g2 = (bool) valueTreeVoice.getProperty (Identifier ("ELEMENT" + String (i + 1) + "GROUP2"), false);
             g.setColour (SYColSelected);
-            g.drawLine (ox, lY, boxL, hallY, 1.3f);          // -> Reverb Hall (croisé)
-            g.drawLine (ox, rY, boxL, roomY, 1.3f);          // -> Reverb Room
+            if (g1) g.drawLine (ox, lY, boxL, hallY, 1.3f);  // -> Reverb Hall (groupe 1)
+            if (g2) g.drawLine (ox, rY, boxL, roomY, 1.3f);  // -> Reverb Room (groupe 2)
         }
 
         g.setColour (SYColLabel);
