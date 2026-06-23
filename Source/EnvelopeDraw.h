@@ -435,3 +435,75 @@ private:
     }
     bool dragged = false;
 };
+
+//==============================================================================
+// Overlay GÉNÉRIQUE d'édition d'enveloppe (EG) : glisser un nœud = niveau (Y, 0..maxLevel)
+// + poids du segment entrant (X). Le host fournit les niveaux/poids DESSINÉS via getData
+// (pour que le test de proximité colle au tracé de SyDraw::drawEnvelope) et reçoit les
+// éditions via onEditNode (au host de convertir poids<->rate selon son modèle). Le nœud 0
+// (départ) n'a pas de segment entrant -> segWeight = -1. Partagé par la vignette d'élément
+// et les éditeurs d'EG plein-onglet.
+class EgGraphView : public juce::Component
+{
+public:
+    std::function<void (juce::Array<float>&, juce::Array<float>&)> getData;       // (levels, weights)
+    std::function<void (int node, float level, float segWeight)>   onEditNode;    // segWeight<0 => inchangé
+    std::function<void()>                                          onOpenEditor;  // clic simple (optionnel)
+    float maxLevel = 127.0f;
+
+    EgGraphView() { setMouseCursor (juce::MouseCursor::PointingHandCursor); }
+
+    void mouseDown (const juce::MouseEvent& e) override { dragged = false; selected = nearestNode (e.position.x); }
+    void mouseDrag (const juce::MouseEvent& e) override
+    {
+        dragged = true;
+        if (selected < 0 || ! onEditNode || getWidth() < 2 || getHeight() < 2) return;
+        const float fy = juce::jlimit (0.0f, 1.0f, e.position.y / (float) getHeight());
+        const float level = (1.0f - fy) * maxLevel;
+        const float segW  = (selected >= 1) ? solveSegWeight (selected, e.position.x / (float) getWidth()) : -1.0f;
+        onEditNode (selected, level, segW);
+    }
+    void mouseUp (const juce::MouseEvent&) override { if (! dragged && onOpenEditor) onOpenEditor(); }
+
+private:
+    void computeData (juce::Array<float>& levels, juce::Array<float>& weights)
+    {
+        levels.clearQuick(); weights.clearQuick();
+        if (getData) getData (levels, weights);
+    }
+    int nearestNode (float mx)
+    {
+        juce::Array<float> levels, weights;
+        computeData (levels, weights);
+        if (levels.size() < 2 || weights.size() != levels.size() - 1) return -1;
+        float total = 0.0f;
+        for (auto w : weights) total += juce::jmax (1.0f, w);
+        if (total <= 0.0f) return -1;
+        const float wpx = (float) getWidth();
+        float x = 0.0f, bestD = 1.0e9f; int best = 0, idx = 0;
+        auto consider = [&] (float xx) { const float d = std::abs (xx - mx); if (d < bestD) { bestD = d; best = idx; } ++idx; };
+        consider (x);
+        for (int i = 0; i < weights.size(); ++i) { x += wpx * juce::jmax (1.0f, weights[i]) / total; consider (x); }
+        return best;
+    }
+    // Poids du segment entrant du nœud `node` pour qu'il atterrisse à la fraction X `fx`,
+    // les autres poids fixes : fx = (before + w)/(otherSum + w)  =>  on résout w. Clamp [1,99].
+    float solveSegWeight (int node, float fx)
+    {
+        juce::Array<float> levels, weights;
+        computeData (levels, weights);
+        if (node < 1 || node - 1 >= weights.size()) return -1.0f;
+        float otherSum = 0.0f, before = 0.0f;
+        for (int i = 0; i < weights.size(); ++i)
+        {
+            if (i == node - 1) continue;
+            const float w = juce::jmax (1.0f, weights[i]);
+            otherSum += w;
+            if (i < node - 1) before += w;
+        }
+        fx = juce::jlimit (0.0f, 0.98f, fx);
+        return juce::jlimit (1.0f, 99.0f, (fx * otherSum - before) / (1.0f - fx));
+    }
+    int  selected = -1;
+    bool dragged  = false;
+};

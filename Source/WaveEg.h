@@ -78,7 +78,29 @@ public:
         labelR4.attachToComponent(&sliderR4, false);
         labelRR1.attachToComponent(&sliderRR1, false);
         labelRR2.attachToComponent(&sliderRR2, false);
-        
+
+        // Édition à la souris sur le grand graphe d'EG (gauche) : glisser un nœud =
+        // niveau (Y, 0..64) + rate du segment entrant (X). Les sliders (droite) restent.
+        addAndMakeVisible (egGraph);
+        egGraph.maxLevel = 64.0f;
+        egGraph.getData = [this] (juce::Array<float>& levels, juce::Array<float>& weights)
+        {
+            levels = { (float) sliderL0.getValue(), (float) sliderL1.getValue(), (float) sliderL2.getValue(),
+                       (float) sliderL3.getValue(), (float) sliderL4.getValue(),
+                       (float) sliderRL1.getValue(), (float) sliderRL2.getValue() };
+            auto rw = [] (double r) { return (float) (66.0 - r); };   // même convention que paint()
+            weights = { rw (sliderR1.getValue()), rw (sliderR2.getValue()), rw (sliderR3.getValue()),
+                        rw (sliderR4.getValue()), rw (sliderRR1.getValue()), rw (sliderRR2.getValue()) };
+        };
+        egGraph.onEditNode = [this] (int node, float levelF, float segWeightF)
+        {
+            MidiSlider* L[7] = { &sliderL0, &sliderL1, &sliderL2, &sliderL3, &sliderL4, &sliderRL1, &sliderRL2 };
+            MidiSlider* R[6] = { &sliderR1, &sliderR2, &sliderR3, &sliderR4, &sliderRR1, &sliderRR2 };
+            if (node < 0 || node > 6) return;
+            L[node]->setValue (jlimit (0, 64, roundToInt (levelF)));
+            if (node >= 1 && segWeightF >= 0.0f)                       // rate = 66 - poids dessiné
+                R[node - 1]->setValue (jlimit (0, 64, roundToInt (66.0f - segWeightF)));
+        };
     }
     
     ~WaveEg()
@@ -260,6 +282,11 @@ public:
     
     void resized() override
     {
+        // Overlay d'édition = même rectangle que l'EG dessiné dans paint() (moitié gauche).
+        auto b = getLocalBounds().toFloat();
+        egGraph.setBounds (juce::Rectangle<float> (b.getWidth() * 0.03f, b.getHeight() * 0.05f,
+                                                   b.getWidth() * 0.58f, b.getHeight() * 0.74f).toNearestInt());
+
         keyDraw.setBoundsRelative(0.0f, 0.85f, 1.0f, 0.09f);
         float sampleWidth = 0.2f + (sliderSlope.getValue()/100);
         samplePathLeft.setBoundsRelative(0.0f, 0.93f, sampleWidth, 0.09f);
@@ -321,5 +348,8 @@ private:
     MidiSlider  sliderR4;
     MidiSlider  sliderRR1;
     MidiSlider  sliderRR2;
+
+    EgGraphView egGraph; // édition souris des nœuds de l'EG (niveau + rate) sur le grand graphe
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (WaveEg)
 };
