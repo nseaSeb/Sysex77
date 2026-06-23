@@ -78,6 +78,23 @@ struct SysexUtilsTests : public juce::UnitTest
             expect (ck <= 0x7F);
         }
 
+        beginTest ("diffVoiceBlocks reports differing byte offsets");
+        {
+            const juce::uint8 a[] = { 0xF0, 0x43, 0x10, 0x20, 0x30, 0x40, 0xF7 };
+            const juce::uint8 b[] = { 0xF0, 0x43, 0x10, 0x25, 0x30, 0x44, 0xF7 };
+            auto d = SyVoice::diffVoiceBlocks (a, sizeof (a), b, sizeof (b));
+            expectEquals (d.size(), 2);
+            expectEquals (d[0].offset, 3);
+            expectEquals ((int) d[0].before, 0x20);
+            expectEquals ((int) d[0].after,  0x25);
+            expectEquals (d[1].offset, 5);
+
+            // blocs identiques -> aucune différence
+            expect (SyVoice::diffVoiceBlocks (a, sizeof (a), a, sizeof (a)).isEmpty());
+            // longueurs différentes : compare sur la plus courte, pas de débordement
+            expect (SyVoice::diffVoiceBlocks (a, sizeof (a), b, 3).isEmpty());
+        }
+
         beginTest ("parseParam9 valid SY77 message");
         {
             const juce::uint8 msg[] = { 0x43, 0x10, 0x34, 0x0f, 0x00, 0x00, 0x2d, 0x00, 0x05 };

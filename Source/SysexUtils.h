@@ -77,6 +77,29 @@ namespace SyVoice
     }
 
     //==============================================================================
+    /** Une différence d'octet entre deux blocs de voix : position + ancienne/nouvelle valeur. */
+    struct VoiceByteDiff { int offset; juce::uint8 before; juce::uint8 after; };
+
+    /** Compare deux blocs de voix (F0…F7) octet à octet et renvoie les positions qui
+        diffèrent. Outil de rétro-ingénierie : on dumpe une voix, on modifie UN seul
+        paramètre sur le synthé, on re-dumpe, et le diff révèle l'offset exact de ce
+        paramètre (plus l'octet de checksum, qui change toujours). Permet de bâtir une
+        carte d'offsets VÉRIFIÉE sans deviner (cf. [[project-eg-sysex-bug]]).
+        Les octets au-delà de la longueur du plus court bloc sont ignorés. */
+    inline juce::Array<VoiceByteDiff> diffVoiceBlocks (const juce::uint8* a, size_t aSize,
+                                                       const juce::uint8* b, size_t bSize)
+    {
+        juce::Array<VoiceByteDiff> diffs;
+        if (a == nullptr || b == nullptr)
+            return diffs;
+        const size_t n = juce::jmin (aSize, bSize);
+        for (size_t i = 0; i < n; ++i)
+            if (a[i] != b[i])
+                diffs.add ({ (int) i, a[i], b[i] });
+        return diffs;
+    }
+
+    //==============================================================================
     /** Heuristique : ce buffer ressemble-t-il à un dump Sysex Yamaha (commence par
         0xF0 0x43) ? Sert à éviter de charger n'importe quel fichier comme banque. */
     inline bool looksLikeYamahaSysex (const juce::uint8* data, size_t size)
