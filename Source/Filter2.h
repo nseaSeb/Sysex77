@@ -117,9 +117,12 @@ public:
     void setElementNumber ( int element, UndoManager& um) override
     {
         Logger::writeToLog( "Filter1 setElement");
-        int sysexdata2[9] = { 0x43, 0X10, 0x34, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00 };
-        int sysexdata[9] = { 0x43, 0X10, 0x34, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-        
+        // Groupe 0x09 = Filtre (SY77/TG77 Table 1-10). T2 = ((elem-1)<<5)|fN ; fN=1 (filtre AFM 2,
+        // ajouté plus bas sur les DEUX tableaux). Offsets EG conformes spec (FR1-4=03-06,FRR1=07,FL0-4=09-0D,FRS=10).
+        // (Avant : groupe 0x00 jamais valide -> les EG n'atteignaient pas le synthé.)
+        int sysexdata2[9] = { 0x43, 0X10, 0x34, 0x09, 0x00, 0x00, 0x09, 0x00, 0x00 };
+        int sysexdata[9] = { 0x43, 0X10, 0x34, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00 };
+
         if(element == 1)
         {
             
@@ -199,11 +202,14 @@ public:
             sliderRR1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGFILTRE2RR1 , &um));
             sliderRR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGFILTRE2RR2 , &um));
         }
+        // Bit filtre 2 (fN=1) sur les DEUX tableaux, AVANT tout envoi (slope/FRS inclus) :
+        // sinon le slope et les rates partaient vers le filtre 1.
+        sysexdata[4]  += 0x01;
+        sysexdata2[4] += 0x01;
+
         sysexdata[6] = 0x10;
         sliderSlope.setMidiSysex(sysexdata);
-        
-        sysexdata[4] +=0x01;  // filtre 2
-        
+
         sysexdata[6] = 0x09;
         sysexdata2[6] = 0x03;
         //       EgFilter.addSegment(10, 10, "L0R1", 64, sysexdata, 64, sysexdata2);
