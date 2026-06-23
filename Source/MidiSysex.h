@@ -137,7 +137,13 @@ void oscMessageReceived (const OSCMessage& message)
                     String name;
                     for (int i = 33; i < 43; ++i)
                         name += String::charToString ((juce_wchar) d[i]);
-                    valueTreeVoice.setProperty (IDs::VOICENAME, name.trimEnd(), nullptr);
+                    name = name.trimEnd();
+                    valueTreeVoice.setProperty (IDs::VOICENAME, name, nullptr);
+
+                    // Affiche la voix ouverte dans le titre de la fenêtre (visible sur tous les onglets).
+                    if (auto* tlw = getTopLevelComponent())
+                        tlw->setName ("Sysex77 v" + String (Sysex77::kVersion)
+                                      + (name.isNotEmpty() ? "  —  " + name : String()));
                 }
 
                 // Bascule sur l'éditeur (onglet Voice = index 2) pour éditer la voix ouverte.
