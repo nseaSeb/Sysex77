@@ -302,6 +302,17 @@ struct MidiSettingsPage : public Component
             o.launchAsync();
         };
 
+        // Outil RE (jetable) : « empreinte » — envoie à chaque contrôle câblé de l'éditeur
+        // une valeur brute distinctive + journalise (addr -> valeur) dans re_fingerprint.csv.
+        // Workflow : dump AVANT -> clic -> dump APRÈS ; le diff isole nos octets, le CSV les nomme.
+        addAndMakeVisible (reBtn);
+        reBtn.onClick = [this] { if (onFingerprint) onFingerprint(); };
+
+        // RE : exporte la valeur ACTUELLE de tous les contrôles câblés (sans rien envoyer).
+        // Corréler avec un dump de la même voix = carte d'offsets, sans toucher au synthé.
+        addAndMakeVisible (reReadBtn);
+        reReadBtn.onClick = [this] { if (onReadValues) onReadValues(); };
+
         // Moniteur : effacer + copier (pratique pour la rétro-ingénierie).
         addAndMakeVisible (clearBtn);
         clearBtn.onClick = [this] { monitorRef.clear(); lastMonitorKey = {}; };
@@ -325,14 +336,22 @@ struct MidiSettingsPage : public Component
         bulkBtn.setBounds (half + m, rowY, half - 2*m, 24);
 
         followBtn.setBounds (m, rowY + 30, getWidth() - 2*m, 22);
-        diffBtn  .setBounds (m, rowY + 56, half - 2*m, 24);
+        diffBtn   .setBounds (m,        rowY + 56, half - 2*m, 24);
+        reBtn     .setBounds (half + m, rowY + 56, half - 2*m, 24);
+        reReadBtn .setBounds (m,        rowY + 82, getWidth() - 2*m, 24);
 
-        const int my = rowY + 86;
+        const int my = rowY + 112;
         clearBtn.setBounds (getWidth() - m - 80,            my, 80, 22);
         copyBtn .setBounds (getWidth() - m - 80 - 6 - 80,   my, 80, 22);
         monLab  .setBounds (m, my, getWidth() - 2*m - 172, 24);
         monitorRef.setBounds (m, my + 26, getWidth() - 2*m, getHeight() - (my + 26) - m);
     }
+
+    // Déclenché par le bouton RE ; câblé par MidiDemo, qui possède les onglets et peut
+    // parcourir TOUS les contenus (même non-courants — un TabbedComponent ne garde dans
+    // l'arbre que l'onglet actif). Cf. la lambda onFingerprint dans MidiDemo.
+    std::function<void()> onFingerprint;
+    std::function<void()> onReadValues;
 
     Label&      inLab;
     Component&  inSelector;
@@ -344,6 +363,8 @@ struct MidiSettingsPage : public Component
     TextEditor& monitorRef;
     ToggleButton followBtn { "Suivre le synthe : ouvrir la vue du parametre recu depuis le SY77" };
     TextButton   diffBtn   { "Diff 2 dumps (.syx)..." };
+    TextButton   reBtn     { "RE fingerprint -> CSV" };
+    TextButton   reReadBtn { "RE lire valeurs -> CSV" };
     TextButton   copyBtn   { "Copier" };
     TextButton   clearBtn  { "Clear" };
 };
@@ -479,6 +500,82 @@ public:
                                                       incomingMidiLabel, midiMonitor));
         tabs.addTab (TRANS("Midi Setting"), SYColBackground, midiSettingsPage.get(), false);
 
+        // Outil RE (jetable) : « empreinte ». Parcourt le contenu de CHAQUE onglet (via
+        // getTabContentComponent, qui les renvoie même non-courants), envoie à chaque contrôle
+        // câblé une valeur brute distinctive (rampe 1..120) et journalise (addr -> valeur) dans
+        // re_fingerprint.csv. Workflow : dump AVANT -> clic -> dump APRÈS ; diff = nos octets, CSV = noms.
+        midiSettingsPage->onFingerprint = [this]
+        {
+            juce::File csv = appDirPath.getChildFile ("re_fingerprint.csv");
+            csv.deleteFile();
+            juce::FileOutputStream os (csv);
+            os << "idx,group,addrHi,addrLo,param,wireValue,type\n";
+            int counter = 0;
+            std::function<void(juce::Component*)> walk = [&] (juce::Component* c)
+            {
+                for (auto* k : c->getChildren())
+                {
+                    int a[9]; bool sent = false; const char* type = "";
+                    // Valeur distinctive et bien espacée, bornée 1..60 pour ne JAMAIS écrêter
+                    // (la plupart des params sont 0..63/0..127). ×23 mod 60 (coprime) -> les
+                    // contrôles voisins reçoivent des valeurs très différentes => lecture facile
+                    // dans le dump. Période 60 ; au-delà, on lève l'ambiguïté par zone (OCR) + idx.
+                    const int v = ((counter * 23) % 60) + 1;
+                    if      (auto* s  = dynamic_cast<MidiSlider*>(k)) { sent = s->reSend  (v, a); type = "slider"; }
+                    else if (auto* b  = dynamic_cast<MidiButton*>(k)) { sent = b->reSend  (v, a); type = "button"; }
+                    else if (auto* cb = dynamic_cast<MidiCombo*> (k)) { sent = cb->reSend (v, a); type = "combo";  }
+                    else if (auto* r  = dynamic_cast<MidiRadio*> (k)) { sent = r->reSend  (v, a); type = "radio";  }
+                    if (sent)
+                    {
+                        os << counter << "," << a[3] << "," << a[4] << "," << a[5] << "," << a[6] << "," << a[8] << "," << type << "\n";
+                        ++counter;
+                        // Throttle : la chaîne d'envoi est SYNCHRONE (SysexBus -> sendMessageNow),
+                        // donc ce sleep espace réellement les messages MIDI et évite la saturation
+                        // de l'entrée du synthé. ~10 ms/msg -> ~2 s pour ~200 contrôles (UI figée
+                        // le temps de l'opération, acceptable pour un outil RE jetable).
+                        juce::Thread::sleep (10);
+                    }
+                    walk (k);
+                }
+            };
+            for (int i = 0; i < tabs.getNumTabs(); ++i)
+                if (auto* content = tabs.getTabContentComponent (i))
+                    walk (content);
+            os.flush();
+            midiMonitor.moveCaretToEnd();
+            midiMonitor.insertTextAtCaret ("\n[RE] fingerprint: " + juce::String (counter) + " controles -> " + csv.getFullPathName() + "\n");
+        };
+
+        // RE : exporte la valeur ACTUELLE de chaque contrôle câblé (lecture seule, aucun envoi).
+        // L'éditeur reflétant la voix dumpée, ce CSV = texte clair complet à corréler au dump.
+        midiSettingsPage->onReadValues = [this]
+        {
+            juce::File csv = appDirPath.getChildFile ("re_values.csv");
+            csv.deleteFile();
+            juce::FileOutputStream os (csv);
+            os << "group,addrHi,addrLo,param,value,type\n";
+            int counter = 0;
+            std::function<void(juce::Component*)> walk = [&] (juce::Component* c)
+            {
+                for (auto* k : c->getChildren())
+                {
+                    int a[9]; int val = 0; bool ok = false; const char* type = "";
+                    if      (auto* s  = dynamic_cast<MidiSlider*>(k)) { ok = s->reRead  (a, val); type = "slider"; }
+                    else if (auto* b  = dynamic_cast<MidiButton*>(k)) { ok = b->reRead  (a, val); type = "button"; }
+                    else if (auto* cb = dynamic_cast<MidiCombo*> (k)) { ok = cb->reRead (a, val); type = "combo";  }
+                    else if (auto* r  = dynamic_cast<MidiRadio*> (k)) { ok = r->reRead  (a, val); type = "radio";  }
+                    if (ok) { os << a[3] << "," << a[4] << "," << a[5] << "," << a[6] << "," << val << "," << type << "\n"; ++counter; }
+                    walk (k);
+                }
+            };
+            for (int i = 0; i < tabs.getNumTabs(); ++i)
+                if (auto* content = tabs.getTabContentComponent (i))
+                    walk (content);
+            os.flush();
+            midiMonitor.moveCaretToEnd();
+            midiMonitor.insertTextAtCaret ("\n[RE] valeurs: " + juce::String (counter) + " controles -> " + csv.getFullPathName() + "\n");
+        };
+
         // Barre de navigation visible dès le démarrage (on n'atterrit plus sur une vue
         // sans menu). On ouvre "Midi Setting" en premier : choix de l'interface.
         tabs.setVisible(true);
@@ -568,7 +665,24 @@ public:
     
     void paint (Graphics& g) override
     {
-        g.fillAll (SYColBackground);
+        auto bounds = getLocalBounds().toFloat();
+
+        // Fond : dégradé vertical subtil (haut légèrement plus clair) -> donne de la
+        // profondeur sans dénaturer la couleur du thème. Pilote par SYPal.dark.
+        g.setGradientFill (ColourGradient (
+            SYPal.background.brighter (SYPal.dark ? 0.06f : 0.015f), bounds.getCentreX(), 0.0f,
+            SYPal.background.darker   (SYPal.dark ? 0.16f : 0.02f),  bounds.getCentreX(), bounds.getBottom(), false));
+        g.fillRect (bounds);
+
+        // Halo d'accent diffus, centre haut (signature « synth »), très discret.
+        {
+            ColourGradient glow (SYPal.accent.withAlpha (SYPal.dark ? 0.09f : 0.05f),
+                                 bounds.getCentreX(), 0.0f,
+                                 Colours::transparentBlack,
+                                 bounds.getCentreX(), bounds.getHeight() * 0.55f, true);
+            g.setGradientFill (glow);
+            g.fillRect (bounds);
+        }
 
         // Image de fond du thème (PNG/JPG défini dans theme.xml <ASSETS background="…">).
         // Mode "cover" : remplit la zone en gardant les proportions, bords éventuellement rognés.

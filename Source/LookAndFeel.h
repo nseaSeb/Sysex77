@@ -121,8 +121,8 @@ inline SyPalette syPaletteLight()
     p.knobBody        = Colour (0xffffffff);
     p.shadow          = Colour (0x22000000);
     p.glow            = Colour (0x332f7df6);
-    p.buttonStyle     = "round";
-    p.panelStyle      = "round";
+    p.buttonStyle     = "round";   // boutons on/off arrondis…
+    p.panelStyle      = "flat";    // …mais cards plates (pas de cards arrondies/circulaires)
     return p;
 }
 
@@ -276,44 +276,54 @@ inline void applySyTheme (int theme)
 }
 
 
-class AfmOscLookAndFeel : public LookAndFeel_V4
+//==============================================================================
+// Forme d'onde d'un opérateur AFM : on REND la vraie image SY77 (donc les formes
+// EXACTES du synthé : pas de carré/triangle/dent-de-scie inventés), mais TEINTÉE à
+// la couleur d'accent du thème actif — le sprite d'origine est figé en orange. Le
+// drapeau fillAlphaChannelWithCurrentBrush utilise l'alpha de l'image comme masque
+// et la remplit avec le pinceau courant. Bonus : un léger halo, sans nouvel asset.
+class AfmWaveLookAndFeel : public LookAndFeel_V4
 {
 public:
-    AfmOscLookAndFeel()
+    AfmWaveLookAndFeel()
     {
-
-        imageKnob = ImageCache::getFromMemory(BinaryData::OscAfm_png, BinaryData::OscAfm_pngSize);
-  
-}
-
-//==============================================================================
-void drawRotarySlider(Graphics& g,
-                                       int x, int y, int width, int height, float sliderPos,
-                                       float rotaryStartAngle, float rotaryEndAngle, Slider& slider)
-{
-    
-    if (imageKnob.isValid())
-    {
-        const double rotation = (slider.getValue()
-                                 - slider.getMinimum())
-        / (slider.getMaximum()
-           - slider.getMinimum());
-        
-        const int frames = imageKnob.getHeight() / imageKnob.getWidth();
-        const int frameId = (int)ceil(rotation * ((double)frames - 1.0));
-        const float radius = jmin(width / 2.0f, height / 2.0f);
-        const float centerX = x + width * 0.5f;
-        const float centerY = y + height * 0.5f;
-        const float rx = centerX - radius - 1.0f;
-        const float ry = centerY - radius;
-        
-        
-        g.drawImage(imageKnob,(int)rx,(int)ry,2 * (int)radius,2 * (int)radius,0,frameId*imageKnob.getWidth(),imageKnob.getWidth(), imageKnob.getWidth());
+        sprite = ImageCache::getFromMemory (BinaryData::OscAfm_png, BinaryData::OscAfm_pngSize);
     }
 
-}
-    Image imageKnob;
+    void drawRotarySlider (Graphics& g, int x, int y, int w, int h, float /*pos*/,
+                           float /*startA*/, float /*endA*/, Slider& s) override
+    {
+        if (! sprite.isValid())
+            return;
+
+        const int frameW = sprite.getWidth();
+        const int frames  = jmax (1, sprite.getHeight() / frameW);
+        const int fid     = jlimit (0, frames - 1, roundToInt (s.getValue()));
+        auto      frame   = sprite.getClippedImage ({ 0, fid * frameW, frameW, frameW });
+
+        const float radius = jmin (w, h) * 0.5f;
+        const float cx = x + w * 0.5f, cy = y + h * 0.5f;
+        const float scale = (radius * 2.0f) / (float) frameW;
+        const auto  base  = AffineTransform::scale (scale).translated (cx - radius, cy - radius);
+
+        const Colour accent = SYPal.knobFill;
+        g.setImageResamplingQuality (Graphics::highResamplingQuality);
+
+        // Halo doux : passe légèrement agrandie, faible alpha.
+        g.setColour (accent.withAlpha (0.20f));
+        g.drawImageTransformed (frame,
+            AffineTransform::scale (scale * 1.06f).translated (cx - radius * 1.06f, cy - radius * 1.06f),
+            true);
+
+        // Forme nette teintée à l'accent du thème.
+        g.setColour (accent);
+        g.drawImageTransformed (frame, base, true);
+    }
+
+private:
+    Image sprite;
 };
+
 //==============================================================================
 // LookAndFeel moderne unique, piloté par la palette SYPal (lue au paint).
 // Rend les DEUX esthétiques (clair/sombre) sans sous-classe : potards à arc +
@@ -384,11 +394,11 @@ public:
                                    jmin (centreA, angle), jmax (centreA, angle), true);
             else
                 val.addCentredArc (cx, cy, ringR, ringR, 0.0f, startA, angle, true);
-            if (s.isMouseOverOrDragging())
-            {
-                g.setColour (SYPal.glow);
-                g.strokePath (val, PathStrokeType (ringThick + 3.0f, PathStrokeType::curved, PathStrokeType::rounded));
-            }
+            // Halo de l'arc : permanent (discret) + renforcé au survol.
+            const bool hot = s.isMouseOverOrDragging();
+            g.setColour (SYPal.glow.withMultipliedAlpha (hot ? 1.0f : 0.45f));
+            g.strokePath (val, PathStrokeType (ringThick + (hot ? 3.5f : 1.5f),
+                                               PathStrokeType::curved, PathStrokeType::rounded));
             g.setGradientFill (ColourGradient (SYPal.knobFill.brighter (0.25f), cx, bounds.getY(),
                                                SYPal.knobFill,                  cx, bounds.getBottom(), false));
             g.strokePath (val, PathStrokeType (ringThick, PathStrokeType::curved, PathStrokeType::rounded));
@@ -421,6 +431,10 @@ public:
                            float sliderPos, float minPos, float maxPos,
                            Slider::SliderStyle style, Slider& s) override
     {
+        // Contrôle bipolaire (ex. pan, detune, accord ±) : la portion remplie part du
+        // centre (point neutre) au lieu d'une extrémité — vrai pour TOUS les styles.
+        const bool bipolar = (s.getMinimum() < -0.01 && s.getMaximum() > 0.01);
+
         if (style == Slider::LinearVertical)
         {
             const float cx = x + w * 0.5f;
@@ -428,7 +442,9 @@ public:
             g.setColour (SYPal.knobTrack);
             g.fillRoundedRectangle (cx - railW * 0.5f, (float) y, railW, (float) h, railW * 0.5f);
             g.setColour (SYPal.accent);
-            g.fillRoundedRectangle (cx - railW * 0.5f, sliderPos, railW, (float) (y + h) - sliderPos, railW * 0.5f);
+            const float originY = bipolar ? (y + h * 0.5f) : (float) (y + h);   // centre si bipolaire
+            g.fillRoundedRectangle (cx - railW * 0.5f, jmin (originY, sliderPos),
+                                    railW, std::abs (sliderPos - originY), railW * 0.5f);
             drawSliderThumb (g, Rectangle<float> ((float) x + 1.0f, sliderPos - 4.0f, (float) w - 2.0f, 8.0f));
         }
         else if (style == Slider::LinearHorizontal)
@@ -438,8 +454,47 @@ public:
             g.setColour (SYPal.knobTrack);
             g.fillRoundedRectangle ((float) x, cy - railH * 0.5f, (float) w, railH, railH * 0.5f);
             g.setColour (SYPal.accent);
-            g.fillRoundedRectangle ((float) x, cy - railH * 0.5f, sliderPos - (float) x, railH, railH * 0.5f);
+            const float originX = bipolar ? (x + w * 0.5f) : (float) x;          // centre si bipolaire
+            g.fillRoundedRectangle (jmin (originX, sliderPos), cy - railH * 0.5f,
+                                    std::abs (sliderPos - originX), railH, railH * 0.5f);
             drawSliderThumb (g, Rectangle<float> (sliderPos - 4.0f, (float) y + 1.0f, 8.0f, (float) h - 2.0f));
+        }
+        else if (style == Slider::LinearBar || style == Slider::LinearBarVertical)
+        {
+            // Style « flat » : barre = simple rectangle rempli proportionnel à la valeur
+            // (lecture directe du niveau d'opérateur, sans potard ni curseur).
+            Rectangle<float> r ((float) x, (float) y, (float) w, (float) h);
+            g.setColour (SYPal.knobTrack);
+            g.fillRect (r);
+
+            const bool hot = s.isMouseOverOrDragging();
+            g.setColour (SYPal.accent.withMultipliedAlpha (s.isEnabled() ? (hot ? 1.0f : 0.9f) : 0.4f));
+            if (style == Slider::LinearBar)
+            {
+                // Bipolaire (ex. detune) : remplit depuis le centre ; sinon depuis la gauche.
+                if (bipolar)
+                {
+                    const float c = r.getCentreX();
+                    g.fillRect (Rectangle<float> (jmin (c, sliderPos), r.getY(),
+                                                  std::abs (sliderPos - c), r.getHeight()));
+                }
+                else
+                    g.fillRect (r.withWidth (sliderPos - (float) x));    // remplit de gauche à la valeur
+            }
+            else
+                g.fillRect (r.withTop (sliderPos));                      // remplit du haut-valeur vers le bas
+
+            g.setColour (hot ? SYPal.accent : SYPal.panelBorder);
+            g.drawRect (r, SyMetrics::stroke);
+
+            // Valeur numérique lisible dans la barre (lecture directe, façon éditeur SY77).
+            if (style == Slider::LinearBar && h >= 12)
+            {
+                g.setColour (s.isEnabled() ? SYPal.textPrimary : SYPal.textMuted);
+                g.setFont (Font (FontOptions (jmin (13.0f, (float) h * 0.7f))));
+                g.drawText (String (roundToInt (s.getValue())),
+                            r.reduced (5.0f, 0.0f).toNearestInt(), Justification::centredRight, false);
+            }
         }
         else
             LookAndFeel_V4::drawLinearSlider (g, x, y, w, h, sliderPos, minPos, maxPos, style, s);
@@ -553,8 +608,9 @@ public:
         }
         else if (style == "round")
         {
-            // Coins très arrondis proportionnels à la taille : les petits panneaux (opérateurs) → quasi-cercles
-            const float cr = jmin (r.getWidth(), r.getHeight()) * 0.25f;
+            // Coins arrondis, mais PLAFONNÉS : le style "round" est pensé pour des boutons
+            // ronds, pas pour des cards circulaires (sinon les bords passent sous le contenu).
+            const float cr = jmin (jmin (r.getWidth(), r.getHeight()) * 0.25f, 12.0f);
             g.setColour (SYPal.panelBorder);
             g.drawRoundedRectangle (r, cr, SyMetrics::stroke);
         }

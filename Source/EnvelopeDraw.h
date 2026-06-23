@@ -20,10 +20,47 @@ namespace SyDraw
     /** Fond « écran » commun (panneau arrondi sombre + liseré coloré). */
     inline void drawPanel (juce::Graphics& g, juce::Rectangle<float> area, juce::Colour accent)
     {
-        g.setColour (SYColBackground.contrasting (0.10f));
+        // Ombre portée douce : détache l'écran du fond.
+        {
+            juce::Path sp; sp.addRoundedRectangle (area, 6.0f);
+            juce::DropShadow (SYPal.shadow, 10, { 0, 3 }).drawForPath (g, sp);
+        }
+        // Remplissage : léger dégradé vertical (haut un peu plus clair).
+        const auto base = SYColBackground.contrasting (0.10f);
+        g.setGradientFill ({ base.brighter (SYPal.dark ? 0.05f : 0.02f), area.getCentreX(), area.getY(),
+                             base.darker   (SYPal.dark ? 0.07f : 0.02f), area.getCentreX(), area.getBottom(), false });
         g.fillRoundedRectangle (area, 6.0f);
-        g.setColour (accent.withAlpha (0.40f));
+        // Liseré supérieur lumineux (effet « verre »).
+        g.setColour (juce::Colours::white.withAlpha (SYPal.dark ? 0.05f : 0.30f));
+        g.drawLine (area.getX() + 6.0f, area.getY() + 1.0f, area.getRight() - 6.0f, area.getY() + 1.0f, 1.0f);
+        // Bord accent.
+        g.setColour (accent.withAlpha (0.45f));
         g.drawRoundedRectangle (area, 6.0f, 1.2f);
+    }
+
+    /** Trace une courbe (forme d'onde) avec un halo doux pour un rendu « néon » subtil.
+        @param fillToBottom  remplit sous la courbe (utile pour les enveloppes, pas les
+                             signaux oscillant autour du centre). */
+    inline void strokeWave (juce::Graphics& g, const juce::Path& p, juce::Rectangle<float> area,
+                            juce::Colour colour, float thickness = 1.6f, bool fillToBottom = false)
+    {
+        if (fillToBottom)
+        {
+            juce::Path f = p;
+            f.lineTo (area.getRight(), area.getBottom());
+            f.lineTo (area.getX(),     area.getBottom());
+            f.closeSubPath();
+            g.setGradientFill ({ colour.withAlpha (0.18f), area.getCentreX(), area.getY(),
+                                 colour.withAlpha (0.0f),  area.getCentreX(), area.getBottom(), false });
+            g.fillPath (f);
+        }
+        // Halo (trait large translucide) puis trait net par-dessus.
+        g.setColour (colour.withAlpha (0.22f));
+        g.strokePath (p, juce::PathStrokeType (thickness + 2.5f, juce::PathStrokeType::curved,
+                                               juce::PathStrokeType::rounded));
+        g.setColour (colour);
+        g.strokePath (p, juce::PathStrokeType (thickness, juce::PathStrokeType::curved,
+                                               juce::PathStrokeType::rounded));
     }
 
     /** Dessine une grille légère dans `area`. */
@@ -240,8 +277,7 @@ namespace SyDraw
             if (i == 0) p.startNewSubPath (x, py);
             else        p.lineTo (x, py);
         }
-        g.setColour (colour);
-        g.strokePath (p, juce::PathStrokeType (1.4f, juce::PathStrokeType::curved));
+        strokeWave (g, p, area, colour, 1.6f);
     }
 
     //==============================================================================

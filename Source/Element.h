@@ -78,8 +78,7 @@ public:
                 if (i == 0) p.startNewSubPath (x, y);
                 else        p.lineTo (x, y);
             }
-            g.setColour (SYColSelected);
-            g.strokePath (p, PathStrokeType (1.4f, PathStrokeType::curved));
+            SyDraw::strokeWave (g, p, area, SYColSelected, 1.6f);
         }
 
         // Numéro d'algorithme en overlay (petit fond contrasté pour la lisibilité).

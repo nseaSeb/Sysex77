@@ -11,6 +11,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "LookAndFeel.h"   // AfmOscLookAndFeel + AfmWaveLookAndFeel (sprite teinté au thème)
 
 //==============================================================================
 /*
@@ -121,6 +122,21 @@ public:
         setSliderLevel(sliderLevel4);
         setSliderLevel(sliderLevel5);
         setSliderLevel(sliderLevel6);
+        labelLevel1.attachToComponent(&sliderLevel1, false);
+        labelLevel2.attachToComponent(&sliderLevel2, false);
+        labelLevel3.attachToComponent(&sliderLevel3, false);
+        labelLevel4.attachToComponent(&sliderLevel4, false);
+        labelLevel5.attachToComponent(&sliderLevel5, false);
+        labelLevel6.attachToComponent(&sliderLevel6, false);
+
+        // Navigation de la vue zoom (masquée en mode table).
+        addChildComponent(btZoomBack);
+        addChildComponent(btZoomPrev);
+        addChildComponent(btZoomNext);
+        btZoomBack.onClick = [this] { setZoomOp(-1); };
+        btZoomPrev.onClick = [this] { if (zoomOp > 0) setZoomOp(zoomOp - 1); };
+        btZoomNext.onClick = [this] { if (zoomOp >= 0 && zoomOp < 5) setZoomOp(zoomOp + 1); };
+        btZoomBack.setTooltip("Retour à la table des 6 opérateurs");
     }
 
     void setSliderLevel (Slider& slider)
@@ -141,7 +157,7 @@ public:
     void setSliderDetune (Slider& slider)
     {
         addAndMakeVisible(slider);
-        slider.setSliderStyle(Slider::SliderStyle::Rotary);
+        slider.setSliderStyle(Slider::SliderStyle::LinearBar);   // barre + valeur (cohérent avec la table)
         slider.setRange(-15, 15);
         slider.setNumDecimalPlacesToDisplay(0);
         slider.setLookAndFeel(nullptr);   // suit le LnF du thème (plat en Light)
@@ -156,8 +172,8 @@ public:
         slider.setPopupDisplayEnabled(true, true, this);
         slider.setRange(0, 127);
         slider.setNumDecimalPlacesToDisplay(0);
-      //  slider.setLookAndFeel(&OscLook);
-        slider.setSliderStyle(Slider::SliderStyle::LinearHorizontal);
+        // Même look « flat » que les levels : barre = rectangle rempli proportionnel.
+        slider.setSliderStyle(Slider::SliderStyle::LinearBar);
         // slider.setTextBoxStyle(Slider::TextBoxBelow, false, 40, 18);
     }
     void setOscSliderStyle (Slider& slider)
@@ -166,7 +182,7 @@ public:
         slider.setPopupDisplayEnabled(true, true, this);
         slider.setRange(0, 15);
         slider.setNumDecimalPlacesToDisplay(0);
-        slider.setLookAndFeel(&OscLook);
+        slider.setLookAndFeel(&waveLook);   // rendu de la vraie forme SY77, teintée au thème actif
         slider.setSliderStyle(Slider::SliderStyle::RotaryHorizontalVerticalDrag);
        // slider.setTextBoxStyle(Slider::TextBoxBelow, false, 40, 18);
     }
@@ -175,7 +191,10 @@ public:
     {
  
         int sysexdata2[9] = { 0x43, 0X10, 0x34, 0x56, 0x00, 0x00, 0x26, 0x00, 0x00 };
-        int sysexdata[9] = { 0x43, 0X10, 0x34, 0x46, 0x00, 0x00, 0x17, 0x00, 0x00 };
+        // [6] = 0x25 (FPC, frequency Coarse). Auparavant 0x17 = PWAVE (waveform) -> bouger
+        // le "coarse" changeait la forme d'onde de l'opérateur sur le synthé. Spec table 1-7
+        // (sy77midi_ocr.txt l.458) + carte TG77 vérifiée hardware.
+        int sysexdata[9] = { 0x43, 0X10, 0x34, 0x46, 0x00, 0x00, 0x25, 0x00, 0x00 };
         
         if(element == 1)
         {
@@ -417,12 +436,46 @@ public:
         sliderDetune5.setMidiSysex(sysexdata);
         sysexdata[3] = 0x06;
         sliderDetune6.setMidiSysex(sysexdata);
+
+        // Niveau de sortie par opérateur -> TL (param 0x1B, 0~127, octet simple).
+        // Spec table 1-7 (sy77midi_ocr.txt "27 1B TL 0~127 out_level") + carte TG77.
+        // Groupe par-opérateur OP1..OP6 = 0x56..0x06 ; addrHi (élément) déjà dans [4].
+        sysexdata[6] = 0x1b;
+        sysexdata[3] = 0x56;
+        sliderLevel1.setMidiSysex(sysexdata);
+        sysexdata[3] = 0x46;
+        sliderLevel2.setMidiSysex(sysexdata);
+        sysexdata[3] = 0x36;
+        sliderLevel3.setMidiSysex(sysexdata);
+        sysexdata[3] = 0x26;
+        sliderLevel4.setMidiSysex(sysexdata);
+        sysexdata[3] = 0x16;
+        sliderLevel5.setMidiSysex(sysexdata);
+        sysexdata[3] = 0x06;
+        sliderLevel6.setMidiSysex(sysexdata);
     }
     
     void buttonClicked (Button* button) override
     {
 
     }
+
+    // Clic dans la gouttière de gauche (nom OPn) en mode table -> zoom sur cet opérateur.
+    void mouseDown (const MouseEvent& e) override
+    {
+        if (zoomOp >= 0) return;
+        auto area = getLocalBounds();
+        const int headerH = jmax (18, area.getHeight() / 14);
+        area.removeFromTop (headerH);
+        const int rowH = jmax (1, area.getHeight() / 6);
+        const int gutter = (int) (0.05f * (float) area.getWidth());
+        if (e.x >= area.getX() && e.x < area.getX() + gutter && e.y >= area.getY())
+        {
+            const int row = (e.y - area.getY()) / rowH;
+            if (row >= 0 && row < 6) setZoomOp (row);
+        }
+    }
+
     void paint (Graphics& g) override
     {
         /* This demo code just fills the component's background and
@@ -432,85 +485,159 @@ public:
            drawing code..
         */
 
-        g.fillAll (getLookAndFeel().findColour (ResizableWindow::backgroundColourId));   // clear the background
+        g.fillAll (getLookAndFeel().findColour (ResizableWindow::backgroundColourId));
+        if (zoomOp >= 0) paintZoom (g);
+        else             paintTable (g);
+    }
 
-        //g.setColour (Colours::darkorange);
- 
-       // g.drawText ("AFM a implementer", getLocalBounds(),
-       //             Justification::centred, true);   // draw some placeholder text
+    // Table « façon éditeur SY77 » : un opérateur par ligne, entêtes de colonnes partagés.
+    void paintTable (Graphics& g)
+    {
+        auto area = getLocalBounds();
+        const int headerH = jmax (18, area.getHeight() / 14);
+        auto header = area.removeFromTop (headerH);
+        const int rowH = jmax (1, area.getHeight() / 6);
+        const int W = area.getWidth();
+        auto cx = [&] (float f) { return area.getX() + (int) (f * (float) W); };
+        auto cw = [&] (float f) { return (int) (f * (float) W); };
+
+        // Entêtes de colonnes (doivent coïncider avec les fractions de resized()).
+        g.setColour (SYPal.textMuted);
+        g.setFont (Font (FontOptions (12.0f)).boldened());
+        auto head = [&] (float f, float w, const String& t)
+        { g.drawText (t, cx (f), header.getY(), cw (w), headerH, Justification::centred, false); };
+        g.drawText ("OP", area.getX() + 4, header.getY(), cw (0.05f), headerH, Justification::centredLeft, false);
+        head (0.055f, 0.20f,  "LEVEL");
+        head (0.265f, 0.075f, "WAVE");
+        head (0.35f,  0.12f,  "COARSE");
+        head (0.48f,  0.09f,  "DET");
+        head (0.58f,  0.12f,  "PHASE");
+        head (0.71f,  0.12f,  "SYNC");
+        head (0.84f,  0.145f, "MODE");
+
+        g.setColour (SYPal.panelBorder);
+        g.drawHorizontalLine (header.getBottom(), (float) area.getX(), (float) area.getRight());
+
+        for (int i = 0; i < 6; ++i)
+        {
+            const int y = area.getY() + i * rowH;
+            if (i > 0)
+            {
+                g.setColour (SYPal.panelBorder.withAlpha (0.5f));
+                g.drawHorizontalLine (y, (float) area.getX(), (float) area.getRight());
+            }
+            // Nom OPn cliquable (légère pastille pour signaler l'interaction).
+            g.setColour (SYPal.accent);
+            g.setFont (Font (FontOptions ((float) jmin (18, rowH / 2))).boldened());
+            g.drawText ("OP" + String (i + 1), area.getX() + 4, y, cw (0.05f), rowH,
+                        Justification::centredLeft, false);
+        }
+    }
+
+    // Page pleine d'un seul opérateur : juste le titre « OPn » (les contrôles et leurs
+    // légendes sont des composants positionnés par resized()).
+    void paintZoom (Graphics& g)
+    {
+        g.setColour (SYPal.accent);
+        g.setFont (Font (FontOptions (22.0f)).boldened());
+        g.drawText ("OP" + String (zoomOp + 1), zoomTitleArea, Justification::centred, false);
     }
 
     void resized() override
     {
-        // This method is where you should set the bounds of any child
-        // components that your component contains..
+        updateZoomVisibility();
+        if (zoomOp >= 0) layoutZoom();
+        else             layoutTable();
+    }
 
-        groupOP1.setBoundsRelative(0.0f, 0.0f, 0.33f, 0.5f);
-        sliderOsc1.setBoundsRelative(0.2f, 0.04f, 0.12f, 1.0f);
-        sliderFine1.setBoundsRelative(0.01f, 0.1f, 0.18f, 0.06f);
-        sliderDetune1.setBoundsRelative(0.01f, 0.2f, 0.18f, 0.16f);
-        sliderPhase1.setBoundsRelative(0.01f, 0.4f, 0.18f, 0.06f);
-        
-        roundSize(sliderOsc1);
-        btFix1.setBoundsRelative(0.2f, 0.3f, 0.12f, 0.06f);
-        btPhase1.setBoundsRelative(0.2f, 0.4f, 0.12f, 0.06f);
-        
-        groupOP2.setBoundsRelative(0.33f, 0, 0.33f, 0.5f);
-        sliderOsc2.setBoundsRelative(0.53f, 0.04f, 0.12f, 1.0f);
-        sliderFine2.setBoundsRelative(0.34f, 0.1f, 0.18f, 0.06f);
-        sliderDetune2.setBoundsRelative(0.34f, 0.2f, 0.18f, 0.16f);
-        sliderPhase2.setBoundsRelative(0.34f, 0.4f, 0.18f, 0.06f);
-        
-        roundSize(sliderOsc2);
-        btFix2.setBoundsRelative(0.53f, 0.3f, 0.12f, 0.06f);
-        btPhase2.setBoundsRelative(0.53f, 0.4f, 0.12f, 0.06f);
-        
-        groupOP3.setBoundsRelative(0.66f, 0, 0.33f, 0.5f);
-        sliderOsc3.setBoundsRelative(0.86f, 0.04f, 0.12f, 1.0f);
-        sliderFine3.setBoundsRelative(0.67f, 0.1f, 0.18f, 0.06f);
-        sliderDetune3.setBoundsRelative(0.67f, 0.2f, 0.18f, 0.16f);
-        sliderPhase3.setBoundsRelative(0.67f, 0.4f, 0.18f, 0.06f);
-        
-        roundSize(sliderOsc3);
-        btFix3.setBoundsRelative(0.86f, 0.3f, 0.12f, 0.06f);
-        btPhase3.setBoundsRelative(0.86f, 0.4f, 0.12f, 0.06f);
-        
-        groupOP4.setBoundsRelative(0, 0.5f, 0.33f, 0.5f);
-        sliderOsc4.setBoundsRelative(0.2f, 0.54f, 0.12f, 1.0f);
-        sliderFine4.setBoundsRelative(0.01f, 0.6f, 0.18f, 0.06f);
-        sliderDetune4.setBoundsRelative(0.01f, 0.7f, 0.18f, 0.16f);
-        sliderPhase4.setBoundsRelative(0.01f, 0.9f, 0.18f, 0.06f);
-        
-        roundSize(sliderOsc4);
-        btFix4.setBoundsRelative(0.2f, 0.8f, 0.12f, 0.06f);
-        btPhase4.setBoundsRelative(0.2f, 0.9f, 0.12f, 0.06f);
-        
-        groupOP5.setBoundsRelative(0.33f, 0.5f, 0.33f, 0.5f);
-        sliderOsc5.setBoundsRelative(0.53f, 0.54f, 0.12f, 1.0f);
-        sliderFine5.setBoundsRelative(0.34f, 0.6f, 0.18f, 0.06f);
-        sliderDetune5.setBoundsRelative(0.34f, 0.7f, 0.18f, 0.16f);
-        sliderPhase5.setBoundsRelative(0.34f, 0.9f, 0.18f, 0.06f);
-        
-        roundSize(sliderOsc5);
-        btFix5.setBoundsRelative(0.53f, 0.8f, 0.12f, 0.06f);
-        btPhase5.setBoundsRelative(0.53f, 0.9f, 0.12f, 0.06f);
-        
-        groupOP6.setBoundsRelative(0.66f, 0.5f, 0.33f, 0.5f);
-        sliderOsc6.setBoundsRelative(0.86f, 0.54f, 0.12f, 1.0f);
-        sliderFine6.setBoundsRelative(0.67f, 0.6f, 0.18f, 0.06f);
-        sliderDetune6.setBoundsRelative(0.67f, 0.7f, 0.18f, 0.16f);
-        sliderPhase6.setBoundsRelative(0.67f, 0.9f, 0.18f, 0.06f);
-        roundSize(sliderOsc6);
-        btFix6.setBoundsRelative(0.86f, 0.8f, 0.12f, 0.06f);
-        btPhase6.setBoundsRelative(0.86f, 0.9f, 0.12f, 0.06f);
+    // Affiche/masque les contrôles selon le mode (table = tout ; zoom = un seul op + nav).
+    void updateZoomVisibility()
+    {
+        const bool zoom = zoomOp >= 0;
+        btZoomBack.setVisible (zoom);
+        btZoomPrev.setVisible (zoom);
+        btZoomNext.setVisible (zoom);
+        btZoomPrev.setEnabled (zoomOp > 0);
+        btZoomNext.setEnabled (zoomOp >= 0 && zoomOp < 5);
 
-        // Niveau de sortie : barre fine en bas de chaque cellule d'opérateur.
-        sliderLevel1.setBoundsRelative(0.01f, 0.455f, 0.30f, 0.035f);
-        sliderLevel2.setBoundsRelative(0.34f, 0.455f, 0.30f, 0.035f);
-        sliderLevel3.setBoundsRelative(0.67f, 0.455f, 0.30f, 0.035f);
-        sliderLevel4.setBoundsRelative(0.01f, 0.955f, 0.30f, 0.035f);
-        sliderLevel5.setBoundsRelative(0.34f, 0.955f, 0.30f, 0.035f);
-        sliderLevel6.setBoundsRelative(0.67f, 0.955f, 0.30f, 0.035f);
+        GroupComponent* grp[6] = { &groupOP1,&groupOP2,&groupOP3,&groupOP4,&groupOP5,&groupOP6 };
+        for (auto* gc : grp) gc->setVisible (false);
+
+        for (int i = 0; i < 6; ++i)
+        {
+            const bool vis = zoom ? (i == zoomOp) : true;
+            auto c = op (i);
+            c.osc->setVisible (vis); c.lvl->setVisible (vis); c.crs->setVisible (vis);
+            c.det->setVisible (vis); c.pha->setVisible (vis); c.syn->setVisible (vis); c.mod->setVisible (vis);
+            Label* L[4]; opLabels (i, L);
+            for (auto* l : L) l->setVisible (zoom && i == zoomOp);   // légendes seulement en zoom
+        }
+    }
+
+    // Table : 1 opérateur par ligne. Les fractions doivent coïncider avec paintTable().
+    void layoutTable()
+    {
+        auto content = getLocalBounds();
+        const int headerH = jmax (18, content.getHeight() / 14);
+        content.removeFromTop (headerH);
+        const int rowH = jmax (1, content.getHeight() / 6);
+        const int W = content.getWidth();
+        auto cx = [&] (float f) { return content.getX() + (int) (f * (float) W); };
+        auto cw = [&] (float f) { return (int) (f * (float) W); };
+
+        for (int i = 0; i < 6; ++i)
+        {
+            auto c = op (i);
+            const int y  = content.getY() + i * rowH;
+            const int ry = y + 4, rh = rowH - 8;
+            c.lvl->setBounds (cx (0.055f), ry, cw (0.20f),  rh);
+            c.osc->setBounds (cx (0.265f), y + 2, cw (0.075f), rowH - 4);
+            c.crs->setBounds (cx (0.35f),  ry, cw (0.12f),  rh);
+            c.det->setBounds (cx (0.48f),  ry, cw (0.09f),  rh);
+            c.pha->setBounds (cx (0.58f),  ry, cw (0.12f),  rh);
+            c.syn->setBounds (cx (0.71f),  ry, cw (0.12f),  rh);
+            c.mod->setBounds (cx (0.84f),  ry, cw (0.145f), rh);
+        }
+    }
+
+    // Page pleine d'un seul opérateur : nav + grande forme d'onde + champs empilés.
+    void layoutZoom()
+    {
+        auto c = op (zoomOp);
+        auto area = getLocalBounds().reduced (14);
+
+        // Barre de nav : [<] OPn [>] ........ [Table]
+        auto nav = area.removeFromTop (jmax (30, area.getHeight() / 11));
+        btZoomBack.setBounds (nav.removeFromRight (120).reduced (3));
+        auto grp = nav.removeFromLeft (jmin (260, nav.getWidth()));
+        btZoomPrev.setBounds (grp.removeFromLeft (52).reduced (3));
+        btZoomNext.setBounds (grp.removeFromRight (52).reduced (3));
+        zoomTitleArea = grp;
+
+        area.removeFromTop (8);
+
+        // Forme d'onde agrandie (carrée, centrée).
+        auto waveRow = area.removeFromTop ((int) (area.getHeight() * 0.42f));
+        const int wsz = jmin (waveRow.getHeight(), waveRow.getWidth());
+        c.osc->setBounds (waveRow.withSizeKeepingCentre (wsz, wsz));
+
+        area.removeFromTop (10);
+
+        // Champs LEVEL / COARSE / DETUNE / PHASE (légende attachée au-dessus) + ligne SYNC/MODE.
+        const int rowH = jmax (1, area.getHeight() / 5);
+        auto field = [&] (Component* comp)
+        {
+            auto r = area.removeFromTop (rowH);
+            r.removeFromTop (18);                      // place pour la légende attachée
+            comp->setBounds (r.reduced (4, 4));
+        };
+        field (c.lvl);
+        field (c.crs);
+        field (c.det);
+        field (c.pha);
+        auto btnRow = area.removeFromTop (rowH).reduced (0, 6);
+        c.syn->setBounds (btnRow.removeFromLeft (btnRow.getWidth() / 2).reduced (6, 0));
+        c.mod->setBounds (btnRow.reduced (6, 0));
     }
     void roundSize (Slider& slider)
     {
@@ -582,6 +709,12 @@ private:
     MidiSlider sliderLevel4;
     MidiSlider sliderLevel5;
     MidiSlider sliderLevel6;
+    Label labelLevel1 {"l1", "Level"};
+    Label labelLevel2 {"l2", "Level"};
+    Label labelLevel3 {"l3", "Level"};
+    Label labelLevel4 {"l4", "Level"};
+    Label labelLevel5 {"l5", "Level"};
+    Label labelLevel6 {"l6", "Level"};
 
     MidiButton  btFix1;
     MidiButton  btFix2;
@@ -598,7 +731,44 @@ private:
     MidiButton  btPhase6;
     
     Label labelOsc1 {"Op1", "Afm Osc"};
-    
-    AfmOscLookAndFeel OscLook;
+
+    // ---- Mode zoom : -1 = table 6 lignes ; 0..5 = un opérateur en pleine page ----
+    int zoomOp = -1;
+    TextButton btZoomBack { "Table" };
+    TextButton btZoomPrev { "<" };
+    TextButton btZoomNext { ">" };
+    Rectangle<int> zoomTitleArea;   // zone du titre « OP3 » (dessiné dans paint)
+
+    struct OpCtrls { MidiSlider* osc; MidiSlider* lvl; MidiSlider* crs;
+                     MidiSlider* det; MidiSlider* pha; MidiButton* syn; MidiButton* mod; };
+    OpCtrls op (int i)
+    {
+        MidiSlider* osc[6] = { &sliderOsc1,&sliderOsc2,&sliderOsc3,&sliderOsc4,&sliderOsc5,&sliderOsc6 };
+        MidiSlider* lvl[6] = { &sliderLevel1,&sliderLevel2,&sliderLevel3,&sliderLevel4,&sliderLevel5,&sliderLevel6 };
+        MidiSlider* crs[6] = { &sliderFine1,&sliderFine2,&sliderFine3,&sliderFine4,&sliderFine5,&sliderFine6 };
+        MidiSlider* det[6] = { &sliderDetune1,&sliderDetune2,&sliderDetune3,&sliderDetune4,&sliderDetune5,&sliderDetune6 };
+        MidiSlider* pha[6] = { &sliderPhase1,&sliderPhase2,&sliderPhase3,&sliderPhase4,&sliderPhase5,&sliderPhase6 };
+        MidiButton* syn[6] = { &btPhase1,&btPhase2,&btPhase3,&btPhase4,&btPhase5,&btPhase6 };
+        MidiButton* mod[6] = { &btFix1,&btFix2,&btFix3,&btFix4,&btFix5,&btFix6 };
+        return { osc[i],lvl[i],crs[i],det[i],pha[i],syn[i],mod[i] };
+    }
+    // Labels d'un opérateur (réutilisés comme légendes en mode zoom).
+    void opLabels (int i, Label* out[4])
+    {
+        Label* lv[6] = { &labelLevel1,&labelLevel2,&labelLevel3,&labelLevel4,&labelLevel5,&labelLevel6 };
+        Label* cr[6] = { &labelFine1,&labelFine2,&labelFine3,&labelFine4,&labelFine5,&labelFine6 };
+        Label* dt[6] = { &labelDetune1,&labelDetune2,&labelDetune3,&labelDetune4,&labelDetune5,&labelDetune6 };
+        Label* ph[6] = { &labelPhase1,&labelPhase2,&labelPhase3,&labelPhase4,&labelPhase5,&labelPhase6 };
+        out[0] = lv[i]; out[1] = cr[i]; out[2] = dt[i]; out[3] = ph[i];
+    }
+
+    void setZoomOp (int o)
+    {
+        zoomOp = jlimit (-1, 5, o);
+        resized();
+        repaint();
+    }
+
+    AfmWaveLookAndFeel waveLook;   // formes d'onde des 6 opérateurs (vraie image SY77, teintée au thème)
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Oscillator)
 };
