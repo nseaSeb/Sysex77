@@ -153,8 +153,16 @@ public:
          sliderPan.setNumDecimalPlacesToDisplay(0);
         sliderPan.addMouseListener(this, false);
         
+        // Groupe de sortie de l'élément : 2 bascules (G1/G2). Both = les deux, Off = aucune.
+        // Rendu/état seul pour l'instant (pas d'envoi sysex).
         addAndMakeVisible(btGroup1);
         addAndMakeVisible(btGroup2);
+        btGroup1.setClickingTogglesState (true);
+        btGroup2.setClickingTogglesState (true);
+        btGroup1.setTooltip ("Sortie : groupe 1");
+        btGroup2.setTooltip ("Sortie : groupe 2");
+        btGroup1.setColour (TextButton::ColourIds::buttonOnColourId, SYColSelected);
+        btGroup2.setColour (TextButton::ColourIds::buttonOnColourId, SYColSelected);
 
         addAndMakeVisible(groupWave);
         addAndMakeVisible(groupFilter);
@@ -450,6 +458,12 @@ public:
             int data[9] = { 0x43, 0X10, 0x34, 0x03, 0x60, 0x00, 0x00, 0x00, 0x00 };
             sliderVolume.setMidiSysex(data);
         }
+
+        // Groupe de sortie (rendu/état seul) : lié par élément à valueTreeVoice.
+        btGroup1.getToggleStateValue().referTo (valueTreeVoice.getPropertyAsValue (
+            Identifier ("ELEMENT" + String (operatorID) + "GROUP1"), &undoManager));
+        btGroup2.getToggleStateValue().referTo (valueTreeVoice.getPropertyAsValue (
+            Identifier ("ELEMENT" + String (operatorID) + "GROUP2"), &undoManager));
     }
 
    int getOpNumber ()
@@ -626,6 +640,10 @@ public:
         groupPan.setBounds (xPan, 0, panW, H);
         // Pan vertical (façon SynthWorks) ; les 2 sorties L/R sont dessinées à droite (paint).
         sliderPan.setBounds (xPan + 6, 16, 16, H - 28);
+        // Bascules de groupe de sortie (G1/G2), empilées à droite du pan.
+        const int gx = sliderPan.getRight() + 4;
+        btGroup1.setBounds (gx, 16, 22, 18);
+        btGroup2.setBounds (gx, 36, 22, 18);
     }
 enum mode
     {
