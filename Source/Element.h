@@ -154,6 +154,56 @@ private:
 };
 
 //==============================================================================
+// Surface interactive par-dessus la cellule VOLUME (enveloppe de volume) : glisser
+// un nœud le déplace verticalement = règle son NIVEAU (0..127) ; clic simple = ouvre
+// l'éditeur d'EG. L'édition des rates (X) reste dans l'éditeur complet (mapping X->rate
+// ambigu). getData fournit les niveaux/poids EFFECTIFS (= ceux dessinés) pour que le
+// test de proximité colle au tracé.
+class EgGraphView : public Component
+{
+public:
+    std::function<void()>                                          onOpenEditor;
+    std::function<void (juce::Array<float>&, juce::Array<float>&)> getData;      // (levels, weights)
+    std::function<void (int node, int level)>                      onEditLevel;
+
+    EgGraphView() { setMouseCursor (MouseCursor::PointingHandCursor); }
+
+    void mouseDown (const MouseEvent& e) override { dragged = false; selected = nearestNode (e.position.x); }
+    void mouseDrag (const MouseEvent& e) override
+    {
+        dragged = true;
+        if (selected < 0 || ! onEditLevel || getHeight() < 2) return;
+        const float fy = jlimit (0.0f, 1.0f, e.position.y / (float) getHeight());
+        onEditLevel (selected, roundToInt ((1.0f - fy) * 127.0f));
+    }
+    void mouseUp (const MouseEvent&) override { if (! dragged && onOpenEditor) onOpenEditor(); }
+
+private:
+    int nearestNode (float mx)
+    {
+        if (! getData) return -1;
+        juce::Array<float> levels, weights;
+        getData (levels, weights);
+        if (levels.size() < 2 || weights.size() != levels.size() - 1) return -1;
+        float total = 0.0f;
+        for (auto w : weights) total += jmax (1.0f, w);
+        if (total <= 0.0f) return -1;
+
+        const float wpx = (float) getWidth();
+        juce::Array<float> xs;
+        float x = 0.0f;
+        xs.add (x);
+        for (int i = 0; i < weights.size(); ++i) { x += wpx * jmax (1.0f, weights[i]) / total; xs.add (x); }
+
+        int best = 0; float bestD = 1.0e9f;
+        for (int i = 0; i < xs.size(); ++i) { const float d = std::abs (xs[i] - mx); if (d < bestD) { bestD = d; best = i; } }
+        return best;
+    }
+    int  selected = -1;
+    bool dragged  = false;
+};
+
+//==============================================================================
 /*
 */
 class Element    : public Component, TextButton::Listener, public ChangeBroadcaster, public Slider::Listener, public Value::Listener,public ChangeListener, public ValueTree::Listener
@@ -242,6 +292,40 @@ public:
         {
             valueTreeVoice.setProperty (Identifier ("ELEMENT" + String (operatorID) + "FQ1"), cut, nullptr);
             valueTreeVoice.setProperty (Identifier ("ELEMENT" + String (operatorID) + "RESONNANCEFILTRE"), res, nullptr);
+        };
+
+        // Édition à la souris de l'EG de volume : overlay sur la cellule VOLUME.
+        btVCA.setInterceptsMouseClicks (false, false);
+        addAndMakeVisible (egGraph);
+        egGraph.getData = [this] (juce::Array<float>& l, juce::Array<float>& w) { getVolEg (l, w); };
+        egGraph.onOpenEditor = [this]
+        {
+            elementValue.setValue (operatorMode == mode::AWM ? (int) commande::VolumeEdit
+                                                             : (int) commande::VolumeAFM);
+        };
+        egGraph.onEditLevel = [this] (int node, int level)
+        {
+            if (node < 0 || node > 4) return;
+            auto setP = [this] (const String& suffix, int v)
+            { valueTreeVoice.setProperty (Identifier ("ELEMENT" + String (operatorID) + suffix), v, nullptr); };
+
+            const char* lvlIds[5] = { "EGVOLLEVEL0", "EGVOLLEVEL1", "EGVOLLEVEL2", "EGVOLLEVEL3", "EGVOLLEVEL4" };
+            const char* rIds[4]   = { "EGVOLR1", "EGVOLR2", "EGVOLR3", "EGVOLR4" };
+
+            // EG jamais réglé (tous niveaux à 0) -> on "fige" d'abord la forme par défaut
+            // pour ne pas faire s'effondrer les autres nœuds au 1er glissement.
+            bool unset = true;
+            for (int i = 0; i < 5; ++i)
+                if ((int) valueTreeVoice.getProperty (Identifier ("ELEMENT" + String (operatorID) + lvlIds[i]), 0) != 0)
+                    unset = false;
+            if (unset)
+            {
+                juce::Array<float> l, w;
+                getVolEg (l, w);
+                for (int i = 0; i < 5; ++i) setP (lvlIds[i], roundToInt (l[i]));
+                for (int i = 0; i < 4; ++i) setP (rIds[i],   roundToInt (w[i]));
+            }
+            setP (lvlIds[node], level);
         };
    
     
@@ -478,6 +562,21 @@ public:
         waveNameLabel.setVisible (false); // AFM : pas de nom de wave
         repaint();
     }
+    // Niveaux (5) + poids de segment (4) EFFECTIFS de l'EG de volume de cet élément,
+    // avec repli sur une forme par défaut si l'EG n'est pas réglé. Partagé par paint()
+    // (tracé) et EgGraphView (test de proximité) pour rester cohérents.
+    void getVolEg (juce::Array<float>& levels, juce::Array<float>& weights) const
+    {
+        auto id = [this] (const char* s) { return Identifier (String ("ELEMENT") + String (operatorID) + s); };
+        auto eg = [&] (const char* s) { return (float) (int) valueTreeVoice.getProperty (id (s), 0); };
+        levels  = { eg ("EGVOLLEVEL0"), eg ("EGVOLLEVEL1"), eg ("EGVOLLEVEL2"), eg ("EGVOLLEVEL3"), eg ("EGVOLLEVEL4") };
+        weights = { jmax (1.0f, eg ("EGVOLR1")), jmax (1.0f, eg ("EGVOLR2")),
+                    jmax (1.0f, eg ("EGVOLR3")), jmax (1.0f, eg ("EGVOLR4")) };
+        float maxL = 0.0f;
+        for (auto l : levels) maxL = jmax (maxL, l);
+        if (maxL <= 0.0f) { levels = { 0.0f, 120.0f, 84.0f, 84.0f, 0.0f }; weights = { 1.0f, 2.0f, 4.0f, 3.0f }; }
+    }
+
     void paint (Graphics& g) override
     {
         /* This demo code just fills the component's background and
@@ -502,24 +601,13 @@ public:
             if (fb.getWidth() > 12.0f && fb.getHeight() > 12.0f)
                 SyDraw::drawFilterResponse (g, fb, fMode, fCut, fRes, SYColSelected);
 
-            // Enveloppe de VOLUME (data-driven, comme le filtre) : niveaux/rates lus
-            // depuis l'EG de volume (édité dans l'onglet "Volume EG").
-            auto eg = [&] (const char* s) { return (float) (int) valueTreeVoice.getProperty (idFor (s), 0); };
+            // Enveloppe de VOLUME (data-driven) : niveaux/rates effectifs (cf. getVolEg),
+            // partagés avec EgGraphView pour l'édition à la souris.
             auto vb = btVCA.getBounds().toFloat().reduced (2.0f);
             if (vb.getWidth() > 12.0f && vb.getHeight() > 12.0f)
             {
-                juce::Array<float> levels  { eg ("EGVOLLEVEL0"), eg ("EGVOLLEVEL1"), eg ("EGVOLLEVEL2"),
-                                             eg ("EGVOLLEVEL3"), eg ("EGVOLLEVEL4") };
-                juce::Array<float> weights { jmax (1.0f, eg ("EGVOLR1")), jmax (1.0f, eg ("EGVOLR2")),
-                                             jmax (1.0f, eg ("EGVOLR3")), jmax (1.0f, eg ("EGVOLR4")) };
-                // Si l'EG de volume n'est pas (encore) réglé, montrer une forme par défaut.
-                float maxL = 0.0f;
-                for (auto l : levels) maxL = jmax (maxL, l);
-                if (maxL <= 0.0f)
-                {
-                    levels  = { 0.0f, 120.0f, 84.0f, 84.0f, 0.0f };
-                    weights = { 1.0f, 2.0f, 4.0f, 3.0f };
-                }
+                juce::Array<float> levels, weights;
+                getVolEg (levels, weights);
                 SyDraw::drawEnvelope (g, vb, levels, weights, 127.0f, SYColSelected);
             }
         }
@@ -600,6 +688,7 @@ public:
         const int volW = xPan - xVol;
         groupVolume.setBounds (xVol, 0, volW, H);
         btVCA.setBounds (xVol + 4, 4, volW - 34, H - 8);
+        egGraph.setBounds (btVCA.getBounds().reduced (2)); // overlay d'édition = zone dessinée
         sliderVolume.setBounds (xPan - 30, 16, 24, H - 24);
 
         const int panW = xEnd - xPan;
@@ -643,6 +732,7 @@ private:
     MidiSlider sliderVolume;
     FmWaveView elementFmWave; // forme d'onde FM (toute la cellule WAVE, mode AFM) + n° algo en overlay
     FilterGraphView filterGraph; // édition souris du filtre (cutoff/résonance) sur la cellule FILTER
+    EgGraphView egGraph;         // édition souris des niveaux de l'EG de volume (cellule VOLUME)
     Value    algoValue;     // -> AFMALGOELEMENTx
     Label    waveNameLabel; // nom de la wave (colonne WAVE, mode AWM)
     Value    waveNameValue; // -> ELEMENT<n>WAVENAME
