@@ -199,12 +199,13 @@ public:
         sysexdata[6] = 0x01;                // cutoff
         sliderFq2.setMidiSysex(sysexdata);
         
-        sysexdata[4] = 0x05;  // common
-        sysexdata[6] = 0x32;
+        // Sous-bloc "common" de l'élément : addrHi = elemBase | 0x02 (confirmé synthé via résonance).
+        sysexdata[4] = elemBase | 0x02;
+        sysexdata[6] = 0x32;                // résonance (CONFIRMÉ)
         sliderResonnance.setMidiSysex(sysexdata);
-        sysexdata[6] = 0x33;
+        sysexdata[6] = 0x33;                // vélocité (param supposé, addrHi confirmé)
         sliderVelocity.setMidiSysex(sysexdata);
-        sysexdata[6] = 0x34;
+        sysexdata[6] = 0x34;                // LFO (param supposé, addrHi confirmé)
         sliderLfoSens.setMidiSysex(sysexdata);
 
     }

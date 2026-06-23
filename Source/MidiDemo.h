@@ -300,6 +300,12 @@ struct MidiSettingsPage : public Component
             o.useNativeTitleBar = true;
             o.launchAsync();
         };
+
+        // Moniteur : effacer + copier (pratique pour la rétro-ingénierie).
+        addAndMakeVisible (clearBtn);
+        clearBtn.onClick = [this] { monitorRef.clear(); };
+        addAndMakeVisible (copyBtn);
+        copyBtn.onClick = [this] { juce::SystemClipboard::copyTextToClipboard (monitorRef.getText()); };
     }
 
     void resized() override
@@ -320,8 +326,11 @@ struct MidiSettingsPage : public Component
         followBtn.setBounds (m, rowY + 30, getWidth() - 2*m, 22);
         diffBtn  .setBounds (m, rowY + 56, half - 2*m, 24);
 
-        monLab    .setBounds (m, rowY + 86,      getWidth() - 2*m, 24);
-        monitorRef.setBounds (m, rowY + 86 + 26, getWidth() - 2*m, getHeight() - (rowY + 86 + 26) - m);
+        const int my = rowY + 86;
+        clearBtn.setBounds (getWidth() - m - 80,            my, 80, 22);
+        copyBtn .setBounds (getWidth() - m - 80 - 6 - 80,   my, 80, 22);
+        monLab  .setBounds (m, my, getWidth() - 2*m - 172, 24);
+        monitorRef.setBounds (m, my + 26, getWidth() - 2*m, getHeight() - (my + 26) - m);
     }
 
     Label&      inLab;
@@ -334,6 +343,8 @@ struct MidiSettingsPage : public Component
     TextEditor& monitorRef;
     ToggleButton followBtn { "Suivre le synthe : ouvrir la vue du parametre recu depuis le SY77" };
     TextButton   diffBtn   { "Diff 2 dumps (.syx)..." };
+    TextButton   copyBtn   { "Copier" };
+    TextButton   clearBtn  { "Clear" };
 };
 
 //==============================================================================
