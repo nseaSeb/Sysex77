@@ -116,136 +116,118 @@ public:
     }
     void setElementNumber ( int element, UndoManager& um) override
     {
-        Logger::writeToLog( "Filter1 setElement");
-        int sysexdata2[9] = { 0x43, 0X10, 0x34, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00 };
-        int sysexdata[9] = { 0x43, 0X10, 0x34, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+        Logger::writeToLog( "PitchEg setElement");
+        // Pitch EG = AFM Element Common (groupe 0x05). T2 = (element-1)<<5 (réglé par bloc ci-dessous).
+        // Offsets spec Table 1-6 : FPR1-3=01-03, FPRR1=04, FPL0-3=05-08, FPRL1=09, FPRS(slope)=0B.
+        int sysexdata2[9] = { 0x43, 0X10, 0x34, 0x05, 0x00, 0x00, 0x01, 0x00, 0x00 }; // rates
+        int sysexdata[9]  = { 0x43, 0X10, 0x34, 0x05, 0x00, 0x00, 0x05, 0x00, 0x00 }; // levels
         
         if(element == 1)
         {
             
-            sliderSlope.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1SLOPEFILTRE, &um));
+            sliderSlope.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1SLOPEPITCH, &um));
             
-            sliderL0.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGFILTRELEVEL0, &um));
-            sliderL1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGFILTRELEVEL1, &um));
-            sliderL2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGFILTRELEVEL2, &um));
-            sliderL3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGFILTRELEVEL3, &um));
-            sliderL4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGFILTRELEVEL4, &um));
-            sliderRL1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGFILTRERL1 , &um));
-            sliderRL2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGFILTRERL2 , &um));
-            sliderR1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGFILTRER1 , &um));
-            sliderR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGFILTRER2 , &um));
-            sliderR3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGFILTRER3 , &um));
-            sliderR4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGFILTRER4 , &um));
-            sliderRR1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGFILTRERR1 , &um));
-            sliderRR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGFILTRERR2 , &um));
+            sliderL0.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGPITCHLEVEL0, &um));
+            sliderL1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGPITCHLEVEL1, &um));
+            sliderL2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGPITCHLEVEL2, &um));
+            sliderL3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGPITCHLEVEL3, &um));
+            sliderL4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGPITCHLEVEL4, &um));
+            sliderRL1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGPITCHRL1 , &um));
+            sliderRL2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGPITCHRL2 , &um));
+            sliderR1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGPITCHR1 , &um));
+            sliderR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGPITCHR2 , &um));
+            sliderR3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGPITCHR3 , &um));
+            sliderR4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGPITCHR4 , &um));
+            sliderRR1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGPITCHRR1 , &um));
+            sliderRR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGPITCHRR2 , &um));
             
         }
         else if (element ==2)
         {
-            sliderSlope.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2SLOPEFILTRE, &um));
+            sliderSlope.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2SLOPEPITCH, &um));
             sysexdata[4] = 0x20;
             sysexdata2[4] = 0x20;
             
-            sliderL0.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGFILTRELEVEL0, &um));
-            sliderL1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGFILTRELEVEL1, &um));
-            sliderL2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGFILTRELEVEL2, &um));
-            sliderL3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGFILTRELEVEL3, &um));
-            sliderL4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGFILTRELEVEL4, &um));
-            sliderRL1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGFILTRERL1 , &um));
-            sliderRL2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGFILTRERL2 , &um));
-            sliderR1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGFILTRER1 , &um));
-            sliderR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGFILTRER2 , &um));
-            sliderR3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGFILTRER3 , &um));
-            sliderR4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGFILTRER4 , &um));
-            sliderRR1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGFILTRERR1 , &um));
-            sliderRR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGFILTRERR2 , &um));
+            sliderL0.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGPITCHLEVEL0, &um));
+            sliderL1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGPITCHLEVEL1, &um));
+            sliderL2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGPITCHLEVEL2, &um));
+            sliderL3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGPITCHLEVEL3, &um));
+            sliderL4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGPITCHLEVEL4, &um));
+            sliderRL1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGPITCHRL1 , &um));
+            sliderRL2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGPITCHRL2 , &um));
+            sliderR1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGPITCHR1 , &um));
+            sliderR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGPITCHR2 , &um));
+            sliderR3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGPITCHR3 , &um));
+            sliderR4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGPITCHR4 , &um));
+            sliderRR1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGPITCHRR1 , &um));
+            sliderRR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGPITCHRR2 , &um));
             
         }
         else if (element == 3)
         {
-            sliderSlope.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3SLOPEFILTRE, &um));
+            sliderSlope.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3SLOPEPITCH, &um));
             sysexdata[4] = 0x40;
             sysexdata2[4] = 0x40;
             
-            sliderL0.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGFILTRELEVEL0, &um));
-            sliderL1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGFILTRELEVEL1, &um));
-            sliderL2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGFILTRELEVEL2, &um));
-            sliderL3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGFILTRELEVEL3, &um));
-            sliderL4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGFILTRELEVEL4, &um));
-            sliderRL1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGFILTRERL1 , &um));
-            sliderRL2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGFILTRERL2 , &um));
-            sliderR1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGFILTRER1 , &um));
-            sliderR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGFILTRER2 , &um));
-            sliderR3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGFILTRER3 , &um));
-            sliderR4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGFILTRER4 , &um));
-            sliderRR1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGFILTRERR1 , &um));
-            sliderRR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGFILTRERR2 , &um));
+            sliderL0.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGPITCHLEVEL0, &um));
+            sliderL1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGPITCHLEVEL1, &um));
+            sliderL2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGPITCHLEVEL2, &um));
+            sliderL3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGPITCHLEVEL3, &um));
+            sliderL4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGPITCHLEVEL4, &um));
+            sliderRL1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGPITCHRL1 , &um));
+            sliderRL2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGPITCHRL2 , &um));
+            sliderR1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGPITCHR1 , &um));
+            sliderR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGPITCHR2 , &um));
+            sliderR3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGPITCHR3 , &um));
+            sliderR4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGPITCHR4 , &um));
+            sliderRR1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGPITCHRR1 , &um));
+            sliderRR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGPITCHRR2 , &um));
             
         }
         else if (element == 4)
         {
-            sliderSlope.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4SLOPEFILTRE, &um));
+            sliderSlope.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4SLOPEPITCH, &um));
             sysexdata[4] = 0x60;
             sysexdata2[4] = 0x60;
             
-            sliderL0.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGFILTRELEVEL0, &um));
-            sliderL1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGFILTRELEVEL1, &um));
-            sliderL2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGFILTRELEVEL2, &um));
-            sliderL3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGFILTRELEVEL3, &um));
-            sliderL4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGFILTRELEVEL4, &um));
-            sliderRL1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGFILTRERL1 , &um));
-            sliderRL2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGFILTRERL2 , &um));
-            sliderR1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGFILTRER1 , &um));
-            sliderR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGFILTRER2 , &um));
-            sliderR3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGFILTRER3 , &um));
-            sliderR4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGFILTRER4 , &um));
-            sliderRR1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGFILTRERR1 , &um));
-            sliderRR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGFILTRERR2 , &um));
+            sliderL0.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGPITCHLEVEL0, &um));
+            sliderL1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGPITCHLEVEL1, &um));
+            sliderL2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGPITCHLEVEL2, &um));
+            sliderL3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGPITCHLEVEL3, &um));
+            sliderL4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGPITCHLEVEL4, &um));
+            sliderRL1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGPITCHRL1 , &um));
+            sliderRL2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGPITCHRL2 , &um));
+            sliderR1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGPITCHR1 , &um));
+            sliderR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGPITCHR2 , &um));
+            sliderR3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGPITCHR3 , &um));
+            sliderR4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGPITCHR4 , &um));
+            sliderRR1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGPITCHRR1 , &um));
+            sliderRR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGPITCHRR2 , &um));
             
         }
-        sysexdata[6] = 0x10;
+        // --- Sysex Pitch EG (groupe 0x05). On n'émet QUE les paramètres documentés. ---
+        sysexdata[6] = 0x0B;                        // FPRS (rate scaling) -> slider "slope"
         sliderSlope.setMidiSysex(sysexdata);
-        
-        
-        sysexdata[6] = 0x09;
-        sysexdata2[6] = 0x03;
-        //       EgFilter.addSegment(10, 10, "L0R1", 64, sysexdata, 64, sysexdata2);
-        sliderL0.setMidiSysex(sysexdata);
-        sliderL0.setRangeAndRound(0, 64, 0);
-        sliderR1.setMidiSysex(sysexdata2);
-        sliderR1.setRangeAndRound(0, 64, 0);
-        
-        sysexdata[6] = 0x0a;
-        sysexdata2[6] = 0x04;
-        //        EgFilter.addSegment(10, 10, "L1R2", 64, sysexdata, 64, sysexdata2);
-        sliderL1.setMidiSysex(sysexdata);
-        sliderL1.setRangeAndRound(0, 64, 0);
-        sliderR2.setMidiSysex(sysexdata2);
-        sliderR2.setRangeAndRound(0, 64, 0);
-        
-        sysexdata[6] = 0x0b;
-        sysexdata2[6] = 0x05;
-        //        EgFilter.addSegment(10, 10, "L2R3", 64, sysexdata, 64, sysexdata2);
-        sliderL2.setMidiSysex(sysexdata);
-        sliderL2.setRangeAndRound(0, 64, 0);
-        sliderR3.setMidiSysex(sysexdata2);
-        sliderR3.setRangeAndRound(0, 64, 0);
-        
-        sysexdata[6] = 0x0c;
-        sysexdata2[6] = 0x06;
-        //       EgFilter.addSegment(10, 10, "L3R4", 64, sysexdata, 64, sysexdata2);
-        sliderL3.setMidiSysex(sysexdata);
-        sliderL3.setRangeAndRound(0, 64, 0);
-        sliderR4.setMidiSysex(sysexdata2);
-        sliderR4.setRangeAndRound(0, 64, 0);
-        
-        sysexdata[6] = 0x0d;
-        sysexdata2[6] = 0x07;
-        //       EgFilter.addSegment(10, 10, "L4RR1", 64, sysexdata, 64, sysexdata2);
-        sliderL4.setMidiSysex(sysexdata);
+
+        // Levels FPL0-3 (05-08) + release level FPRL1 (09)
+        sysexdata[6] = 0x05; sliderL0.setMidiSysex(sysexdata);  sliderL0.setRangeAndRound(0, 64, 0);
+        sysexdata[6] = 0x06; sliderL1.setMidiSysex(sysexdata);  sliderL1.setRangeAndRound(0, 64, 0);
+        sysexdata[6] = 0x07; sliderL2.setMidiSysex(sysexdata);  sliderL2.setRangeAndRound(0, 64, 0);
+        sysexdata[6] = 0x08; sliderL3.setMidiSysex(sysexdata);  sliderL3.setRangeAndRound(0, 64, 0);
+        sysexdata[6] = 0x09; sliderRL1.setMidiSysex(sysexdata); sliderRL1.setRangeAndRound(0, 64, 0);
+
+        // Rates FPR1-3 (01-03) + release rate FPRR1 (04)
+        sysexdata2[6] = 0x01; sliderR1.setMidiSysex(sysexdata2);  sliderR1.setRangeAndRound(0, 63, 0);
+        sysexdata2[6] = 0x02; sliderR2.setMidiSysex(sysexdata2);  sliderR2.setRangeAndRound(0, 63, 0);
+        sysexdata2[6] = 0x03; sliderR3.setMidiSysex(sysexdata2);  sliderR3.setRangeAndRound(0, 63, 0);
+        sysexdata2[6] = 0x04; sliderRR1.setMidiSysex(sysexdata2); sliderRR1.setRangeAndRound(0, 63, 0);
+
+        // Sliders sans équivalent dans le Pitch EG SY77 (pas de L4 ; pas de 4e on-rate ;
+        // pas de 2e release) : affichés et persistés mais NON émis vers le synthé.
         sliderL4.setRangeAndRound(0, 64, 0);
-        sliderRR1.setMidiSysex(sysexdata2);
-        sliderRR2.setRangeAndRound(0, 64, 0);
+        sliderR4.setRangeAndRound(0, 63, 0);
+        sliderRL2.setRangeAndRound(0, 64, 0);
+        sliderRR2.setRangeAndRound(0, 63, 0);
     }
     void paint (Graphics& g) override
     {
