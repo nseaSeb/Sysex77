@@ -164,7 +164,7 @@ class EgGraphView : public Component
 public:
     std::function<void()>                                          onOpenEditor;
     std::function<void (juce::Array<float>&, juce::Array<float>&)> getData;      // (levels, weights)
-    std::function<void (int node, int level)>                      onEditLevel;
+    std::function<void (int node, int level, int rateWeight)>      onEditNode;   // rateWeight<0 => inchangé
 
     EgGraphView() { setMouseCursor (MouseCursor::PointingHandCursor); }
 
@@ -172,13 +172,37 @@ public:
     void mouseDrag (const MouseEvent& e) override
     {
         dragged = true;
-        if (selected < 0 || ! onEditLevel || getHeight() < 2) return;
+        if (selected < 0 || ! onEditNode || getWidth() < 2 || getHeight() < 2) return;
         const float fy = jlimit (0.0f, 1.0f, e.position.y / (float) getHeight());
-        onEditLevel (selected, roundToInt ((1.0f - fy) * 127.0f));
+        const int level = roundToInt ((1.0f - fy) * 127.0f);
+        // Nœud 0 = départ (X fixe) -> niveau seul. Nœuds 1..4 -> niveau + rate du segment entrant.
+        const int rateW = (selected >= 1) ? solveRateWeight (selected, e.position.x / (float) getWidth()) : -1;
+        onEditNode (selected, level, rateW);
     }
     void mouseUp (const MouseEvent&) override { if (! dragged && onOpenEditor) onOpenEditor(); }
 
 private:
+    // Poids du segment entrant du nœud `node` pour qu'il atterrisse à la fraction X `fx`,
+    // les autres rates restant fixes : fx = (before + w)/(otherSum + w)  =>  on résout w.
+    int solveRateWeight (int node, float fx)
+    {
+        if (! getData) return -1;
+        juce::Array<float> levels, weights;
+        getData (levels, weights);
+        if (node < 1 || node - 1 >= weights.size()) return -1;
+        float otherSum = 0.0f, before = 0.0f;
+        for (int i = 0; i < weights.size(); ++i)
+        {
+            if (i == node - 1) continue;                 // le segment qu'on règle
+            const float w = jmax (1.0f, weights[i]);
+            otherSum += w;
+            if (i < node - 1) before += w;
+        }
+        fx = jlimit (0.0f, 0.98f, fx);
+        const float wk = (fx * otherSum - before) / (1.0f - fx);
+        return (int) jlimit (1.0f, 99.0f, wk);
+    }
+
     int nearestNode (float mx)
     {
         if (! getData) return -1;
@@ -303,7 +327,7 @@ public:
             elementValue.setValue (operatorMode == mode::AWM ? (int) commande::VolumeEdit
                                                              : (int) commande::VolumeAFM);
         };
-        egGraph.onEditLevel = [this] (int node, int level)
+        egGraph.onEditNode = [this] (int node, int level, int rateWeight)
         {
             if (node < 0 || node > 4) return;
             auto setP = [this] (const String& suffix, int v)
@@ -326,6 +350,8 @@ public:
                 for (int i = 0; i < 4; ++i) setP (rIds[i],   roundToInt (w[i]));
             }
             setP (lvlIds[node], level);
+            if (rateWeight >= 0 && node >= 1)            // rate du segment entrant (nœuds 1..4)
+                setP (rIds[node - 1], rateWeight);
         };
    
     
