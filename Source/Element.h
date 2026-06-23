@@ -126,6 +126,34 @@ private:
 };
 
 //==============================================================================
+// Surface interactive par-dessus la cellule FILTER : glisser = régler cutoff (X,
+// gauche->droite) et résonance (Y, bas->haut) en 0..127 ; clic simple = ouvrir
+// l'éditeur de filtre complet. Ne dessine rien (la réponse est peinte dessous).
+class FilterGraphView : public Component
+{
+public:
+    std::function<void()>                  onOpenEditor;  // clic simple
+    std::function<void (int cut, int res)> onEdit;        // glissement (valeurs 0..127)
+
+    FilterGraphView() { setMouseCursor (MouseCursor::PointingHandCursor); }
+
+    void mouseDown (const MouseEvent&)   override { dragged = false; }
+    void mouseDrag (const MouseEvent& e) override { dragged = true; apply (e); }
+    void mouseUp   (const MouseEvent&)   override { if (! dragged && onOpenEditor) onOpenEditor(); }
+
+private:
+    void apply (const MouseEvent& e)
+    {
+        auto b = getLocalBounds().toFloat();
+        if (b.getWidth() < 2.0f || b.getHeight() < 2.0f || ! onEdit) return;
+        const float fx = jlimit (0.0f, 1.0f, e.position.x / b.getWidth());
+        const float fy = jlimit (0.0f, 1.0f, e.position.y / b.getHeight());
+        onEdit (roundToInt (fx * 127.0f), roundToInt ((1.0f - fy) * 127.0f));
+    }
+    bool dragged = false;
+};
+
+//==============================================================================
 /*
 */
 class Element    : public Component, TextButton::Listener, public ChangeBroadcaster, public Slider::Listener, public Value::Listener,public ChangeListener, public ValueTree::Listener
@@ -204,6 +232,17 @@ public:
                           Image(), 0.0f, Colours::transparentBlack,
                           Image(), 0.0f, Colours::transparentBlack,
                           0.0f);
+
+        // Édition à la souris du filtre : un overlay capte le glissement (cutoff/résonance)
+        // et le clic simple (ouvre l'éditeur). btFilter ne capte plus la souris.
+        btFilter.setInterceptsMouseClicks (false, false);
+        addAndMakeVisible (filterGraph);
+        filterGraph.onOpenEditor = [this] { elementValue.setValue (commande::FilterEdit); };
+        filterGraph.onEdit = [this] (int cut, int res)
+        {
+            valueTreeVoice.setProperty (Identifier ("ELEMENT" + String (operatorID) + "FQ1"), cut, nullptr);
+            valueTreeVoice.setProperty (Identifier ("ELEMENT" + String (operatorID) + "RESONNANCEFILTRE"), res, nullptr);
+        };
    
     
   
@@ -555,6 +594,8 @@ public:
 
         groupFilter.setBounds (xFilter, 0, xVol - xFilter, H);
         btFilter.setBounds (groupFilter.getBounds().reduced (4, 16));
+        // L'overlay d'édition couvre exactement la zone où la réponse est dessinée (paint).
+        filterGraph.setBounds (groupFilter.getBounds().reduced (5, 14));
 
         const int volW = xPan - xVol;
         groupVolume.setBounds (xVol, 0, volW, H);
@@ -601,6 +642,7 @@ private:
  //   Slider sliderFine {Slider::SliderStyle::LinearBar,Slider::NoTextBox};
     MidiSlider sliderVolume;
     FmWaveView elementFmWave; // forme d'onde FM (toute la cellule WAVE, mode AFM) + n° algo en overlay
+    FilterGraphView filterGraph; // édition souris du filtre (cutoff/résonance) sur la cellule FILTER
     Value    algoValue;     // -> AFMALGOELEMENTx
     Label    waveNameLabel; // nom de la wave (colonne WAVE, mode AWM)
     Value    waveNameValue; // -> ELEMENT<n>WAVENAME
