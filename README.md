@@ -34,6 +34,25 @@ Inspiré, côté fonctionnalités, de l'éditeur *SynthWorks SY77*.
 
 ---
 
+## Lancer l'app pré-compilée (macOS)
+
+L'application macOS pré-compilée est fournie dans **`dist/Sysex77.app`** (Apple Silicon / arm64).
+Elle n'est **pas signée ni notariée** par Apple : au **premier lancement**, macOS la bloque
+(« développeur non identifié »). Pour l'autoriser :
+
+1. **Clic droit** (ou Ctrl-clic) sur `dist/Sysex77.app` → **Ouvrir** → puis, dans la boîte de
+   dialogue, cliquez encore sur **Ouvrir**. *(Une seule fois ; ensuite, double-clic normal.)*
+2. Si l'app a été **téléchargée** et que macOS la dit « endommagée » (quarantaine), retirez
+   l'attribut dans le Terminal :
+   ```bash
+   xattr -dr com.apple.quarantine dist/Sysex77.app
+   ```
+
+> ⚠️ Binaire **Apple Silicon (arm64)** pour l'instant. Sur Mac **Intel** (ou en cas de doute),
+> compilez depuis les sources (ci-dessous) — c'est tout aussi simple.
+
+---
+
 ## Build (sans Projucer)
 
 Compilation via CMake — **pas besoin de Projucer**, et **JUCE est téléchargé
@@ -72,6 +91,9 @@ sur le synthé) pour autoriser les échanges de banques.
 
 Sysex (presets & banks) editor for the Yamaha SY77/SY99/TG77, C++/JUCE.
 **Not finalized — use at your own risk; sending banks can erase your synth's patches, back up first!**
+
+Prebuilt macOS app: `dist/Sysex77.app` (Apple Silicon, **unsigned** — first launch: right-click →
+Open → Open; if "damaged" after download: `xattr -dr com.apple.quarantine dist/Sysex77.app`).
 
 Build (no Projucer needed): `./build.sh` (macOS/Linux) or `cmake -B build && cmake --build build`
 (Windows incl.). JUCE is auto-resolved (local `JUCE_DIR`, `/Applications/JUCE`, or auto-downloaded).
