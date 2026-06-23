@@ -139,6 +139,9 @@ void oscMessageReceived (const OSCMessage& message)
                         name += String::charToString ((juce_wchar) d[i]);
                     valueTreeVoice.setProperty (IDs::VOICENAME, name.trimEnd(), nullptr);
                 }
+
+                // Bascule sur l'éditeur (onglet Voice = index 2) pour éditer la voix ouverte.
+                tabs.setCurrentTabIndex (2);
             }
         }
     }
