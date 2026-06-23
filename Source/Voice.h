@@ -130,6 +130,9 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         editName.setJustification(Justification::centred);
         //      editName.setColour(TextEditor::ColourIds::textColourId, SYColText);
         editName.addListener(this);
+        // Nom de voix chargé depuis la librairie : suit VOICENAME -> met à jour le champ.
+        voiceNameVal = valueTreeVoice.getPropertyAsValue (IDs::VOICENAME, &undoManager);
+        voiceNameVal.addListener (this);
         
     int sysexdata[9] = { 0x43, 0X10, 0x34, 0x0d, 0x00, 0x00, 0x32, 0x00, 0x7f };
         op1.setMidiSysex(sysexdata);
@@ -284,8 +287,14 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
     }
     void valueChanged(Value & value) override
     {
-   
-       
+        // Nom de voix chargé depuis la librairie -> reflète dans le champ d'édition.
+        if (value.refersToSameSourceAs (voiceNameVal))
+        {
+            const auto n = voiceNameVal.getValue().toString();
+            if (n.isNotEmpty())
+                editName.setText (n, dontSendNotification);
+        }
+
         if(value.refersToSameSourceAs(element1.elementValue))
         {
             Logger::writeToLog("Value change element1");
@@ -669,6 +678,7 @@ void setNombreElements (int nombre)
     
     ComboBox    comboMode;
     TextEditor  editName {TRANS("Edit Name")};
+    Value       voiceNameVal; // -> VOICENAME (nom chargé depuis la librairie)
     MidiButton op1;
     TextButton op2 {"2"};
     TextButton op3{"3"};

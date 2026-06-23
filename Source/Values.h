@@ -14,6 +14,7 @@ namespace IDs
 #define DECLARE_ID(name) const juce::Identifier name (#name);
     
     DECLARE_ID (VOICEMODE)
+    DECLARE_ID (VOICENAME)
     DECLARE_ID (COMMONVOLUME)
     DECLARE_ID (COMMONFOOT)
     DECLARE_ID (COMMONMOD)
