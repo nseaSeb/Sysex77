@@ -643,10 +643,17 @@ public:
         groupPan.setBounds (xPan, 0, panW, H);
         // Pan vertical (façon SynthWorks) ; les 2 sorties L/R sont dessinées à droite (paint).
         sliderPan.setBounds (xPan + 6, 16, 16, H - 28);
-        // Bascules de groupe de sortie (G1/G2), empilées à droite du pan.
-        const int gx = sliderPan.getRight() + 4;
-        btGroup1.setBounds (gx, 16, 22, 18);
-        btGroup2.setBounds (gx, 36, 22, 18);
+        // Bascules de groupe de sortie (G1/G2), empilées à droite du pan. Masquées sur les
+        // rangées d'éléments inactifs (trop courtes, ~30 px) pour éviter le débordement.
+        const bool compact = H < 56;
+        btGroup1.setVisible (! compact);
+        btGroup2.setVisible (! compact);
+        if (! compact)
+        {
+            const int gx = sliderPan.getRight() + 4;
+            btGroup1.setBounds (gx, 16, 22, 18);
+            btGroup2.setBounds (gx, 36, 22, 18);
+        }
     }
 enum mode
     {
