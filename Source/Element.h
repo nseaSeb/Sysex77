@@ -97,12 +97,25 @@ private:
     {
         samples.clearQuick();
         const int   n     = 256;
-        const float index = 0.6f + 0.25f * (float) (jmax (1, algo) % 6); // profondeur ~ algo
+        const float index = 3.0f;                          // profondeur de modulation FM
+        float fb[6] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+
+        // 1er passage = chauffe pour stabiliser les feedbacks (algos 19/36/40/41/43/44).
+        for (int i = 0; i <= n; ++i)
+            SyDraw::fmEvalAlgo (waves, ratios, levels, algo,
+                                (float) i / (float) n * MathConstants<float>::twoPi, index, fb);
+
+        float maxAbs = 1.0e-6f;
         for (int i = 0; i <= n; ++i)
         {
             const float p = (float) i / (float) n * MathConstants<float>::twoPi;
-            samples.add (SyDraw::fmEval (waves, ratios, levels, p, index));
+            const float v = SyDraw::fmEvalAlgo (waves, ratios, levels, algo, p, index, fb);
+            samples.add (v);
+            maxAbs = jmax (maxAbs, std::abs (v));
         }
+        // Normalise : les algos multi-porteuses peuvent dépasser ±1.
+        const float g = 1.0f / maxAbs;
+        for (auto& s : samples) s *= g;
     }
 
     Array<float> samples;        // cache (normalisé -1..1)
