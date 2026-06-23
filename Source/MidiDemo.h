@@ -126,6 +126,7 @@ static int sysexModel;
 // Device number sysex SY77 (canal) : un seul réglage global, piloté par ConfigPage.
 static int  sysexDeviceNumber = 1;     // 1..16 ; octet émis = 0x10 | (n-1)
 static bool sysexReceiveOmni  = false; // "ALL" : accepte les messages entrants de tout device
+static bool followSynth       = false; // "Suivre le synthé" : ouvre la vue du paramètre reçu
 static     float fAngle = -90 * (juce::MathConstants<float>::pi  / 180.0); //Radiant to draw at 90°
 File appDirPath = File::getSpecialLocation(File::userApplicationDataDirectory ).getChildFile("Application Support/Sysex77");
 
@@ -269,6 +270,19 @@ struct MidiSettingsPage : public Component
         addAndMakeVisible (bulkBtn);
         addAndMakeVisible (monLab);
         addAndMakeVisible (monitorRef);
+
+        // "Suivre le synthé" : quand un paramètre arrive du SY77, ouvrir la vue concernée
+        // (la valeur s'y met à jour en direct = retour visuel). Persisté.
+        addAndMakeVisible (followBtn);
+        followSynth = getAppSettings()->getBoolValue ("FollowSynth", false);
+        followBtn.setToggleState (followSynth, dontSendNotification);
+        followBtn.setColour (ToggleButton::tickColourId, SYColSelected);
+        followBtn.onClick = [this]
+        {
+            followSynth = followBtn.getToggleState();
+            getAppSettings()->setValue ("FollowSynth", followSynth);
+            getAppSettings()->saveIfNeeded();
+        };
     }
 
     void resized() override
@@ -286,8 +300,10 @@ struct MidiSettingsPage : public Component
         pairBtn.setBounds (m,        rowY, half - 2*m, 24);
         bulkBtn.setBounds (half + m, rowY, half - 2*m, 24);
 
-        monLab    .setBounds (m, rowY + 32,      getWidth() - 2*m, 24);
-        monitorRef.setBounds (m, rowY + 32 + 26, getWidth() - 2*m, getHeight() - (rowY + 32 + 26) - m);
+        followBtn.setBounds (m, rowY + 30, getWidth() - 2*m, 22);
+
+        monLab    .setBounds (m, rowY + 58,      getWidth() - 2*m, 24);
+        monitorRef.setBounds (m, rowY + 58 + 26, getWidth() - 2*m, getHeight() - (rowY + 58 + 26) - m);
     }
 
     Label&      inLab;
@@ -298,6 +314,7 @@ struct MidiSettingsPage : public Component
     TextButton& bulkBtn;
     Label&      monLab;
     TextEditor& monitorRef;
+    ToggleButton followBtn { "Suivre le synthe : ouvrir la vue du parametre recu depuis le SY77" };
 };
 
 //==============================================================================
@@ -794,7 +811,23 @@ private:
                 // (ou tout device en mode ALL). On ignore le reste (autres machines/canaux).
                 if (data[0] == 0x43 && data[2] == 0x34
                     && SyVoice::acceptsDevice (data[1], sysexDeviceNumber, sysexReceiveOmni))
+                {
                     valueSysexIn = make_var_array(data[3], data[4],data[5],data[6],data[7],data[8]);
+
+                    // "Suivre le synthé" : ouvre la vue correspondant au groupe reçu, pour que
+                    // le paramètre modifié sur le SY77 soit visible (sa valeur s'y met à jour).
+                    if (followSynth)
+                    {
+                        const int g = data[3];
+                        int target = -1;
+                        if (g == 0x08)                                   target = 3; // Effets
+                        else if (g == 0x02 || g == 0x03 || g == 0x05 || g == 0x07
+                                 || g == 0x09 || g == 0x0A || g == 0x00
+                                 || (g & 0x0F) == 0x06)                  target = 2; // Voice
+                        if (target >= 0 && tabs.getCurrentTabIndex() != target)
+                            tabs.setCurrentTabIndex (target);
+                    }
+                }
                 
                 
             }
