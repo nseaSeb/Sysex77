@@ -69,6 +69,7 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
         btThemeBuilder.onClick = [this]
         {
             auto* tb = new ThemeBuilder();
+            tb->onThemeSaved = [this] { reloadThemes(); };   // liste auto le thème sauvé
             DialogWindow::LaunchOptions o;
             o.content.setOwned (tb);
             o.dialogTitle = TRANS("Theme Builder");

@@ -451,29 +451,14 @@ public:
         // centre (point neutre) au lieu d'une extrémité — vrai pour TOUS les styles.
         const bool bipolar = (s.getMinimum() < -0.01 && s.getMaximum() > 0.01);
 
-        if (style == Slider::LinearVertical)
+        if (style == Slider::LinearVertical || style == Slider::LinearHorizontal)
         {
-            const float cx = x + w * 0.5f;
-            const float railW = jmin (5.0f, (float) w * 0.4f);
-            g.setColour (SYPal.knobTrack);
-            g.fillRoundedRectangle (cx - railW * 0.5f, (float) y, railW, (float) h, railW * 0.5f);
-            g.setColour (SYPal.accent);
-            const float originY = bipolar ? (y + h * 0.5f) : (float) (y + h);   // centre si bipolaire
-            g.fillRoundedRectangle (cx - railW * 0.5f, jmin (originY, sliderPos),
-                                    railW, std::abs (sliderPos - originY), railW * 0.5f);
-            drawSliderThumb (g, Rectangle<float> ((float) x + 1.0f, sliderPos - 4.0f, (float) w - 2.0f, 8.0f));
-        }
-        else if (style == Slider::LinearHorizontal)
-        {
-            const float cy = y + h * 0.5f;
-            const float railH = jmin (5.0f, (float) h * 0.4f);
-            g.setColour (SYPal.knobTrack);
-            g.fillRoundedRectangle ((float) x, cy - railH * 0.5f, (float) w, railH, railH * 0.5f);
-            g.setColour (SYPal.accent);
-            const float originX = bipolar ? (x + w * 0.5f) : (float) x;          // centre si bipolaire
-            g.fillRoundedRectangle (jmin (originX, sliderPos), cy - railH * 0.5f,
-                                    std::abs (sliderPos - originX), railH, railH * 0.5f);
-            drawSliderThumb (g, Rectangle<float> (sliderPos - 4.0f, (float) y + 1.0f, 8.0f, (float) h - 2.0f));
+            // Les sliders linéaires suivent aussi le sliderStyle du thème (bar/led/rail/groove).
+            const bool horiz = (style == Slider::LinearHorizontal);
+            const float pos01 = (s.getMaximum() > s.getMinimum())
+                ? (float) ((s.getValue() - s.getMinimum()) / (s.getMaximum() - s.getMinimum())) : 0.0f;
+            drawValueBar (g, Rectangle<float> ((float) x, (float) y, (float) w, (float) h),
+                          pos01, horiz, bipolar, s.isEnabled(), s.isMouseOverOrDragging());
         }
         else if (style == Slider::LinearBar || style == Slider::LinearBarVertical)
         {
@@ -713,16 +698,27 @@ private:
     {
         pos01 = jlimit (0.0f, 1.0f, pos01);
         const Colour acc = SYPal.accent.withMultipliedAlpha (enabled ? (hot ? 1.0f : 0.9f) : 0.4f);
-        const float  px  = r.getX() + pos01 * r.getWidth();
-        const float  ox  = bipolar ? r.getCentreX() : r.getX();   // origine du remplissage (h)
+
+        // Position (pixel) de la valeur le long de l'axe + origine du remplissage
+        // (centre si bipolaire). Vertical : valeur haute = vers le haut.
+        const float vpos = horiz ? (r.getX() + pos01 * r.getWidth())
+                                 : (r.getBottom() - pos01 * r.getHeight());
+        const float vorg = bipolar ? (horiz ? r.getCentreX() : r.getCentreY())
+                                   : (horiz ? r.getX() : r.getBottom());
+        auto fillRect = [&]
+        {
+            return horiz ? Rectangle<float> (jmin (vorg, vpos), r.getY(), std::abs (vpos - vorg), r.getHeight())
+                         : Rectangle<float> (r.getX(), jmin (vorg, vpos), r.getWidth(), std::abs (vpos - vorg));
+        };
 
         if (SYPal.sliderStyle == "led")
         {
             g.setColour (SYPal.knobTrack);
             g.fillRect (r);
-            const int n = jmax (6, (int) ((horiz ? r.getWidth() : r.getHeight()) / 9.0f));
+            const float lenAxis = horiz ? r.getWidth() : r.getHeight();
+            const int n = jmax (6, (int) (lenAxis / 9.0f));
             const int lit = (int) std::round (pos01 * (float) n);
-            const float cell = (horiz ? r.getWidth() : r.getHeight()) / (float) n;
+            const float cell = lenAxis / (float) n;
             for (int i = 0; i < n; ++i)
             {
                 auto seg = horiz
@@ -737,23 +733,35 @@ private:
         }
         if (SYPal.sliderStyle == "rail")
         {
-            const float cy = r.getCentreY();
-            const float railH = jmin (5.0f, r.getHeight() * 0.35f);
-            g.setColour (SYPal.knobTrack);
-            g.fillRoundedRectangle (r.getX(), cy - railH * 0.5f, r.getWidth(), railH, railH * 0.5f);
-            g.setColour (acc);
-            g.fillRoundedRectangle (jmin (ox, px), cy - railH * 0.5f, std::abs (px - ox), railH, railH * 0.5f);
-            const float tr = jmax (5.0f, r.getHeight() * 0.30f);
-            drawSliderThumb (g, Rectangle<float> (px - tr, cy - tr, tr * 2.0f, tr * 2.0f));
+            if (horiz)
+            {
+                const float cy = r.getCentreY(), railH = jmin (5.0f, r.getHeight() * 0.35f);
+                g.setColour (SYPal.knobTrack);
+                g.fillRoundedRectangle (r.getX(), cy - railH * 0.5f, r.getWidth(), railH, railH * 0.5f);
+                g.setColour (acc);
+                g.fillRoundedRectangle (jmin (vorg, vpos), cy - railH * 0.5f, std::abs (vpos - vorg), railH, railH * 0.5f);
+                const float tr = jmax (5.0f, r.getHeight() * 0.30f);
+                drawSliderThumb (g, Rectangle<float> (vpos - tr, cy - tr, tr * 2.0f, tr * 2.0f));
+            }
+            else
+            {
+                const float cx = r.getCentreX(), railW = jmin (5.0f, r.getWidth() * 0.35f);
+                g.setColour (SYPal.knobTrack);
+                g.fillRoundedRectangle (cx - railW * 0.5f, r.getY(), railW, r.getHeight(), railW * 0.5f);
+                g.setColour (acc);
+                g.fillRoundedRectangle (cx - railW * 0.5f, jmin (vorg, vpos), railW, std::abs (vpos - vorg), railW * 0.5f);
+                const float tr = jmax (5.0f, r.getWidth() * 0.30f);
+                drawSliderThumb (g, Rectangle<float> (cx - tr, vpos - tr, tr * 2.0f, tr * 2.0f));
+            }
             return;
         }
         if (SYPal.sliderStyle == "groove")
         {
-            const float cr = jmin (r.getHeight(), r.getWidth()) * 0.5f * 0.7f;
+            const float cr = jmin (r.getHeight(), r.getWidth()) * 0.35f;
             g.setColour (SYPal.background.contrasting (SYPal.dark ? 0.0f : 0.06f).withAlpha (SYPal.dark ? 0.55f : 0.25f));
             g.fillRoundedRectangle (r, cr);                                   // canal creusé
             g.setColour (acc);
-            g.fillRoundedRectangle (Rectangle<float> (jmin (ox, px), r.getY(), std::abs (px - ox), r.getHeight()).reduced (1.5f), cr);
+            g.fillRoundedRectangle (fillRect().reduced (1.5f), cr);
             g.setColour (SYPal.panelBorder);
             g.drawRoundedRectangle (r.reduced (0.5f), cr, SyMetrics::stroke);
             return;
@@ -762,10 +770,7 @@ private:
         g.setColour (SYPal.knobTrack);
         g.fillRect (r);
         g.setColour (acc);
-        if (horiz)
-            g.fillRect (Rectangle<float> (jmin (ox, px), r.getY(), std::abs (px - ox), r.getHeight()));
-        else
-            g.fillRect (r.withTop (r.getBottom() - pos01 * r.getHeight()));
+        g.fillRect (fillRect());
         g.setColour (hot ? SYPal.accent : SYPal.panelBorder);
         g.drawRect (r, SyMetrics::stroke);
     }

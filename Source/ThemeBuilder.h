@@ -11,6 +11,7 @@
 
 #pragma once
 #include <JuceHeader.h>
+#include <functional>
 #include "LookAndFeel.h"
 #include "Themes.h"
 
@@ -141,6 +142,9 @@ public:
         knP2.setBounds (r4.removeFromLeft (90));
     }
 
+    // Appelé après une sauvegarde réussie (ex. ConfigPage -> reloadThemes pour lister le nouveau).
+    std::function<void()> onThemeSaved;
+
 private:
     static constexpr int controlsW = 360;
 
@@ -227,8 +231,8 @@ private:
         sub.getChildFile ("theme.xml").replaceWithText (syPaletteToXml (work));
         applySyPalette (work);
         repaintEverything();
-        labStatus.setText ("Sauve -> " + sub.getFileName() + " (Reload themes pour le lister)",
-                           juce::dontSendNotification);
+        labStatus.setText ("Sauve -> " + sub.getFileName(), juce::dontSendNotification);
+        if (onThemeSaved) onThemeSaved();   // ex. rafraichit le selecteur de la page Setting
     }
 
     static void repaintEverything()
