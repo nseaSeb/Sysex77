@@ -86,6 +86,21 @@ sur le synthé) pour autoriser les échanges de banques.
 - **Double-cliquer une voix** de la librairie l'envoie au synthé **et l'ouvre dans l'éditeur**
   (bascule automatique sur l'onglet *Voice*).
 
+### Thèmes
+
+L'onglet *Setting* propose un sélecteur de thème. Cinq palettes sont intégrées (*Dark Orange*,
+*FM Dark*, *Light*, *Crimson*, *Tangerine*). Au premier lancement, elles sont exportées en tant
+que fichiers éditables dans :
+
+```
+~/Library/Application Support/Sysex77/Themes/
+```
+
+Chaque thème est un sous-dossier contenant un fichier `theme.xml`. Vous pouvez :
+- **Modifier** un thème intégré en éditant le `theme.xml` correspondant.
+- **Créer un thème custom** : dupliquez un sous-dossier, renommez-le, éditez le `theme.xml`.
+- Cliquer sur **Reload** dans *Setting* pour prendre en compte vos modifications sans relancer l'app.
+
 ![AfmOsc](divers/AfmOsc.png)
 
 ---
@@ -110,6 +125,11 @@ sends it to the synth and opens it in the editor.
 Highlights: AFM/AWM voice editor, FM-waveform render of the real 45 algorithms, mouse-editable
 filter & envelope graphs, output groups + routing, an Effects tab, and persistence of settings &
 custom colours. Some edits are editor-state-only for now (full sysex send is being firmed up).
+
+**Themes:** five built-in palettes (Dark Orange, FM Dark, Light, Crimson, Tangerine), selectable
+in *Setting*. On first launch, editable `theme.xml` files are exported to
+`~/Library/Application Support/Sysex77/Themes/`. Add a subfolder with your own `theme.xml` to
+create a custom theme; hit **Reload** in *Setting* to pick it up without restarting.
 
 ---
 

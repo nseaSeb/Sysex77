@@ -61,9 +61,9 @@ public:
     void paint (Graphics& g) override
     {
         
-        g.setColour(Colour(0x10000000));
-        
-        
+        g.setColour(SYPal.textPrimary.withAlpha(0.06f)); // grille
+
+
         for (int i = 0; i < 17; i++)
         {
            auto  a = getHeight()/16;
@@ -72,7 +72,7 @@ public:
             g.drawLine(b*i,0,b*i,getHeight());
         }
         // draw the mid line
-        g.setColour(Colour(0x50808080));
+        g.setColour(SYPal.textMuted.withAlpha(0.35f));
         g.drawLine(0, getHeight()/2, getWidth(), getHeight()/2, 3);
         g.setColour (SYColSelected); //color of envelope
         Path myPath;    // create the path
@@ -105,15 +105,14 @@ public:
         g.strokePath (myPath, PathStrokeType (5.0f));
         
        // g.setColour(Colours::white);
-            ColourGradient myGradient {	Colour(0xe0ff8000),static_cast<float>(getWidth()/2),0,Colour(0x30804000),static_cast<float>(getWidth()/2),static_cast<float>(getHeight()),false };
+            ColourGradient myGradient {	SYPal.accent.withAlpha(0.88f),static_cast<float>(getWidth()/2),0,SYPal.accent.darker(0.4f).withAlpha(0.19f),static_cast<float>(getWidth()/2),static_cast<float>(getHeight()),false };
         g.setGradientFill(myGradient);
-//        g.setColour(Colour(0x10000000));
         g.fillPath(myPath);
-        g.setColour(Colours::white);
+        g.setColour(SYPal.textPrimary);
         g.drawText (strName, getLocalBounds(), Justification::topRight, true);
- 
+
         String str = "Note Release : " + String(intRelease);
-        g.setColour(Colour(0x80ffffff));
+        g.setColour(SYPal.textPrimary.withAlpha(0.5f));
      
         // g.drawText (str, getLocalBounds(), Justification::centredLeft, true);
         g.drawFittedText( str, getWidth() - 100, 20, 90, 24, Justification::right,1);

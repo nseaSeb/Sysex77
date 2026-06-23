@@ -64,7 +64,7 @@ public:
         g.fillRect(10, 0, 3, 6);
         g.fillRect(getWidth()-14, 0, 3, 6);
         
-        g.setColour(Colours::white);
+        g.setColour(SYPal.textPrimary);
         g.drawText(getName(), 0, 10, getWidth(), getHeight(), Justification::centredTop);
         
     }

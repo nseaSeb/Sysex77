@@ -56,7 +56,9 @@ juce_add_binary_data(Sysex77Data SOURCES
     Ressources/AFM.png
     Ressources/French.txt
     Ressources/SY77Waves.xml
-    Ressources/SY99Waves.xml)
+    Ressources/SY99Waves.xml
+    Ressources/InterRegular.ttf
+    Ressources/InterSemiBold.ttf)
 
 target_compile_features(Sysex77 PRIVATE cxx_std_17)
 

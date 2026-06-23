@@ -239,9 +239,17 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
     // Routage façon SynthWorks : on relie les VRAIES sorties pan L/R des éléments
     // actifs aux bus Reverb Hall/Room, puis aux sorties L/R. Dessiné ici (et pas dans
     // un sous-composant) car VoicePage connaît la position des éléments ET de la zone algo.
-    void paint (Graphics& g) override
+    // Dessiné APRÈS les enfants : le routage/algorithme passe par-dessus la carte ALGORITHME
+    // (et les cartes d'éléments), au lieu d'être masqué derrière.
+    void paintOverChildren (Graphics& g) override
     {
         if (algoW <= 0)
+            return;
+
+        // Ne pas dessiner le routage si un éditeur est ouvert par-dessus
+        if (editAfm1.isVisible()    || editAfm2.isVisible()    || editAfm3.isVisible()    || editAfm4.isVisible()    ||
+            editWave1.isVisible()   || editWave2.isVisible()   || editWave3.isVisible()   || editWave4.isVisible()   ||
+            editFilter1.isVisible() || editFilter2.isVisible() || editFilter3.isVisible() || editFilter4.isVisible())
             return;
 
         const float bx0  = (float) algoX;
@@ -609,7 +617,7 @@ void setNombreElements (int nombre)
     void addAndMakePitch ( Slider& slider)
     {
         addAndMakeVisible(slider);
-        slider.setLookAndFeel(&myLookAndFeel);
+        slider.setLookAndFeel(nullptr);   // suit le ModernLookAndFeel du thème
         slider.addListener(this);
         slider.setRange(0, 127);
         slider.setNumDecimalPlacesToDisplay(0);
@@ -710,7 +718,6 @@ void setNombreElements (int nombre)
 
     int nombreElements = 1;
     SysexBusSender sender;  // [2]
-    CustomLookAndFeel myLookAndFeel;
 
     
     UndoManager undoManager;

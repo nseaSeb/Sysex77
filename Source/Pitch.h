@@ -161,7 +161,6 @@ private:
     TextButton btFixed {"Fixed", "Fix"};
 
     MidiSlider sliderFine;
-        CustomLookAndFeel myLookAndFeel;
     Value valuePitch;
     MidiSlider  sliderPitch; // strange way but it's like that for the moment
     

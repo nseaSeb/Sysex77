@@ -10,6 +10,38 @@
 
 #pragma once
 #include <JuceHeader.h>
+//==============================================================================
+// Palette à rôles nommés : décrit un thème complet (couleurs + métadonnées).
+// Les 4 globales legacy (SYColBackground/Alt/Label/Selected) en sont dérivées,
+// pour ne casser aucun des ~153 usages existants.
+struct SyPalette
+{
+    Colour background, surface, surfaceAlt, panelBorder;
+    Colour textPrimary, textMuted;
+    Colour accent, accentSecondary;
+    Colour knobTrack, knobFill, knobBody, shadow, glow;
+    bool   dark = true;          // pilote contrastes/ombres (alpha)
+    String name;                 // nom affiché
+    File   folder;               // dossier du thème (résolution des assets relatifs ; vide = intégré)
+    File   knobImage;            // skin optionnel du potard (sprite vertical, façon OscAfm)
+    File   backgroundImage;      // image de fond optionnelle (rendu : hook à venir)
+    String buttonStyle;          // "square" | "round" | "flat" | "fun"  (recettes codées dans ModernLookAndFeel)
+    String panelStyle;           // "square" | "round" | "flat" | "fun"
+};
+
+// Images du thème actif (vides = rendu procédural / fond uni). Rafraîchies à chaque applySyPalette.
+static Image SYKnobImage;
+static Image SYBackgroundImage;   // fond du thème (PNG/JPG) ; dessiné en mode cover dans MidiDemo::paint()
+
+// Gabarits partagés par tous les overrides du ModernLookAndFeel (fini les nombres magiques).
+namespace SyMetrics
+{
+    constexpr float corner = 6.0f, cornerLg = 10.0f, stroke = 1.0f;
+    constexpr int   pad = 8, panelHeaderH = 18, shadowRadius = 8;
+}
+
+// Couleurs globales legacy (conservées : Config.h les lit/écrit, ~153 usages).
+// Valeurs initiales = thème historique « Dark Orange » (identiques à l'ancien défaut).
 static Colour SYColBackground { Colours::black };
 static Colour   SYColAlt      { Colour (0xff202020) };
 //static Colour   SYColText;
@@ -19,6 +51,156 @@ static Colour   SYColSelected { Colours::darkorange };
 // Thème de l interface : 0 = Dark (sombre, accent orange), 1 = Light (clair, monochrome, plat)
 static int SYTheme = 0;
 
+//==============================================================================
+// Constructeurs des palettes intégrées.
+
+// « Dark Orange » : l'identité historique (noir + orange), assainie par le ModernLookAndFeel.
+inline SyPalette syPaletteDarkOrange()
+{
+    SyPalette p;
+    p.name            = "Dark Orange";
+    p.dark            = true;
+    p.background      = Colours::black;
+    p.surface         = Colour (0xff202020);
+    p.surfaceAlt      = Colour (0xff2a2a2a);
+    p.panelBorder     = Colour (0xff3a3a3a);
+    p.textPrimary     = Colour (0xffe2e2e2);
+    p.textMuted       = Colour (0xff909090);
+    p.accent          = Colours::darkorange;
+    p.accentSecondary = Colour (0xff3dd6c4);
+    p.knobTrack       = Colour (0xff333333);
+    p.knobFill        = Colours::darkorange;
+    p.knobBody        = Colour (0xff262626);
+    p.shadow          = Colour (0x66000000);
+    p.glow            = Colours::darkorange.withAlpha (0.35f);
+    p.buttonStyle     = "square";
+    p.panelStyle      = "square";
+    return p;
+}
+
+// « FM Dark » : bleu ardoise profond + ambre chaud + teal secondaire (esprit FM synth moderne).
+inline SyPalette syPaletteFmDark()
+{
+    SyPalette p;
+    p.name            = "FM Dark";
+    p.dark            = true;
+    p.background      = Colour (0xff0d1117);   // bleu-noir profond (distinct du noir pur)
+    p.surface         = Colour (0xff161b22);
+    p.surfaceAlt      = Colour (0xff21262d);
+    p.panelBorder     = Colour (0xff2d3340);   // légère teinte bleue
+    p.textPrimary     = Colour (0xffe6e8ec);
+    p.textMuted       = Colour (0xff7d8590);
+    p.accent          = Colour (0xffff8a3d);
+    p.accentSecondary = Colour (0xff3dd6c4);
+    p.knobTrack       = Colour (0xff252d38);
+    p.knobFill        = Colour (0xffff8a3d);
+    p.knobBody        = Colour (0xff1c2028);
+    p.shadow          = Colour (0x80000000);
+    p.glow            = Colour (0x55ff8a3d);
+    p.buttonStyle     = "flat";
+    p.panelStyle      = "flat";
+    return p;
+}
+
+// « Light » : panneaux clairs froids + accent bleu, ombres légères (mode clair de jour).
+inline SyPalette syPaletteLight()
+{
+    SyPalette p;
+    p.name            = "Light";
+    p.dark            = false;
+    p.background      = Colour (0xffe9ebef);
+    p.surface         = Colour (0xfff5f6f8);
+    p.surfaceAlt      = Colour (0xffffffff);
+    p.panelBorder     = Colour (0xffd2d6dd);
+    p.textPrimary     = Colour (0xff1c2026);
+    p.textMuted       = Colour (0xff6b727e);
+    p.accent          = Colour (0xff2f7df6);
+    p.accentSecondary = Colour (0xfff5a623);
+    p.knobTrack       = Colour (0xffd8dce3);
+    p.knobFill        = Colour (0xff2f7df6);
+    p.knobBody        = Colour (0xffffffff);
+    p.shadow          = Colour (0x22000000);
+    p.glow            = Colour (0x332f7df6);
+    p.buttonStyle     = "round";
+    p.panelStyle      = "round";
+    return p;
+}
+
+// « Crimson » : noir teinté rouge + rouge-sang + accents ambrés.
+inline SyPalette syPaletteCrimson()
+{
+    SyPalette p;
+    p.name            = "Crimson";
+    p.dark            = true;
+    p.background      = Colour (0xff110707);   // noir chaud teinté rouge
+    p.surface         = Colour (0xff1e1010);
+    p.surfaceAlt      = Colour (0xff291616);
+    p.panelBorder     = Colour (0xff3d2222);   // teinte rouge marquée
+    p.textPrimary     = Colour (0xfff0e8e8);   // blanc légèrement chaud
+    p.textMuted       = Colour (0xff9a8080);
+    p.accent          = Colour (0xffff5a4d);
+    p.accentSecondary = Colour (0xfff5a623);
+    p.knobTrack       = Colour (0xff3a2020);
+    p.knobFill        = Colour (0xffff5a4d);
+    p.knobBody        = Colour (0xff231414);
+    p.shadow          = Colour (0x80000000);
+    p.glow            = Colour (0x55ff5a4d);
+    p.buttonStyle     = "fun";
+    p.panelStyle      = "round";
+    return p;
+}
+
+// « Tangerine » : charbon chaud ambré + orange brûlé + secondaire bleu.
+inline SyPalette syPaletteTangerine()
+{
+    SyPalette p;
+    p.name            = "Tangerine";
+    p.dark            = true;
+    p.background      = Colour (0xff18140a);   // noir teinté ambre/bois
+    p.surface         = Colour (0xff251f12);
+    p.surfaceAlt      = Colour (0xff302819);
+    p.panelBorder     = Colour (0xff42361f);   // teinte bois chaude
+    p.textPrimary     = Colour (0xfff0ece8);   // blanc crème
+    p.textMuted       = Colour (0xff9a9080);
+    p.accent          = Colour (0xffff6a1a);
+    p.accentSecondary = Colour (0xff37a6ff);
+    p.knobTrack       = Colour (0xff3a2e1a);
+    p.knobFill        = Colour (0xffff6a1a);
+    p.knobBody        = Colour (0xff261e10);
+    p.shadow          = Colour (0x80000000);
+    p.glow            = Colour (0x55ff6a1a);
+    p.buttonStyle     = "round";
+    p.panelStyle      = "square";
+    return p;
+}
+
+// Palette active (initialisée au thème historique pour rester identique avant tout applySyTheme).
+static SyPalette SYPal = syPaletteDarkOrange();
+
+// Dérive les 4 alias legacy depuis la palette active.
+inline void deriveLegacyAliases()
+{
+    SYColBackground = SYPal.background;
+    SYColAlt        = SYPal.surface;
+    SYColLabel      = SYPal.textPrimary;
+    SYColSelected   = SYPal.accent;
+}
+
+inline void syncSyLookAndFeel();   // déclaration anticipée
+
+// Pousse les 4 alias (modifiés par les ColourSelectors) dans les rôles de la palette active,
+// puis re-synchronise le LookAndFeel. Garde palette et alias cohérents pour un thème « Custom ».
+inline void pushAliasesToPalette()
+{
+    SYPal.background  = SYColBackground;
+    SYPal.surface     = SYColAlt;
+    SYPal.textPrimary = SYColLabel;
+    SYPal.accent      = SYColSelected;
+    SYPal.knobFill    = SYColSelected;
+    SYPal.name        = "Custom";
+    syncSyLookAndFeel();
+}
+
 // Choisit le LookAndFeel selon SYTheme (défini en fin de fichier).
 inline void selectSyLookAndFeel();
 
@@ -26,50 +208,71 @@ inline void selectSyLookAndFeel();
 // Ces couleurs sont lues au moment du paint -> un repaint suffit pour les voir.
 inline void syncSyLookAndFeel()
 {
-    auto& lf = LookAndFeel::getDefaultLookAndFeel();
-    auto  ink = SYColBackground.contrasting(); // texte lisible sur le fond
+    auto& lf  = LookAndFeel::getDefaultLookAndFeel();
+    auto  ink = SYPal.textPrimary; // encre lisible (rôle palette)
 
-    lf.setColour (ResizableWindow::backgroundColourId, SYColBackground);
-    lf.setColour (DocumentWindow::backgroundColourId,  SYColBackground);
+    lf.setColour (ResizableWindow::backgroundColourId, SYPal.background);
+    lf.setColour (DocumentWindow::backgroundColourId,  SYPal.background);
 
     lf.setColour (Label::textColourId,             ink);
     lf.setColour (GroupComponent::textColourId,    ink);
-    lf.setColour (GroupComponent::outlineColourId, ink.withAlpha (0.5f));
+    lf.setColour (GroupComponent::outlineColourId, SYPal.panelBorder);
 
-    lf.setColour (TextButton::buttonColourId,      SYColAlt);
+    lf.setColour (TextButton::buttonColourId,      SYPal.surfaceAlt);
     lf.setColour (TextButton::textColourOffId,     ink);
-    lf.setColour (TextButton::textColourOnId,      SYColBackground);
+    lf.setColour (TextButton::textColourOnId,      SYPal.accent.contrasting());
 
-    lf.setColour (ComboBox::backgroundColourId,    SYColAlt);
+    lf.setColour (ComboBox::backgroundColourId,    SYPal.surfaceAlt);
     lf.setColour (ComboBox::textColourId,          ink);
-    lf.setColour (ComboBox::arrowColourId,         ink);
-    lf.setColour (ComboBox::outlineColourId,       ink.withAlpha (0.4f));
+    lf.setColour (ComboBox::arrowColourId,         SYPal.textMuted);
+    lf.setColour (ComboBox::outlineColourId,       SYPal.panelBorder);
 
-    // listes : fond proche de SYColAlt pour adoucir l'alternance des lignes
-    lf.setColour (ListBox::backgroundColourId,     SYColAlt.contrasting (0.05f));
+    // listes / tables
+    lf.setColour (ListBox::backgroundColourId,     SYPal.surfaceAlt);
     lf.setColour (ListBox::textColourId,           ink);
+
+    // menus déroulants
+    lf.setColour (PopupMenu::backgroundColourId,            SYPal.surfaceAlt);
+    lf.setColour (PopupMenu::textColourId,                  ink);
+    lf.setColour (PopupMenu::highlightedBackgroundColourId, SYPal.accent);
+    lf.setColour (PopupMenu::highlightedTextColourId,       SYPal.accent.contrasting());
+
+    // barres de défilement
+    lf.setColour (ScrollBar::thumbColourId,        SYPal.textMuted);
+
+    // éditeurs de texte (ex. moniteur MIDI)
+    lf.setColour (TextEditor::backgroundColourId,  SYPal.surfaceAlt);
+    lf.setColour (TextEditor::textColourId,        ink);
+    lf.setColour (TextEditor::outlineColourId,     SYPal.panelBorder);
+    lf.setColour (TextEditor::focusedOutlineColourId, SYPal.accent);
+    lf.setColour (CaretComponent::caretColourId,   SYPal.accent);
 }
 
+// Charge les assets du thème actif depuis le disque (champs vides = Image() = rendu procédural).
+inline void refreshThemeAssets()
+{
+    SYKnobImage = SYPal.knobImage.existsAsFile()
+                    ? ImageCache::getFromFile (SYPal.knobImage)
+                    : Image();
+    SYBackgroundImage = SYPal.backgroundImage.existsAsFile()
+                          ? ImageCache::getFromFile (SYPal.backgroundImage)
+                          : Image();
+}
+
+// Applique une palette : la rend active, dérive les alias legacy, charge les assets, (re)sélectionne le LAF.
+inline void applySyPalette (const SyPalette& p)
+{
+    SYPal   = p;
+    SYTheme = p.dark ? 0 : 1;   // compat : 0 = sombre, 1 = clair
+    deriveLegacyAliases();
+    refreshThemeAssets();
+    selectSyLookAndFeel();
+}
+
+// Compat historique : 0 = Dark (Dark Orange), 1 = Light.
 inline void applySyTheme (int theme)
 {
-    SYTheme = theme;
-
-    if (theme == 1) // Light : clair, monochrome (rendu plat)
-    {
-        SYColBackground = Colour (0xffb9b9b9); // gris « bureau » ST
-        SYColAlt        = Colour (0xffe6e6e6);
-        SYColLabel      = Colours::black;
-        SYColSelected   = Colour (0xff1a1a1a); // encre quasi-noire
-    }
-    else // Dark (défaut)
-    {
-        SYColBackground = Colours::black;
-        SYColAlt        = Colour (0xff202020);
-        SYColLabel      = Colours::grey;
-        SYColSelected   = Colours::darkorange;
-    }
-
-    selectSyLookAndFeel();
+    applySyPalette (theme == 1 ? syPaletteLight() : syPaletteDarkOrange());
 }
 
 
@@ -112,223 +315,108 @@ void drawRotarySlider(Graphics& g,
     Image imageKnob;
 };
 //==============================================================================
-
-class CustomLookAndFeel : public LookAndFeel_V4
+// LookAndFeel moderne unique, piloté par la palette SYPal (lue au paint).
+// Rend les DEUX esthétiques (clair/sombre) sans sous-classe : potards à arc +
+// dégradé + ombre, sliders arrondis, boutons/onglets « cartes », encre calculée
+// depuis le fond réel (corrige les états sélectionnés illisibles).
+class ModernLookAndFeel : public LookAndFeel_V4
 {
 public:
-    CustomLookAndFeel()
+    ModernLookAndFeel()
     {
-        
-    }
-    
-    void drawRotarySlider(Graphics& g,
-                          int x, int y, int width, int height, float sliderPos,
-                          float rotaryStartAngle, float rotaryEndAngle, Slider& slider) override
-    {
-        
-        const float centreX = width * 0.5f;
-        const float centreY = height * 0.5f;
-        const float radius = jmin(centreX, centreY)-2;
-        const float rx = centreX - radius;
-        const float ry = centreY - radius;
-        const float rw = radius + radius;
-        
-        const float angle = rotaryStartAngle + sliderPos * (rotaryEndAngle - rotaryStartAngle);
-        // Cercle interieur
-        const float dotradius = radius * (float)0.7;
-        const float dotradius2 = rw * (float)0.7;
-        
-        //    g.setColour(Colour(0x60000000));
-        //     g.fillAll();
-        
-        g.setColour(SYColBackground); //colour background
-        Path filledArc; //fond eteind
-        filledArc.addPieSegment(rx, ry, rw +1 , rw +1, rotaryStartAngle, rotaryEndAngle, 0.6);
-        g.fillPath(filledArc);
-       
-        //====
-      
-      //  g.setGradientFill(ColourGradient(SYColSelected, centreX, centreY, SYColBackground, rx,ry, true) );
-        g.setColour(SYColSelected); // level draw
-        Path filledArc1;
-        filledArc1.addPieSegment(rx, ry, rw + 2, rw + 2, (360 * (juce::MathConstants<float>::pi  / 180.0)), angle, 0.75);
-        g.fillPath(filledArc1);
-        
-        //==
-        
-        Path bouton;
-        
-        
-        g.setColour(SYColLabel);
-       
-        
-        bouton.addEllipse(centreX - (dotradius),
-                          centreY - (dotradius),
-                          dotradius2, dotradius2);
-        
-        g.fillPath(bouton);
-        
-        Path p; // marque du bouton
-        const float pointerThickness = radius * 0.1f;
-        p.addRectangle(-pointerThickness * 0.5f, -radius - 1, pointerThickness, dotradius);
-        
-        p.applyTransform(AffineTransform::rotation(angle).translated(centreX, centreY));
-        g.setColour(SYColBackground.contrasting());
-        g.fillPath(p);
-        
-        
-    }
-//==============================================================================
-
-};
-class CustomLookAndFeelV2 : public LookAndFeel_V4
-{
-public:
-    CustomLookAndFeelV2()
-    {
-        
-    }
-    void drawRotarySlider(Graphics& g,
-                          int x, int y, int width, int height, float sliderPos,
-                          float rotaryStartAngle, float rotaryEndAngle, Slider& slider) override
-    {
-        
-        const float centreX = width * 0.5f;
-        const float centreY = height * 0.5f;
-        const float radius = jmin(centreX, centreY);
-        const float rx = centreX - radius;
-        const float ry = centreY - radius;
-        const float rw = radius + radius;
-        
-        const float angle = rotaryStartAngle + sliderPos * (rotaryEndAngle - rotaryStartAngle);
-        // Cercle interieur
-        const float dotradius = radius * (float)0.7;
-        const float dotradius2 = rw * (float)0.7;
-        
-        //    g.setColour(Colour(0x60000000));
-        //     g.fillAll();
-        
-        g.setColour(SYColBackground); //colour background
-        Path filledArc; //fond eteind
-        filledArc.addPieSegment(rx, ry, rw + 1, rw + 1, rotaryStartAngle, rotaryEndAngle, 0.7);
-        g.fillPath(filledArc);
-        
-        //====
-        
-        g.setColour(SYColSelected);
-        Path filledArc1;
-        filledArc1.addPieSegment(rx, ry, rw + 1, rw + 1, rotaryStartAngle, angle, 0.8);
-        g.fillPath(filledArc1);
-        
-        //==
-        
-        Path bouton;
-        
-        
-        g.setColour(SYColLabel);
-        //       g.setGradientFill(ColourGradient(Colour(0xff20a0ff), centreX, centreY, Colour(0xff000020), rx,ry, true) );
-        
-        bouton.addEllipse(centreX - (dotradius),
-                          centreY - (dotradius),
-                          dotradius2, dotradius2);
-        
-        g.fillPath(bouton);
-        
-        Path p; // marque du bouton
-        const float pointerThickness = radius * 0.1f;
-        p.addRectangle(-pointerThickness * 0.5f, -radius - 1, pointerThickness, dotradius);
-        
-        p.applyTransform(AffineTransform::rotation(angle).translated(centreX, centreY));
-        g.setColour(SYColBackground.contrasting());
-        g.fillPath(p);
-
-
-    }
-    //==============================================================================
-
-};
-
-//==============================================================================
-// LookAndFeel plat : rendu anguleux et monochrome (thème Light).
-// Activé uniquement par le thème Light (voir selectSyLookAndFeel).
-class FlatLookAndFeel : public LookAndFeel_V4
-{
-public:
-    FlatLookAndFeel()
-    {
-        setColour (ResizableWindow::backgroundColourId, SYColBackground);
-        setColour (PopupMenu::backgroundColourId,       SYColAlt);
-        setColour (PopupMenu::textColourId,             SYColLabel);
+        interRegular  = Typeface::createSystemTypefaceFor (BinaryData::InterRegular_ttf,  BinaryData::InterRegular_ttfSize);
+        interSemiBold = Typeface::createSystemTypefaceFor (BinaryData::InterSemiBold_ttf, BinaryData::InterSemiBold_ttfSize);
     }
 
-    // Boutons : rectangle plein + bord noir, inversé si actif (style plat).
-    void drawButtonBackground (Graphics& g, Button& b, const Colour&,
-                               bool isOver, bool isDown) override
+    // Police moderne embarquée (Inter, OFL) pour le texte sans-serif ; conserve le monospace (diff).
+    Typeface::Ptr getTypefaceForFont (const Font& f) override
     {
-        auto r = b.getLocalBounds().toFloat().reduced (0.5f);
-        const bool on = b.getToggleState() || isDown;
-        g.setColour (on ? SYColSelected : (isOver ? SYColAlt.darker (0.08f) : SYColAlt));
-        g.fillRect (r);
-        g.setColour (SYColLabel);
-        g.drawRect (r, 1.0f);
-    }
-
-    void drawButtonText (Graphics& g, TextButton& b, bool, bool) override
-    {
-        g.setColour (b.getToggleState() ? SYColAlt : SYColLabel);
-        g.setFont (getTextButtonFont (b, b.getHeight()));
-        g.drawFittedText (b.getButtonText(), b.getLocalBounds().reduced (4, 0),
-                          Justification::centred, 1);
-    }
-
-    void drawComboBox (Graphics& g, int w, int h, bool,
-                       int, int, int, int, ComboBox&) override
-    {
-        Rectangle<float> r (0.5f, 0.5f, (float) w - 1.0f, (float) h - 1.0f);
-        g.setColour (SYColAlt);    g.fillRect (r);
-        g.setColour (SYColLabel);  g.drawRect (r, 1.0f);
-
-        Rectangle<float> arrow ((float) w - 16.0f, 0.0f, 14.0f, (float) h);
-        arrow = arrow.reduced (4.0f, (float) h * 0.4f);
-        Path p;
-        p.addTriangle (arrow.getX(), arrow.getY(),
-                       arrow.getRight(), arrow.getY(),
-                       arrow.getCentreX(), arrow.getBottom());
-        g.setColour (SYColLabel);  g.fillPath (p);
-    }
-
-    // Cadres carrés (pas d'arrondi) anguleux.
-    void drawGroupComponentOutline (Graphics& g, int w, int h, const String& text,
-                                    const Justification&, GroupComponent&) override
-    {
-        Rectangle<float> r (1.0f, 9.0f, (float) w - 2.0f, (float) h - 10.0f);
-        g.setColour (SYColLabel.withAlpha (0.75f));
-        g.drawRect (r, 1.0f);
-        if (text.isNotEmpty())
+        const auto name = f.getTypefaceName();
+        if (name == Font::getDefaultSansSerifFontName() || name.isEmpty())
         {
-            g.setColour (SYColLabel);
-            g.setFont (Font (FontOptions (13.0f)));
-            g.drawText (text, 8, 0, w - 16, 17, Justification::left, true);
+            if (f.isBold() && interSemiBold != nullptr) return interSemiBold;
+            if (interRegular != nullptr)                return interRegular;
+        }
+        return LookAndFeel_V4::getTypefaceForFont (f);
+    }
+
+    //========================================================= Potards
+    void drawRotarySlider (Graphics& g, int x, int y, int w, int h, float pos,
+                           float startA, float endA, Slider& s) override
+    {
+        // Skin optionnel : sprite vertical fourni par le thème (sinon rendu procédural ci-dessous).
+        if (SYKnobImage.isValid())
+        {
+            const int frames  = jmax (1, SYKnobImage.getHeight() / jmax (1, SYKnobImage.getWidth()));
+            const int frameId = jlimit (0, frames - 1, (int) std::lround (pos * (frames - 1)));
+            const float radius = jmin (w, h) * 0.5f;
+            const float cx = x + w * 0.5f, cy = y + h * 0.5f;
+            g.drawImage (SYKnobImage, (int) (cx - radius), (int) (cy - radius),
+                         (int) (radius * 2), (int) (radius * 2),
+                         0, frameId * SYKnobImage.getWidth(), SYKnobImage.getWidth(), SYKnobImage.getWidth());
+            return;
+        }
+
+        auto bounds = Rectangle<int> (x, y, w, h).toFloat().reduced (2.0f);
+        const float cx = bounds.getCentreX(), cy = bounds.getCentreY();
+        const float radius = jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f;
+        const float angle  = startA + pos * (endA - startA);
+
+        const float ringThick = jmax (3.0f, radius * 0.30f);
+        const float ringR      = radius - ringThick * 0.5f - 1.0f;
+        if (ringR <= 1.0f) return;
+
+        // Piste (arc complet)
+        Path track;
+        track.addCentredArc (cx, cy, ringR, ringR, 0.0f, startA, endA, true);
+        g.setColour (SYPal.knobTrack);
+        g.strokePath (track, PathStrokeType (ringThick, PathStrokeType::curved, PathStrokeType::rounded));
+
+        // Arc de valeur (dégradé accent) + glow si actif
+        // Contrôle bipolaire (ex. pan) : l'arc part du centre (12h) vers la gauche ou la droite.
+        const float centreA = (startA + endA) * 0.5f;
+        const bool  bipolar = (s.getMinimum() < -0.01 && s.getMaximum() > 0.01);
+        if (s.isEnabled())
+        {
+            Path val;
+            if (bipolar)
+                val.addCentredArc (cx, cy, ringR, ringR, 0.0f,
+                                   jmin (centreA, angle), jmax (centreA, angle), true);
+            else
+                val.addCentredArc (cx, cy, ringR, ringR, 0.0f, startA, angle, true);
+            if (s.isMouseOverOrDragging())
+            {
+                g.setColour (SYPal.glow);
+                g.strokePath (val, PathStrokeType (ringThick + 3.0f, PathStrokeType::curved, PathStrokeType::rounded));
+            }
+            g.setGradientFill (ColourGradient (SYPal.knobFill.brighter (0.25f), cx, bounds.getY(),
+                                               SYPal.knobFill,                  cx, bounds.getBottom(), false));
+            g.strokePath (val, PathStrokeType (ringThick, PathStrokeType::curved, PathStrokeType::rounded));
+        }
+
+        // Corps bombé + ombre douce + repère
+        const float bodyR = ringR - ringThick * 0.5f - 2.0f;
+        if (bodyR > 1.0f)
+        {
+            Rectangle<float> body (cx - bodyR, cy - bodyR, bodyR * 2.0f, bodyR * 2.0f);
+            Path bodyPath; bodyPath.addEllipse (body);
+            DropShadow (SYPal.shadow, SyMetrics::shadowRadius, { 0, 2 }).drawForPath (g, bodyPath);
+            g.setGradientFill (ColourGradient (SYPal.knobBody.brighter (SYPal.dark ? 0.18f : 0.04f), cx, body.getY(),
+                                               SYPal.knobBody.darker   (SYPal.dark ? 0.20f : 0.06f), cx, body.getBottom(), false));
+            g.fillEllipse (body);
+            g.setColour (SYPal.panelBorder);
+            g.drawEllipse (body, 1.0f);
+
+            Path ptr;
+            const float pw = jmax (2.0f, bodyR * 0.16f);
+            ptr.addRoundedRectangle (-pw * 0.5f, -bodyR + 2.0f, pw, bodyR * 0.55f, pw * 0.5f);
+            ptr.applyTransform (AffineTransform::rotation (angle).translated (cx, cy));
+            g.setColour (SYPal.accent);
+            g.fillPath (ptr);
         }
     }
 
-    // Potards plats : disque clair, cercle noir, trait repère.
-    void drawRotarySlider (Graphics& g, int x, int y, int w, int h, float pos,
-                           float startA, float endA, Slider&) override
-    {
-        auto cx = x + w * 0.5f, cy = y + h * 0.5f;
-        auto rad = jmin (w, h) * 0.5f - 2.0f;
-        g.setColour (SYColAlt);    g.fillEllipse (cx - rad, cy - rad, rad * 2, rad * 2);
-        g.setColour (SYColLabel);  g.drawEllipse (cx - rad, cy - rad, rad * 2, rad * 2, 1.0f);
-
-        auto ang = startA + pos * (endA - startA);
-        Path p;
-        p.addRectangle (-1.0f, -rad + 1.0f, 2.0f, rad - 2.0f);
-        p.applyTransform (AffineTransform::rotation (ang).translated (cx, cy));
-        g.setColour (SYColLabel);  g.fillPath (p);
-    }
-
-    // Sliders linéaires plats : rail fin, niveau plein, curseur rectangulaire (GEM).
+    //========================================================= Sliders linéaires
     void drawLinearSlider (Graphics& g, int x, int y, int w, int h,
                            float sliderPos, float minPos, float maxPos,
                            Slider::SliderStyle style, Slider& s) override
@@ -336,57 +424,242 @@ public:
         if (style == Slider::LinearVertical)
         {
             const float cx = x + w * 0.5f;
-            g.setColour (SYColLabel.withAlpha (0.4f));
-            g.fillRect (cx - 1.0f, (float) y, 2.0f, (float) h);                       // rail
-            g.setColour (SYColSelected);
-            g.fillRect (cx - 1.0f, sliderPos, 2.0f, (float) (y + h) - sliderPos);     // niveau
-            g.setColour (SYColLabel);
-            g.fillRect ((float) x + 2.0f, sliderPos - 3.0f, (float) w - 4.0f, 6.0f);  // curseur
+            const float railW = jmin (5.0f, (float) w * 0.4f);
+            g.setColour (SYPal.knobTrack);
+            g.fillRoundedRectangle (cx - railW * 0.5f, (float) y, railW, (float) h, railW * 0.5f);
+            g.setColour (SYPal.accent);
+            g.fillRoundedRectangle (cx - railW * 0.5f, sliderPos, railW, (float) (y + h) - sliderPos, railW * 0.5f);
+            drawSliderThumb (g, Rectangle<float> ((float) x + 1.0f, sliderPos - 4.0f, (float) w - 2.0f, 8.0f));
         }
         else if (style == Slider::LinearHorizontal)
         {
             const float cy = y + h * 0.5f;
-            g.setColour (SYColLabel.withAlpha (0.4f));
-            g.fillRect ((float) x, cy - 1.0f, (float) w, 2.0f);
-            g.setColour (SYColSelected);
-            g.fillRect ((float) x, cy - 1.0f, sliderPos - (float) x, 2.0f);
-            g.setColour (SYColLabel);
-            g.fillRect (sliderPos - 3.0f, (float) y + 2.0f, 6.0f, (float) h - 4.0f);
+            const float railH = jmin (5.0f, (float) h * 0.4f);
+            g.setColour (SYPal.knobTrack);
+            g.fillRoundedRectangle ((float) x, cy - railH * 0.5f, (float) w, railH, railH * 0.5f);
+            g.setColour (SYPal.accent);
+            g.fillRoundedRectangle ((float) x, cy - railH * 0.5f, sliderPos - (float) x, railH, railH * 0.5f);
+            drawSliderThumb (g, Rectangle<float> (sliderPos - 4.0f, (float) y + 1.0f, 8.0f, (float) h - 2.0f));
         }
         else
-        {
             LookAndFeel_V4::drawLinearSlider (g, x, y, w, h, sliderPos, minPos, maxPos, style, s);
+    }
+
+    //========================================================= Boutons
+    void drawButtonBackground (Graphics& g, Button& b, const Colour&,
+                               bool isOver, bool isDown) override
+    {
+        auto r   = b.getLocalBounds().toFloat().reduced (0.5f);
+        auto bg  = buttonFill (b, isOver, isDown);
+        const bool on = b.getToggleState();
+        const auto& style = SYPal.buttonStyle;
+
+        if (style == "flat")
+        {
+            if (on)
+            {
+                g.setColour (SYPal.accent.withAlpha (0.14f));
+                g.fillRoundedRectangle (r, 4.0f);
+                g.setColour (SYPal.accent);
+                g.fillRect (r.getX() + 3.0f, r.getBottom() - 2.5f, r.getWidth() - 6.0f, 2.5f);
+            }
+            else
+            {
+                g.setColour (bg.withAlpha (isOver ? 0.75f : 0.45f));
+                g.fillRoundedRectangle (r, 4.0f);
+            }
+        }
+        else if (style == "round")
+        {
+            const float cr = r.getHeight() * 0.5f;
+            g.setColour (bg);
+            g.fillRoundedRectangle (r, cr);
+            g.setColour (on ? SYPal.accent : SYPal.panelBorder.withAlpha (0.6f));
+            g.drawRoundedRectangle (r, cr, on ? 1.5f : SyMetrics::stroke);
+        }
+        else if (style == "fun")
+        {
+            const float cr = 8.0f;
+            Path bp; bp.addRoundedRectangle (r, cr);
+            DropShadow (SYPal.shadow, 5, { 1, 2 }).drawForPath (g, bp);
+            g.setGradientFill (ColourGradient (bg.brighter (0.18f), r.getX(), r.getY(),
+                                               bg.darker   (0.18f), r.getRight(), r.getBottom(), false));
+            g.fillPath (bp);
+            g.setColour (on ? SYPal.accent : SYPal.panelBorder);
+            g.drawRoundedRectangle (r, cr, on ? 2.0f : SyMetrics::stroke);
+        }
+        else   // "square" (défaut + legacy Dark Orange)
+        {
+            const float cr = 2.0f;
+            g.setGradientFill (ColourGradient (bg.brighter (SYPal.dark ? 0.06f : 0.02f), r.getX(), r.getY(),
+                                               bg.darker   (SYPal.dark ? 0.10f : 0.04f), r.getX(), r.getBottom(), false));
+            g.fillRoundedRectangle (r, cr);
+            g.setColour (on ? SYPal.accent : SYPal.panelBorder);
+            g.drawRoundedRectangle (r, cr, SyMetrics::stroke);
         }
     }
 
-    // Onglets plats : rectangle plein, bord noir, inversé pour l'onglet actif.
-    void drawTabButton (TabBarButton& button, Graphics& g,
-                        bool isOver, bool /*isDown*/) override
+    void drawButtonText (Graphics& g, TextButton& b, bool isOver, bool isDown) override
     {
-        auto area = button.getActiveArea();
+        auto bg  = buttonFill (b, isOver, isDown);
+        // flat ON : texte couleur accent (fond est semi-transparent, contrasting() serait faux)
+        Colour ink = (SYPal.buttonStyle == "flat" && b.getToggleState())
+                         ? SYPal.accent
+                         : bg.contrasting();
+        g.setColour (b.isEnabled() ? ink : ink.withAlpha (0.5f));
+        g.setFont (getTextButtonFont (b, b.getHeight()));
+        g.drawFittedText (b.getButtonText(), b.getLocalBounds().reduced (SyMetrics::pad, 0),
+                          Justification::centred, 2);
+    }
+
+    //========================================================= ComboBox
+    void drawComboBox (Graphics& g, int w, int h, bool,
+                       int, int, int, int, ComboBox& box) override
+    {
+        Rectangle<float> r (0.5f, 0.5f, (float) w - 1.0f, (float) h - 1.0f);
+        g.setColour (SYPal.surfaceAlt);
+        g.fillRoundedRectangle (r, SyMetrics::corner);
+        const bool active = box.isPopupActive();
+        g.setColour (active ? SYPal.accent : SYPal.panelBorder);
+        g.drawRoundedRectangle (r, SyMetrics::corner, active ? 1.5f : SyMetrics::stroke);
+
+        Rectangle<float> arrow ((float) w - 18.0f, 0.0f, 14.0f, (float) h);
+        arrow = arrow.reduced (3.0f, (float) h * 0.42f);
+        Path p;
+        p.addTriangle (arrow.getX(), arrow.getY(),
+                       arrow.getRight(), arrow.getY(),
+                       arrow.getCentreX(), arrow.getBottom());
+        g.setColour (SYPal.textMuted);
+        g.fillPath (p);
+    }
+
+    //========================================================= Panneaux « cartes »
+    // SANS remplissage opaque : le contenu peint derrière (routage, courbes, EG) reste visible.
+    void drawGroupComponentOutline (Graphics& g, int w, int h, const String& text,
+                                    const Justification&, GroupComponent&) override
+    {
+        Rectangle<float> r (1.0f, 1.0f, (float) w - 2.0f, (float) h - 2.0f);
+        const auto& style = SYPal.panelStyle;
+
+        if (style == "flat")
+        {
+            // Pas de contour de pourtour — séparateur horizontal sous le titre uniquement
+            if (text.isNotEmpty())
+            {
+                g.setColour (SYPal.panelBorder.withAlpha (0.6f));
+                g.drawLine (r.getX() + 6.0f, r.getY() + (float) SyMetrics::panelHeaderH,
+                            r.getRight() - 6.0f, r.getY() + (float) SyMetrics::panelHeaderH, 1.0f);
+            }
+        }
+        else if (style == "round")
+        {
+            // Coins très arrondis proportionnels à la taille : les petits panneaux (opérateurs) → quasi-cercles
+            const float cr = jmin (r.getWidth(), r.getHeight()) * 0.25f;
+            g.setColour (SYPal.panelBorder);
+            g.drawRoundedRectangle (r, cr, SyMetrics::stroke);
+        }
+        else if (style == "fun")
+        {
+            // Léger remplissage translucide + bord accent atténué + liseré « neon »
+            const float cr = 12.0f;
+            g.setColour (SYPal.surface.withAlpha (SYPal.dark ? 0.45f : 0.30f));
+            g.fillRoundedRectangle (r, cr);
+            g.setColour (SYPal.accent.withAlpha (0.30f));
+            g.drawRoundedRectangle (r, cr, 1.5f);
+            g.setColour (SYPal.accent.withAlpha (0.18f));
+            g.drawLine (r.getX() + cr, r.getY() + 1.0f, r.getRight() - cr, r.getY() + 1.0f, 2.0f);
+        }
+        else   // "square" (défaut + legacy)
+        {
+            g.setColour (SYPal.panelBorder);
+            g.drawRoundedRectangle (r, 4.0f, SyMetrics::stroke);
+            g.setColour (SYPal.textPrimary.withAlpha (SYPal.dark ? 0.05f : 0.06f));
+            g.drawLine (r.getX() + 4.0f, r.getY() + 1.0f, r.getRight() - 4.0f, r.getY() + 1.0f, 1.0f);
+        }
+
+        if (text.isNotEmpty())
+        {
+            g.setColour (style == "flat" ? SYPal.textMuted : SYPal.textPrimary);
+            g.setFont (Font (FontOptions (13.0f)).boldened());
+            g.drawText (text, 12, 3, w - 24, SyMetrics::panelHeaderH, Justification::left, true);
+        }
+    }
+
+    //========================================================= Onglets
+    void drawTabButton (TabBarButton& button, Graphics& g, bool isOver, bool) override
+    {
+        auto area = button.getActiveArea().toFloat();
         const bool front = button.isFrontTab();
-
-        g.setColour (front ? SYColSelected : (isOver ? SYColAlt.darker (0.08f) : SYColAlt));
+        g.setColour (front ? SYPal.surface : (isOver ? SYPal.surfaceAlt : SYPal.background));
         g.fillRect (area);
-        g.setColour (SYColLabel);
-        g.drawRect (area, 1);
-
-        g.setColour (front ? SYColAlt : SYColLabel);
+        if (front)
+        {
+            g.setColour (SYPal.accent);
+            g.fillRect (area.getX(), area.getY(), area.getWidth(), 2.5f); // liseré accent côté contenu
+        }
+        g.setColour (front ? SYPal.textPrimary : SYPal.textMuted);
         g.setFont (Font (FontOptions (14.0f)));
-        g.drawFittedText (button.getButtonText().trim(), area.reduced (6, 0),
+        g.drawFittedText (button.getButtonText().trim(), area.reduced (8, 0).toNearestInt(),
                           Justification::centred, 1);
     }
 
-    // Pas de séparation/ombre derrière l'onglet actif (rendu plat).
     void drawTabAreaBehindFrontButton (TabbedButtonBar&, Graphics&, int, int) override {}
+
+    //========================================================= Cases à cocher / switches
+    void drawToggleButton (Graphics& g, ToggleButton& b, bool, bool) override
+    {
+        auto bounds = b.getLocalBounds().toFloat();
+        const float boxSize = jmin (18.0f, bounds.getHeight() - 2.0f);
+        Rectangle<float> box (bounds.getX() + 1.0f, bounds.getCentreY() - boxSize * 0.5f, boxSize, boxSize);
+        const bool on = b.getToggleState();
+        g.setColour (on ? SYPal.accent : SYPal.surfaceAlt);
+        g.fillRoundedRectangle (box, 4.0f);
+        g.setColour (on ? SYPal.accent : SYPal.panelBorder);
+        g.drawRoundedRectangle (box, 4.0f, SyMetrics::stroke);
+        if (on)
+        {
+            Path tick;
+            tick.startNewSubPath (box.getX() + boxSize * 0.26f, box.getCentreY());
+            tick.lineTo (box.getCentreX() - boxSize * 0.04f, box.getBottom() - boxSize * 0.28f);
+            tick.lineTo (box.getRight() - boxSize * 0.22f, box.getY() + boxSize * 0.28f);
+            g.setColour (SYPal.accent.contrasting());
+            g.strokePath (tick, PathStrokeType (2.0f, PathStrokeType::curved, PathStrokeType::rounded));
+        }
+        g.setColour (SYPal.textPrimary);
+        g.setFont (Font (FontOptions ((float) jmin (15, b.getHeight()))));
+        g.drawFittedText (b.getButtonText(),
+                          b.getLocalBounds().withTrimmedLeft ((int) boxSize + 8),
+                          Justification::centredLeft, 2);
+    }
+
+private:
+    // Fond effectif d'un bouton selon son état (toggle ON = accent ; sinon couleur de base + survol/appui).
+    Colour buttonFill (Button& b, bool isOver, bool isDown) const
+    {
+        if (b.getToggleState())  return SYPal.accent;
+        auto base = b.findColour (TextButton::buttonColourId);
+        if (isDown)  return base.darker   (SYPal.dark ? 0.25f : 0.12f);
+        if (isOver)  return base.brighter (SYPal.dark ? 0.10f : 0.04f);
+        return base;
+    }
+
+    void drawSliderThumb (Graphics& g, Rectangle<float> th)
+    {
+        Path p; p.addRoundedRectangle (th, jmin (th.getWidth(), th.getHeight()) * 0.5f);
+        DropShadow (SYPal.shadow, 4, { 0, 1 }).drawForPath (g, p);
+        g.setColour (SYPal.surfaceAlt);
+        g.fillPath (p);
+        g.setColour (SYPal.panelBorder);
+        g.strokePath (p, PathStrokeType (SyMetrics::stroke));
+    }
+
+    Typeface::Ptr interRegular, interSemiBold;
 };
 
-// Choisit/active le LookAndFeel selon le thème courant, puis applique les couleurs.
+// Active le LookAndFeel moderne (unique pour les deux thèmes) puis applique les couleurs de la palette.
 inline void selectSyLookAndFeel()
 {
-    static FlatLookAndFeel flatLF;
-    static LookAndFeel* baseLF = &LookAndFeel::getDefaultLookAndFeel();
-
-    LookAndFeel::setDefaultLookAndFeel (SYTheme == 1 ? (LookAndFeel*) &flatLF : baseLF);
+    static ModernLookAndFeel modernLF;
+    LookAndFeel::setDefaultLookAndFeel (&modernLF);
     syncSyLookAndFeel();
 }

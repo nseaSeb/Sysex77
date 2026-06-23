@@ -11,6 +11,7 @@
 #pragma once
 
 #include "AppSettings.h"
+#include "Themes.h"
 
 //==============================================================================
 
@@ -61,9 +62,14 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
 
         addAndMakeVisible(labTheme);
         addAndMakeVisible(comboTheme);
-        comboTheme.addItem(TRANS("Dark"), 1);
-        comboTheme.addItem(TRANS("Light"), 2);
-        comboTheme.setSelectedId(1, dontSendNotification);
+        addAndMakeVisible(btReloadThemes);
+        btReloadThemes.addListener(this);
+
+        // Système de thèmes : exporte les modèles intégrés (si absents), découvre tous les thèmes
+        // (intégrés + dossier utilisateur) et peuple le sélecteur.
+        syExportBuiltinThemes();
+        themes = syDiscoverThemes();
+        rebuildThemeCombo();
         comboTheme.addListener(this);
 
         btColBack.addListener(this);
@@ -87,6 +93,8 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
         btColAlt.removeListener(this);
         btColLab.removeListener(this);
         btColSel.removeListener(this);
+        btReloadThemes.removeListener(this);
+        comboTheme.removeListener(this);
         saveParams(); //sauvegarde des paramètres
     }
     void getState() //Sauvegarde des Parametres
@@ -103,7 +111,8 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
         xml.addChildElement(xmlColor);
         
         xmlData->setAttribute ("Model", int(comboModel.getSelectedId()));
-        xmlData->setAttribute ("Theme", SYTheme);
+        xmlData->setAttribute ("Theme", SYTheme);          // compat (0=sombre, 1=clair)
+        xmlData->setAttribute ("ThemeName", SYPal.name);   // nom du thème actif (système de thèmes)
         xml.addChildElement(xmlData);
         
         appDirPath.createDirectory(); // s'assure que le dossier existe
@@ -123,23 +132,32 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
         auto tableFile = appDirPath.getChildFile("SYSEX77.xml");
 
         SYTheme = 0;
+        String themeName;
         if (tableFile.exists())
         {
             tutorialData = XmlDocument::parse(tableFile);
             if (tutorialData != nullptr)
                 if (auto* xmlData = tutorialData->getChildByName("DATA"))
-                    SYTheme = xmlData->getIntAttribute("Theme", 0);
+                {
+                    SYTheme   = xmlData->getIntAttribute("Theme", 0);
+                    themeName = xmlData->getStringAttribute("ThemeName", "");
+                }
         }
 
-        comboTheme.setSelectedId(SYTheme + 1, dontSendNotification);
+        // Applique le thème par NOM si connu (système de thèmes) ; sinon repli sur 0=sombre / 1=clair.
+        int idx = themeName.isNotEmpty() ? syApplyThemeByName(themes, themeName) : -1;
+        if (idx < 0)
+        {
+            applySyTheme(SYTheme);
+            for (int i = 0; i < (int) themes.size(); ++i)   // resélectionne le combo sur la palette appliquée
+                if (themes[(size_t) i].name == SYPal.name) { idx = i; break; }
+        }
+        if (idx >= 0)
+            comboTheme.setSelectedItemIndex(idx, dontSendNotification);
 
-        // Le thème pilote la palette de façon déterministe (les anciennes couleurs
-        // personnalisées ne sont plus relues : un thème = toujours le même rendu).
-        applySyTheme(SYTheme);
-
-        // Restaure les couleurs PERSONNALISÉES (thème custom) si elles ont été sauvées,
-        // par-dessus la palette du thème — sinon le réglage serait à refaire à chaque ouverture.
-        if (tutorialData != nullptr)
+        // Thème « Custom » uniquement : ré-applique les couleurs personnalisées sauvées par-dessus
+        // (pour un thème nommé connu, on garde la palette propre -> plus de surcharge périmée).
+        if (themeName == "Custom" && tutorialData != nullptr)
             if (auto* xmlColor = tutorialData->getChildByName ("COLOR"))
             {
                 auto col = [&] (const char* a, juce::Colour def)
@@ -148,15 +166,10 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
                 SYColAlt        = col ("Alternate",  SYColAlt);
                 SYColLabel      = col ("Label",      SYColLabel);
                 SYColSelected   = col ("Selected",   SYColSelected);
-                setColour (ResizableWindow::backgroundColourId, SYColBackground);
-                setColour (Slider::ColourIds::trackColourId, SYColSelected);
+                pushAliasesToPalette();
             }
 
-        // Mise à jour des boutons de couleur
-        btColAlt.setColour(TextButton::buttonColourId, SYColAlt);
-        btColBack.setColour(TextButton::buttonColourId, SYColBackground);
-        btColLab.setColour(TextButton::buttonColourId, SYColLabel);
-        btColSel.setColour(TextButton::buttonColourId, SYColSelected);
+        updateColourButtons();
     }
     void 	comboBoxChanged (ComboBox *comboBoxThatHasChanged) override
     {
@@ -177,25 +190,61 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
 
         if (comboBoxThatHasChanged == &comboTheme)
         {
-            applySyTheme (comboTheme.getSelectedItemIndex());
-            btColAlt .setColour (TextButton::buttonColourId, SYColAlt);
-            btColBack.setColour (TextButton::buttonColourId, SYColBackground);
-            btColLab .setColour (TextButton::buttonColourId, SYColLabel);
-            btColSel .setColour (TextButton::buttonColourId, SYColSelected);
-            // met à jour le fond des onglets en direct
-            if (auto* tabs = findParentComponentOfClass<TabbedComponent>())
-                for (int i = 0; i < tabs->getNumTabs(); ++i)
-                    tabs->setTabBackgroundColour (i, SYColBackground);
-            if (auto* top = getTopLevelComponent())
-                top->repaint();
+            const int idx = comboTheme.getSelectedItemIndex();
+            if (idx >= 0 && idx < (int) themes.size())
+                applySyPalette (themes[(size_t) idx]);
+            updateColourButtons();
+            updateTabsAndRepaint();
         }
 
+        getState();
+    }
+
+    // Helpers d'UI partagés -------------------------------------------------
+    void rebuildThemeCombo()
+    {
+        comboTheme.clear (dontSendNotification);
+        for (int i = 0; i < (int) themes.size(); ++i)
+            comboTheme.addItem (themes[(size_t) i].name, i + 1);
+    }
+    void updateColourButtons()
+    {
+        btColAlt .setColour (TextButton::buttonColourId, SYColAlt);
+        btColBack.setColour (TextButton::buttonColourId, SYColBackground);
+        btColLab .setColour (TextButton::buttonColourId, SYColLabel);
+        btColSel .setColour (TextButton::buttonColourId, SYColSelected);
+        repaint();
+    }
+    void updateTabsAndRepaint()
+    {
+        if (auto* tabs = findParentComponentOfClass<TabbedComponent>())
+            for (int i = 0; i < tabs->getNumTabs(); ++i)
+                tabs->setTabBackgroundColour (i, SYColBackground);
+        if (auto* top = getTopLevelComponent())
+            top->repaint();
+    }
+    // Re-scanne le dossier de thèmes (hot-reload) en conservant le thème courant si possible.
+    void reloadThemes()
+    {
+        const auto current = SYPal.name;
+        themes = syDiscoverThemes();
+        rebuildThemeCombo();
+        int idx = 0;
+        for (int i = 0; i < (int) themes.size(); ++i)
+            if (themes[(size_t) i].name == current) { idx = i; break; }
+        comboTheme.setSelectedItemIndex (idx, dontSendNotification);
+        if (! themes.empty())
+            applySyPalette (themes[(size_t) idx]);
+        updateColourButtons();
+        updateTabsAndRepaint();
         getState();
     }
     void buttonClicked (Button* button) override
     {
         Logger::writeToLog("ConfigPage: clicked");
-        
+
+        if (button == &btReloadThemes) { reloadThemes(); return; }
+
         // Crée un unique_ptr pour le ColourSelector
         auto colourSelector = std::make_unique<ColourSelector>();
         colourSelector->setName("Colour");
@@ -254,12 +303,16 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
                 setColour(Slider::ColourIds::trackColourId, cs->getCurrentColour());
                 SYColSelected = cs->getCurrentColour();
                 btColSel.setColour(TextButton::ColourIds::buttonColourId, SYColSelected);
-                
+
             }
+
+            // Pousse la retouche dans la palette active (thème « Custom ») et redessine tout.
+            pushAliasesToPalette();
+            updateTabsAndRepaint();
         }
-        
+
         getState();
-        
+
     }
     void resized() override
     {
@@ -272,6 +325,7 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
         comboEngine.setBounds(getWidth()/2 +10, 58, getWidth()/2 - 20, 24);
         labTheme.setBounds(getWidth()/2 +10, 92, getWidth()/2 - 20, 20);
         comboTheme.setBounds(getWidth()/2 +10, 112, getWidth()/2 - 20, 24);
+        btReloadThemes.setBounds(getWidth()/2 +10, 144, getWidth()/2 - 20, 24);
         labVersion.setBounds(10, getHeight() - 22, getWidth() - 20, 18);
     }
     void initProperties()
@@ -317,6 +371,8 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
     ComboBox comboEngine;
     Label labTheme {"", TRANS("Theme")};
     ComboBox comboTheme;
+    TextButton btReloadThemes {TRANS("Reload themes")};
+    std::vector<SyPalette> themes;
     Label labVersion;
 
     ComboBox    comboModel;

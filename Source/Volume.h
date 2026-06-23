@@ -32,7 +32,7 @@ public:
         sliderRelease.setDoubleClickReturnValue(true, 32);
         sliderRelease.setNumDecimalPlacesToDisplay(0);
         sliderRelease.setPopupDisplayEnabled(true, true, this);
-        sliderRelease.setLookAndFeel(&myLookAndFeel);
+        sliderRelease.setLookAndFeel(nullptr);   // suit le ModernLookAndFeel du thème
         sliderRelease.addListener(this);
         
         addAndMakeVisible(sliderR4);
@@ -40,14 +40,14 @@ public:
         sliderR4.setDoubleClickReturnValue(true, 32);
         sliderR4.setNumDecimalPlacesToDisplay(0);
         sliderR4.setPopupDisplayEnabled(true, true, this);
-        sliderR4.setLookAndFeel(&myLookAndFeel);
+        sliderR4.setLookAndFeel(nullptr);   // suit le ModernLookAndFeel du thème
         sliderR4.addListener(this);
 
         addAndMakeVisible(sliderSlope);
         sliderSlope.setSkewFactor(1);
         sliderSlope.setRange(-7, 7);
         sliderSlope.setDoubleClickReturnValue(true, 0);
-        sliderSlope.setLookAndFeel(&panLookAndFeel);
+        sliderSlope.setLookAndFeel(nullptr);   // suit le ModernLookAndFeel du thème
         sliderSlope.setNumDecimalPlacesToDisplay(0);
         sliderSlope.setPopupDisplayEnabled(true,true, this);
         sliderSlope.addListener(this);
@@ -194,8 +194,6 @@ private:
  
     int intElement =1;
  
-    CustomLookAndFeelV2 myLookAndFeel;
-    CustomLookAndFeel panLookAndFeel;
     Slider  sliderRelease {Slider::SliderStyle::Rotary , Slider::NoTextBox};
     Slider  sliderR4 {Slider::SliderStyle::Rotary , Slider::NoTextBox};
     Slider  sliderSlope {Slider::SliderStyle::Rotary , Slider::NoTextBox};

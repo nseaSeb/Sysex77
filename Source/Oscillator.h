@@ -599,7 +599,6 @@ private:
     
     Label labelOsc1 {"Op1", "Afm Osc"};
     
-    CustomLookAndFeel myLookAndFeel;
     AfmOscLookAndFeel OscLook;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Oscillator)
 };

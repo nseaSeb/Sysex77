@@ -244,8 +244,6 @@ private:
     String oscAddressPatern {"/SYSEX"};
     String strOscAdress;
 //    MidiMessage midiMessage;
-    CustomLookAndFeel lookPan;
-    CustomLookAndFeelV2 lookNormal;
 
     SysexBusSender sender;
     uint8 sysexData[9] {};

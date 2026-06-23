@@ -568,8 +568,13 @@ public:
     
     void paint (Graphics& g) override
     {
-        //Logger::writeToLog ("MidiDemo Paint");
         g.fillAll (SYColBackground);
+
+        // Image de fond du thème (PNG/JPG défini dans theme.xml <ASSETS background="…">).
+        // Mode "cover" : remplit la zone en gardant les proportions, bords éventuellement rognés.
+        if (SYBackgroundImage.isValid())
+            g.drawImage (SYBackgroundImage, getLocalBounds().toFloat(),
+                         RectanglePlacement (RectanglePlacement::fillDestination));
 
         // Logo vectoriel « SYSEX 77/99 » (texte, suit le thème)
         auto logoText = (SYModel == 3 ? String ("SYSEX 99") : String ("SYSEX 77"));
@@ -577,8 +582,6 @@ public:
         g.setColour (SYColSelected);
         g.setFont (Font (FontOptions (34.0f, Font::bold)));
         g.drawText (logoText, logoBox, Justification::centredRight, false);
-        
-        
     }
     void mouseDown (const MouseEvent&) override
     {
