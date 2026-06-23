@@ -137,6 +137,21 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
         // personnalisées ne sont plus relues : un thème = toujours le même rendu).
         applySyTheme(SYTheme);
 
+        // Restaure les couleurs PERSONNALISÉES (thème custom) si elles ont été sauvées,
+        // par-dessus la palette du thème — sinon le réglage serait à refaire à chaque ouverture.
+        if (tutorialData != nullptr)
+            if (auto* xmlColor = tutorialData->getChildByName ("COLOR"))
+            {
+                auto col = [&] (const char* a, juce::Colour def)
+                { return xmlColor->hasAttribute (a) ? juce::Colour ((juce::uint32) xmlColor->getIntAttribute (a)) : def; };
+                SYColBackground = col ("Background", SYColBackground);
+                SYColAlt        = col ("Alternate",  SYColAlt);
+                SYColLabel      = col ("Label",      SYColLabel);
+                SYColSelected   = col ("Selected",   SYColSelected);
+                setColour (ResizableWindow::backgroundColourId, SYColBackground);
+                setColour (Slider::ColourIds::trackColourId, SYColSelected);
+            }
+
         // Mise à jour des boutons de couleur
         btColAlt.setColour(TextButton::buttonColourId, SYColAlt);
         btColBack.setColour(TextButton::buttonColourId, SYColBackground);
