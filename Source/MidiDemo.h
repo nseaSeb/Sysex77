@@ -127,6 +127,7 @@ static int sysexModel;
 static int  sysexDeviceNumber = 1;     // 1..16 ; octet émis = 0x10 | (n-1)
 static bool sysexReceiveOmni  = false; // "ALL" : accepte les messages entrants de tout device
 static bool followSynth       = false; // "Suivre le synthé" : ouvre la vue du paramètre reçu
+static juce::String lastMonitorKey;    // moniteur compact : dédup des param-changes par adresse
 static     float fAngle = -90 * (juce::MathConstants<float>::pi  / 180.0); //Radiant to draw at 90°
 File appDirPath = File::getSpecialLocation(File::userApplicationDataDirectory ).getChildFile("Application Support/Sysex77");
 
@@ -303,7 +304,7 @@ struct MidiSettingsPage : public Component
 
         // Moniteur : effacer + copier (pratique pour la rétro-ingénierie).
         addAndMakeVisible (clearBtn);
-        clearBtn.onClick = [this] { monitorRef.clear(); };
+        clearBtn.onClick = [this] { monitorRef.clear(); lastMonitorKey = {}; };
         addAndMakeVisible (copyBtn);
         copyBtn.onClick = [this] { juce::SystemClipboard::copyTextToClipboard (monitorRef.getText()); };
     }
@@ -858,21 +859,34 @@ private:
                             tabs.setCurrentTabIndex (target);
                     }
 
-                    // Ligne DÉCODÉE lisible (rétro-ingénierie) : facile à copier-coller.
-                    auto hx = [] (int v) { return String::toHexString (v).paddedLeft ('0', 2); };
-                    messageText << ">> SY77  G=" << hx (data[3])
-                                << "  AH=" << hx (data[4]) << "  AL=" << hx (data[5])
-                                << "  P="  << hx (data[6])
-                                << "   val=" << (int) data[8] << " (0x" << hx (data[8]) << ")\n";
+                    // Moniteur COMPACT : une SEULE ligne par adresse (G/AH/AL/P) touchée.
+                    // Un balayage de valeurs sur le même paramètre = une ligne (on imprime
+                    // uniquement quand l'adresse change). Évite le déluge de lignes.
+                    const String key = String (data[3]) + "." + String (data[4]) + "."
+                                     + String (data[5]) + "." + String (data[6]);
+                    if (key != lastMonitorKey)
+                    {
+                        lastMonitorKey = key;
+                        auto hx = [] (int v) { return String::toHexString (v).paddedLeft ('0', 2); };
+                        messageText << ">> SY77  G=" << hx (data[3])
+                                    << "  AH=" << hx (data[4]) << "  AL=" << hx (data[5])
+                                    << "  P="  << hx (data[6])
+                                    << "   val=" << (int) data[8] << " (0x" << hx (data[8]) << ")\n";
+                    }
                 }
-
-
+                continue; // bloc sysex 9 octets : pas de description brute (déjà décodé ci-dessus)
             }
 
-            messageText << message.getDescription() << "\n";
+            // Bruit filtré pour la RE : CC data-entry, horloge, active-sense, transport.
+            if (message.isController() || message.isMidiClock() || message.isActiveSense()
+                || message.isMidiStart() || message.isMidiContinue() || message.isMidiStop()
+                || message.isSongPositionPointer())
+                continue;
 
+            messageText << message.getDescription() << "\n";
         }
-        midiMonitor.insertTextAtCaret (messageText);
+        if (messageText.isNotEmpty())
+            midiMonitor.insertTextAtCaret (messageText);
         
     }
 public:
