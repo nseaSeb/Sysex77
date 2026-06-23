@@ -50,6 +50,7 @@
 #include "SysexBus.h"
 #include "SysexUtils.h"   // SyVoice:: (builder sysex, device, helpers) — visible par tous les widgets
 #include "Version.h"      // Sysex77::kVersion / versionString()
+#include "AppSettings.h"  // getAppSettings() — persistance partagée (devices MIDI, fenêtre…)
 
 //==============================================================================
 // État partagé de l'application.
@@ -193,7 +194,16 @@ struct DemoTabbedComponent  : public TabbedComponent
     {
         if(newCurrentTabIndex<3)
         intTabIndex = newCurrentTabIndex;
+
+        // Mémorise l'onglet courant (seulement après restauration, pour ne pas écraser
+        // la préférence avec les index intermédiaires émis pendant la construction).
+        if (allowTabSave)
+        {
+            getAppSettings()->setValue ("CurrentTab", newCurrentTabIndex);
+            getAppSettings()->saveIfNeeded();
+        }
     }
+    bool allowTabSave = false; // activé par MidiDemo une fois l'onglet restauré
     void popupMenuClickOnTab (int tabIndex, const String& tabName)override
     {
         Logger::writeToLog("TabbedComponent: popupMenuClick");
@@ -330,16 +340,19 @@ public:
         addAndMakeVisible (btToggleKeyboard);
         btToggleKeyboard.setAlwaysOnTop (true);   // reste visible au-dessus des onglets (barre de nav)
         btToggleKeyboard.setClickingTogglesState (true);
-        btToggleKeyboard.setToggleState (true, dontSendNotification);
+        btToggleKeyboard.setToggleState (getAppSettings()->getBoolValue ("KeyboardVisible", true), dontSendNotification);
         btToggleKeyboard.setColour (TextButton::ColourIds::buttonOnColourId, SYColSelected);
         btToggleKeyboard.onClick = [this]
         {
             midiKeyboard.setVisible (btToggleKeyboard.getToggleState());
+            getAppSettings()->setValue ("KeyboardVisible", btToggleKeyboard.getToggleState());
+            getAppSettings()->saveIfNeeded();
             resized();
         };
 
         midiKeyboard.setName ("MIDI Keyboard");
         addAndMakeVisible (midiKeyboard);
+        midiKeyboard.setVisible (btToggleKeyboard.getToggleState()); // applique l'état mémorisé
         
         midiMonitor.setMultiLine (true);
         midiMonitor.setReturnKeyStartsNewLine (false);
@@ -429,7 +442,10 @@ public:
         tabs.setAlwaysOnTop(true);
 
         setSize (1280, 820);
-        tabs.setCurrentTabIndex(3); // Midi Setting
+        // Restaure l'onglet mémorisé (défaut : 3 = Midi Setting), puis autorise la sauvegarde.
+        tabs.setCurrentTabIndex (jlimit (0, tabs.getNumTabs() - 1,
+                                         getAppSettings()->getIntValue ("CurrentTab", 3)));
+        tabs.allowTabSave = true;
         startTimer (500);
     }
     
@@ -700,9 +716,10 @@ private:
                 }
                 
                 lastSelectedItems = newSelectedItems;
+                parent.saveEnabledDevices (isInput); // mémorise la sélection d'interfaces
             }
         }
-        
+
         //==============================================================================
         void syncSelectedItemsWithDeviceList (const ReferenceCountedArray<MidiDeviceListEntry>& midiDevices)
         {
@@ -857,6 +874,34 @@ public:
         }
     }
     
+    // Persistance des interfaces MIDI choisies : on mémorise les identifiants des
+    // devices OUVERTS, et on les réouvre au lancement s'ils sont encore disponibles.
+    void saveEnabledDevices (bool isInput)
+    {
+        auto& devices = isInput ? midiInputs : midiOutputs;
+        StringArray ids;
+        for (auto& d : devices)
+            if (isInput ? d->inDevice.get() != nullptr : d->outDevice.get() != nullptr)
+                ids.add (d->deviceInfo.identifier);
+        getAppSettings()->setValue (isInput ? "MidiInDevices" : "MidiOutDevices", ids.joinIntoString ("\n"));
+        getAppSettings()->saveIfNeeded();
+    }
+
+    void restoreEnabledDevices (bool isInput)
+    {
+        auto saved = StringArray::fromLines (getAppSettings()->getValue (isInput ? "MidiInDevices" : "MidiOutDevices"));
+        saved.removeEmptyStrings();
+        if (saved.isEmpty()) return;
+        auto& devices = isInput ? midiInputs : midiOutputs;
+        for (int i = 0; i < devices.size(); ++i)
+        {
+            const bool isOpen = isInput ? devices[i]->inDevice.get() != nullptr
+                                        : devices[i]->outDevice.get() != nullptr;
+            if (! isOpen && saved.contains (devices[i]->deviceInfo.identifier))
+                openDevice (isInput, i);
+        }
+    }
+
     void updateDeviceList (bool isInputDeviceList)
     {
         auto availableDevices = isInputDeviceList ? MidiInput::getAvailableDevices()
@@ -885,7 +930,10 @@ public:
             
             // actually update the device list
             midiDevices = newDeviceList;
-            
+
+            // réouvre les interfaces mémorisées encore disponibles (persistance)
+            restoreEnabledDevices (isInputDeviceList);
+
             // update the selection status of the combo-box
             if (auto* midiSelector = isInputDeviceList ? midiInputSelector.get() : midiOutputSelector.get())
                 midiSelector->syncSelectedItemsWithDeviceList (midiDevices);

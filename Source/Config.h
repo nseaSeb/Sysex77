@@ -10,6 +10,8 @@
 
 #pragma once
 
+#include "AppSettings.h"
+
 //==============================================================================
 
 //==============================================================================
@@ -259,29 +261,22 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
     }
     void initProperties()
     {
-        PropertiesFile::Options options;
-        options.applicationName = ProjectInfo::projectName;
-        options.filenameSuffix = ".settings";
-        options.osxLibrarySubFolder = "Application Support";
-        options.folderName = File::getSpecialLocation(File::SpecialLocationType::userApplicationDataDirectory).getChildFile("SYSEX77").getFullPathName();
-        options.storageFormat = PropertiesFile::storeAsXML;
-        
-        props.setStorageParameters(options);
+        getAppProps(); // initialise le stockage partagé (cf. AppSettings.h)
     }
     void loadParams()
     {
         
-     //   mySlider.setValue( props.getUserSettings()->getIntValue("mySlider"));
+     //   mySlider.setValue( getAppProps().getUserSettings()->getIntValue("mySlider"));
         Logger::writeToLog("Load parametres:");
-        Logger::writeToLog(String(props.getUserSettings()->getIntValue("Model")));
-         Logger::writeToLog(String(props.getUserSettings()->getIntValue(IDs::COMMONFOOT)));
-        comboModel.setSelectedId(props.getUserSettings()->getIntValue("Model"));
-        SYModel = props.getUserSettings()->getIntValue("Model");
-        valueTreeVoice.setProperty(IDs::COMMONFOOT, props.getUserSettings()->getIntValue(IDs::COMMONFOOT), nullptr);
+        Logger::writeToLog(String(getAppProps().getUserSettings()->getIntValue("Model")));
+         Logger::writeToLog(String(getAppProps().getUserSettings()->getIntValue(IDs::COMMONFOOT)));
+        comboModel.setSelectedId(getAppProps().getUserSettings()->getIntValue("Model"));
+        SYModel = getAppProps().getUserSettings()->getIntValue("Model");
+        valueTreeVoice.setProperty(IDs::COMMONFOOT, getAppProps().getUserSettings()->getIntValue(IDs::COMMONFOOT), nullptr);
 
         // Device number (canal) global
-        sysexDeviceNumber = jlimit (1, 16, props.getUserSettings()->getIntValue ("Device", 1));
-        sysexReceiveOmni  = props.getUserSettings()->getBoolValue ("Omni", false);
+        sysexDeviceNumber = jlimit (1, 16, getAppProps().getUserSettings()->getIntValue ("Device", 1));
+        sysexReceiveOmni  = getAppProps().getUserSettings()->getBoolValue ("Omni", false);
         comboEngine.setSelectedId (sysexReceiveOmni ? 17 : sysexDeviceNumber, dontSendNotification);
         
     }
@@ -289,13 +284,14 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
     {
               Logger::writeToLog("Save parametres:");
         Logger::writeToLog(comboModel.getSelectedIdAsValue().toString());
-        props.getUserSettings()->setValue("Model", comboModel.getSelectedIdAsValue());
-     props.getUserSettings()->setValue("commonFoot", valueTreeVoice.getPropertyAsValue(IDs::COMMONFOOT, nullptr));
-        props.getUserSettings()->setValue ("Device", sysexDeviceNumber);
-        props.getUserSettings()->setValue ("Omni",   sysexReceiveOmni);
+        getAppProps().getUserSettings()->setValue("Model", comboModel.getSelectedIdAsValue());
+     getAppProps().getUserSettings()->setValue("commonFoot", valueTreeVoice.getPropertyAsValue(IDs::COMMONFOOT, nullptr));
+        getAppProps().getUserSettings()->setValue ("Device", sysexDeviceNumber);
+        getAppProps().getUserSettings()->setValue ("Omni",   sysexReceiveOmni);
+        getAppProps().getUserSettings()->saveIfNeeded();
         
    
-     //   props.getUserSettings()->setValue("mySlider", mySlider.getValue());
+     //   getAppProps().getUserSettings()->setValue("mySlider", mySlider.getValue());
     }
     std::unique_ptr<XmlElement> tutorialData;
     TextButton btColBack {TRANS("Background Application color")};
@@ -308,7 +304,6 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
     ComboBox comboTheme;
     Label labVersion;
 
-    ApplicationProperties props;  // object pour sauver les paramètres
     ComboBox    comboModel;
     SysexBusSender sender;  // [2]
     

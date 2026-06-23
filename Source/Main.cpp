@@ -210,7 +210,12 @@ private:
            #else
             setResizable (true, false);
             setResizeLimits (640, 480, 10000, 10000);
-            centreWithSize (getWidth(), getHeight());
+            // Restaure la taille/position mémorisées, sinon centre à la taille par défaut.
+            const auto state = getAppSettings()->getValue ("WindowState");
+            if (state.isNotEmpty())
+                restoreWindowStateFromString (state);
+            else
+                centreWithSize (getWidth(), getHeight());
            #endif
 #if JUCE_WINDOWS || JUCE_LINUX || JUCE_MAC
             taskbarIcon.reset (new DemoTaskbarComponent());
@@ -218,10 +223,17 @@ private:
             setVisible (true);
         }
 
+        ~MainWindow() override
+        {
+            // Mémorise la taille/position de la fenêtre (toutes voies de fermeture).
+            getAppSettings()->setValue ("WindowState", getWindowStateAsString());
+            getAppSettings()->saveIfNeeded();
+        }
+
         void closeButtonPressed() override
         {
             app.systemRequestedQuit();
-            
+
         }
 
     private:
