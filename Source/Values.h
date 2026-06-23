@@ -179,22 +179,37 @@ namespace IDs
     DECLARE_ID (ELEMENT4GROUP1)
     DECLARE_ID (ELEMENT4GROUP2)
 
-    // Section effets (rendu/état seul — structure du manuel : mode + 2 modulation + 2 reverb)
-    DECLARE_ID (EFFECTMODE)
-    DECLARE_ID (MOD1TYPE)
-    DECLARE_ID (MOD1RATE)
-    DECLARE_ID (MOD1DEPTH)
-    DECLARE_ID (MOD1LEVEL)
-    DECLARE_ID (MOD2TYPE)
-    DECLARE_ID (MOD2RATE)
-    DECLARE_ID (MOD2DEPTH)
-    DECLARE_ID (MOD2LEVEL)
-    DECLARE_ID (REV1TYPE)
-    DECLARE_ID (REV1TIME)
-    DECLARE_ID (REV1LEVEL)
-    DECLARE_ID (REV2TYPE)
-    DECLARE_ID (REV2TIME)
-    DECLARE_ID (REV2LEVEL)
+    // Section effets — adresses RÉELLES (groupe 0x08, Table 1-9 / map TG77 vérifiée).
+    // N2 = offset commenté ; 2 unités Chorus (type+bal+level+4 prm) + 2 unités Reverb (…+3 prm).
+    DECLARE_ID (EFFECTMODE)   // N2 0x00 (0-3)
+    DECLARE_ID (CHR1TYPE)     // 0x01 (0-4)
+    DECLARE_ID (CHR1BAL)      // 0x02 (0-100)
+    DECLARE_ID (CHR1LVL)      // 0x03 (0-100)
+    DECLARE_ID (CHR1PRM1)     // 0x04
+    DECLARE_ID (CHR1PRM2)     // 0x05
+    DECLARE_ID (CHR1PRM3)     // 0x06
+    DECLARE_ID (CHR1PRM4)     // 0x07
+    DECLARE_ID (CHR2TYPE)     // 0x08 (0-4)
+    DECLARE_ID (CHR2BAL)      // 0x09
+    DECLARE_ID (CHR2LVL)      // 0x0A
+    DECLARE_ID (CHR2PRM1)     // 0x0B
+    DECLARE_ID (CHR2PRM2)     // 0x0C
+    DECLARE_ID (CHR2PRM3)     // 0x0D
+    DECLARE_ID (CHR2PRM4)     // 0x0E
+    DECLARE_ID (REV1TYPE)     // 0x0F (0-40)
+    DECLARE_ID (REV1BAL)      // 0x10
+    DECLARE_ID (REV1LVL)      // 0x11
+    DECLARE_ID (REV1PRM1)     // 0x12
+    DECLARE_ID (REV1PRM2)     // 0x13
+    DECLARE_ID (REV1PRM3)     // 0x14
+    DECLARE_ID (REV2TYPE)     // 0x15 (0-40)
+    DECLARE_ID (REV2BAL)      // 0x16
+    DECLARE_ID (REV2LVL)      // 0x17
+    DECLARE_ID (REV2PRM1)     // 0x18
+    DECLARE_ID (REV2PRM2)     // 0x19
+    DECLARE_ID (REV2PRM3)     // 0x1A
+    DECLARE_ID (STMIX1)       // 0x1B (0-1)
+    DECLARE_ID (STMIX2)       // 0x1C (0-1)
 
 //
 
