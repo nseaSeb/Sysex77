@@ -136,6 +136,7 @@ public:
                             }
                 Logger::writeToLog ("signed minus  " + String(val));
                         }
+                                val -= midiTxOffset;   // ex. algo : synthé 0..44 -> affichage 1..45
                                 Slider::setValue(val, dontSendNotification); // pas de renvoi -> évite la boucle d'écho
                                 
                             }
@@ -194,13 +195,16 @@ public:
         }
         
        // uint8 data = slider->getValue();
-        sysexData[8] = value;
-        
+        sysexData[8] = value + midiTxOffset;   // ex. algo : affichage 1..45 -> synthé 0..44
+
         sender.send(oscAddressPatern, (uint8) sysexData[0], sysexData[1], sysexData[2], sysexData[3], sysexData[4], sysexData[5], sysexData[6], sysexData[7], sysexData[8]);
-        
+
     }
- 
-    
+
+    // Décalage appliqué entre l'affichage et l'octet sysex (TX: +offset, RX: -offset).
+    // Sert quand le synthé indexe différemment de l'UI (ex. algorithme : 0..44 vs 1..45).
+    void setMidiValueOffset (int o) { midiTxOffset = o; }
+
     void setMidiSysex (int sysexdata[0])
     {
         for(int i = 0; i < 9 ;i++)
@@ -215,6 +219,7 @@ private:
     bool boolNegative = false;   // set if neg value like pan
     bool boolInvert = false;
     int intNegativeDelta = 0; // correction for sysex
+    int midiTxOffset = 0;     // décalage affichage<->sysex (cf. setMidiValueOffset)
     String oscAddressPatern {"/SYSEX"};
     String strOscAdress;
 //    MidiMessage midiMessage;

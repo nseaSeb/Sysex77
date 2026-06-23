@@ -72,7 +72,11 @@ public:
         sysexdata[4] = 0x60;
         }
         sliderAlgo.setMidiSysex(sysexdata);
-        
+        // ALGNUM (groupe 0x05 N2 0x00) est 0-indexé sur le synthé (0..44) alors que le
+        // slider affiche 1..45 (cohérent avec le rendu FM kAlgo[N-1]) -> on retire 1 à l'envoi
+        // et on rajoute 1 à la réception. (Spec OCR + map TG77 vérifiée.)
+        sliderAlgo.setMidiValueOffset(-1);
+
     }
     
     void setAlgorythm()
