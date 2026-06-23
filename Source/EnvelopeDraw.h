@@ -465,25 +465,63 @@ public:
     }
     void mouseUp (const juce::MouseEvent&) override { if (! dragged && onOpenEditor) onOpenEditor(); }
 
+    // Affordance : surligne le nœud survolé (ou en cours de glissement) -> on voit
+    // qu'il est saisissable. Ne dessine que l'anneau (la courbe est peinte dessous).
+    void mouseMove (const juce::MouseEvent& e) override
+    {
+        const int h = nearestNode (e.position.x);
+        if (h != hovered) { hovered = h; repaint(); }
+    }
+    void mouseExit (const juce::MouseEvent&) override
+    {
+        if (hovered != -1) { hovered = -1; repaint(); }
+    }
+    void paint (juce::Graphics& g) override
+    {
+        const int h = (dragged && selected >= 0) ? selected : hovered;
+        if (h < 0) return;
+        auto pts = nodePoints();
+        if (h >= pts.size()) return;
+        auto p = pts[h];
+        g.setColour (SYColSelected.withAlpha (0.25f));
+        g.fillEllipse (p.x - 6.0f, p.y - 6.0f, 12.0f, 12.0f);
+        g.setColour (SYColSelected);
+        g.drawEllipse (p.x - 6.0f, p.y - 6.0f, 12.0f, 12.0f, 2.0f);
+    }
+
 private:
     void computeData (juce::Array<float>& levels, juce::Array<float>& weights)
     {
         levels.clearQuick(); weights.clearQuick();
         if (getData) getData (levels, weights);
     }
-    int nearestNode (float mx)
+    // Positions écran des nœuds (mêmes X/Y que SyDraw::drawEnvelope).
+    juce::Array<juce::Point<float>> nodePoints()
     {
+        juce::Array<juce::Point<float>> pts;
         juce::Array<float> levels, weights;
         computeData (levels, weights);
-        if (levels.size() < 2 || weights.size() != levels.size() - 1) return -1;
+        if (levels.size() < 2 || weights.size() != levels.size() - 1 || maxLevel <= 0.0f) return pts;
         float total = 0.0f;
         for (auto w : weights) total += juce::jmax (1.0f, w);
-        if (total <= 0.0f) return -1;
-        const float wpx = (float) getWidth();
-        float x = 0.0f, bestD = 1.0e9f; int best = 0, idx = 0;
-        auto consider = [&] (float xx) { const float d = std::abs (xx - mx); if (d < bestD) { bestD = d; best = idx; } ++idx; };
-        consider (x);
-        for (int i = 0; i < weights.size(); ++i) { x += wpx * juce::jmax (1.0f, weights[i]) / total; consider (x); }
+        if (total <= 0.0f) return pts;
+        const float W = (float) getWidth(), H = (float) getHeight();
+        auto yFor = [&] (float lv) { return H - juce::jlimit (0.0f, maxLevel, lv) / maxLevel * H; };
+        float x = 0.0f;
+        pts.add ({ x, yFor (levels[0]) });
+        for (int i = 0; i < weights.size(); ++i)
+        {
+            x += W * juce::jmax (1.0f, weights[i]) / total;
+            pts.add ({ x, yFor (levels[i + 1]) });
+        }
+        return pts;
+    }
+    int nearestNode (float mx)
+    {
+        auto pts = nodePoints();
+        int best = -1; float bestD = 1.0e9f;
+        for (int i = 0; i < pts.size(); ++i)
+        { const float d = std::abs (pts[i].x - mx); if (d < bestD) { bestD = d; best = i; } }
         return best;
     }
     // Poids du segment entrant du nœud `node` pour qu'il atterrisse à la fraction X `fx`,
@@ -505,5 +543,6 @@ private:
         return juce::jlimit (1.0f, 99.0f, (fx * otherSum - before) / (1.0f - fx));
     }
     int  selected = -1;
+    int  hovered  = -1;
     bool dragged  = false;
 };
