@@ -319,14 +319,7 @@ public:
     tabs (isRunningComponenTransformsDemo)
     
     {
-        // Init to light the Paint call
-
-        imgBack = ImageCache::getFromMemory(BinaryData::Sysex77_png, BinaryData::Sysex77_pngSize);
-        if(SYModel==3)
-            imgBack = ImageCache::getFromMemory(BinaryData::Sysex99_png, BinaryData::Sysex99_pngSize);
-        
-
-        
+        // (Images de fond Sysex77/99.png supprimées : jamais dessinées — nettoyage des ressources.)
         addAndMakeVisible (tabs);
   
         addLabelAndSetStyle (midiInputLabel);
@@ -1024,7 +1017,6 @@ public:
     CriticalSection midiMonitorLock;
     Array<MidiMessage> incomingMessages;
     DemoTabbedComponent tabs;
-    Image imgBack;
 
     uint8 data[12];
     

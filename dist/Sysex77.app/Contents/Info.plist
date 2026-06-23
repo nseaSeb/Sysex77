@@ -6,7 +6,7 @@
     <key>CFBundleExecutable</key>
     <string>Sysex77</string>
     <key>CFBundleIconFile</key>
-    <string></string>
+    <string>Icon.icns</string>
     <key>CFBundleIdentifier</key>
     <string>com.sebastienportrait.sysex77</string>
     <key>CFBundleName</key>

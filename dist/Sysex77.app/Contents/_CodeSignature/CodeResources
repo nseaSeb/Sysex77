@@ -4,6 +4,10 @@
 <dict>
 	<key>files</key>
 	<dict>
+		<key>Resources/Icon.icns</key>
+		<data>
+		+Ba/XWSgrjeSk6g9WWBV9L4TQNw=
+		</data>
 		<key>Resources/RecentFilesMenuTemplate.nib</key>
 		<data>
 		4cEN55flubpq9bxeGSBG3zMPYQw=
@@ -11,6 +15,13 @@
 	</dict>
 	<key>files2</key>
 	<dict>
+		<key>Resources/Icon.icns</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			cLD/9Jo85zzSE8kjw08+m2OaX/XeH/ZNadXx+HadYFg=
+			</data>
+		</dict>
 		<key>Resources/RecentFilesMenuTemplate.nib</key>
 		<dict>
 			<key>hash2</key>

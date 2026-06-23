@@ -207,8 +207,8 @@ public:
 
         imgAudio =  ImageFileFormat::loadFrom(BinaryData::Audio_png, (size_t) BinaryData::Audio_pngSize);
         imgAFM = ImageFileFormat::loadFrom(BinaryData::AFM_png,(size_t) BinaryData::AFM_pngSize);
-        imgFilter = ImageFileFormat::loadFrom(BinaryData::Filter_png,(size_t) BinaryData::Filter_pngSize);
-        imgVCA = ImageFileFormat::loadFrom(BinaryData::VCA_png,(size_t) BinaryData::VCA_pngSize);
+        // (Filter/VCA : la réponse du filtre et l'enveloppe sont DESSINÉES dans paint() —
+        //  plus d'images chargées ici, cf. nettoyage des ressources.)
         // L'emplacement Filter affiche désormais une vignette (réponse du filtre)
         // dessinée dans paint(). Le bouton reste cliquable (seuil hit-test = 0).
         btFilter.setImages (false, true, true,
@@ -680,8 +680,6 @@ private:
     
     Image imgAudio;
     Image imgAFM;
-    Image imgFilter;
-    Image imgVCA;
     Pitch pitch;
     ImageButton btWave;
     ImageButton btFilter; //{"Filter",SYColSelected,Colours::white,Colours::orange };

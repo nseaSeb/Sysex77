@@ -39,7 +39,8 @@ endif()
 juce_add_gui_app(Sysex77
     PRODUCT_NAME "Sysex77"
     COMPANY_NAME "Sebastien Portrait"
-    BUNDLE_ID    "com.sebastienportrait.sysex77")
+    BUNDLE_ID    "com.sebastienportrait.sysex77"
+    ICON_BIG     "${CMAKE_CURRENT_SOURCE_DIR}/Ressources/AppIcon.png")
 
 juce_generate_juce_header(Sysex77)
 
@@ -49,16 +50,11 @@ target_sources(Sysex77 PRIVATE Source/Main.cpp)
 # BinaryData:: du nom de fichier (espaces/points -> '_'), identiques à Projucer.
 juce_add_binary_data(Sysex77Data SOURCES
     Ressources/OscAfm.png
-    Ressources/Sysex77.png
-    Ressources/Sysex99.png
     Ressources/TableData.xml
     Ressources/Audio.png
-    Ressources/Librairie.xml
-    Ressources/Filter.png
     "Ressources/SY77 YAMAHA.png"
     Ressources/AFM.png
     Ressources/French.txt
-    Ressources/VCA.png
     Ressources/SY77Waves.xml
     Ressources/SY99Waves.xml)
 

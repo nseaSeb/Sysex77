@@ -6,20 +6,14 @@
   <MAINGROUP id="fXpzep" name="Sysex77">
     <GROUP id="{DC11FEA2-06F4-71FC-4E9A-543601BD260D}" name="Resources">
       <FILE id="hGHGaW" name="OscAfm.png" compile="0" resource="1" file="Ressources/OscAfm.png"/>
-      <FILE id="So2JZ6" name="Sysex77.png" compile="0" resource="1" file="Ressources/Sysex77.png"/>
-      <FILE id="VN3x4G" name="Sysex99.png" compile="0" resource="1" file="Ressources/Sysex99.png"/>
       <FILE id="WHirz1" name="TableData.xml" compile="0" resource="1" file="Ressources/TableData.xml"
             xcodeResource="0"/>
       <FILE id="UdjuYi" name="Audio.png" compile="0" resource="1" file="Ressources/Audio.png"/>
-      <FILE id="YJ4T8Q" name="Librairie.xml" compile="0" resource="1" file="Ressources/Librairie.xml"
-            xcodeResource="0"/>
-      <FILE id="PE62H7" name="Filter.png" compile="0" resource="1" file="Ressources/Filter.png"/>
       <FILE id="hhbnty" name="SY77 YAMAHA.png" compile="0" resource="1" file="Ressources/SY77 YAMAHA.png"
             xcodeResource="0"/>
       <FILE id="YeQHV1" name="AFM.png" compile="0" resource="1" file="Ressources/AFM.png"/>
       <FILE id="uhXjgb" name="French.txt" compile="0" resource="1" file="Ressources/French.txt"
             xcodeResource="0"/>
-      <FILE id="KMhWTw" name="VCA.png" compile="0" resource="1" file="Ressources/VCA.png"/>
       <FILE id="b18lNp" name="SY77Waves.xml" compile="0" resource="1" file="Ressources/SY77Waves.xml"/>
       <FILE id="afTmE3" name="SY99Waves.xml" compile="0" resource="1" file="Ressources/SY99Waves.xml"/>
     </GROUP>
