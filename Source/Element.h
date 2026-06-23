@@ -126,32 +126,7 @@ private:
 };
 
 //==============================================================================
-// Surface interactive par-dessus la cellule FILTER : glisser = régler cutoff (X,
-// gauche->droite) et résonance (Y, bas->haut) en 0..127 ; clic simple = ouvrir
-// l'éditeur de filtre complet. Ne dessine rien (la réponse est peinte dessous).
-class FilterGraphView : public Component
-{
-public:
-    std::function<void()>                  onOpenEditor;  // clic simple
-    std::function<void (int cut, int res)> onEdit;        // glissement (valeurs 0..127)
-
-    FilterGraphView() { setMouseCursor (MouseCursor::PointingHandCursor); }
-
-    void mouseDown (const MouseEvent&)   override { dragged = false; }
-    void mouseDrag (const MouseEvent& e) override { dragged = true; apply (e); }
-    void mouseUp   (const MouseEvent&)   override { if (! dragged && onOpenEditor) onOpenEditor(); }
-
-private:
-    void apply (const MouseEvent& e)
-    {
-        auto b = getLocalBounds().toFloat();
-        if (b.getWidth() < 2.0f || b.getHeight() < 2.0f || ! onEdit) return;
-        const float fx = jlimit (0.0f, 1.0f, e.position.x / b.getWidth());
-        const float fy = jlimit (0.0f, 1.0f, e.position.y / b.getHeight());
-        onEdit (roundToInt (fx * 127.0f), roundToInt ((1.0f - fy) * 127.0f));
-    }
-    bool dragged = false;
-};
+// (FilterGraphView est défini dans EnvelopeDraw.h — partagé avec CommonFilter.)
 
 //==============================================================================
 // Surface interactive par-dessus la cellule VOLUME (enveloppe de volume) : glisser

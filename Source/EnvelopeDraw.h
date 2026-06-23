@@ -405,3 +405,33 @@ namespace SyDraw
         return acc;
     }
 }
+
+//==============================================================================
+// Surface interactive d'édition de la réponse de filtre : glisser = cutoff (X,
+// gauche->droite) + résonance (Y, bas->haut) en 0..127 ; clic simple (sans glisser)
+// = appelle onOpenEditor si défini. Ne dessine rien (la réponse est peinte dessous).
+// Partagée par la vignette d'élément (Element.h) et l'éditeur de filtre complet
+// (CommonFilter.h).
+class FilterGraphView : public juce::Component
+{
+public:
+    std::function<void()>                  onOpenEditor;  // clic simple (optionnel)
+    std::function<void (int cut, int res)> onEdit;        // glissement (valeurs 0..127)
+
+    FilterGraphView() { setMouseCursor (juce::MouseCursor::PointingHandCursor); }
+
+    void mouseDown (const juce::MouseEvent&)   override { dragged = false; }
+    void mouseDrag (const juce::MouseEvent& e) override { dragged = true; apply (e); }
+    void mouseUp   (const juce::MouseEvent&)   override { if (! dragged && onOpenEditor) onOpenEditor(); }
+
+private:
+    void apply (const juce::MouseEvent& e)
+    {
+        auto b = getLocalBounds().toFloat();
+        if (b.getWidth() < 2.0f || b.getHeight() < 2.0f || ! onEdit) return;
+        const float fx = juce::jlimit (0.0f, 1.0f, e.position.x / b.getWidth());
+        const float fy = juce::jlimit (0.0f, 1.0f, e.position.y / b.getHeight());
+        onEdit (juce::roundToInt (fx * 127.0f), juce::roundToInt ((1.0f - fy) * 127.0f));
+    }
+    bool dragged = false;
+};

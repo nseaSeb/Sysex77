@@ -98,6 +98,16 @@ public:
         sliderFq1.addListener (this);
         sliderFq2.addListener (this);
         sliderResonnance.addListener (this);
+
+        // Édition à la souris directement sur le grand graphe de réponse (Filtre 1) :
+        // glisser = cutoff (X) / résonance (Y). Les contrôles sont sous le graphe.
+        addAndMakeVisible (filterGraph);
+        filterGraph.onEdit = [this] (int cut, int res)
+        {
+            sliderFq1.setValue (cut);
+            sliderResonnance.setValue (res);
+            repaint();
+        };
         radioFilter1Mode.getValueObject().addListener (this);
     }
 
@@ -228,7 +238,11 @@ public:
     
     void resized() override
     {
-     
+        // Overlay d'édition = même rectangle que la réponse dessinée dans paint().
+        auto b = getLocalBounds().toFloat();
+        filterGraph.setBounds (juce::Rectangle<float> (b.getWidth() * 0.03f, b.getHeight() * 0.05f,
+                                                       b.getWidth() * 0.94f, b.getHeight() * 0.62f).toNearestInt());
+
         labelFilter1.setBoundsRelative(0.001f, 0.74f, 0.31f, 0.26f);
         radioFilter1Mode.setBoundsRelative(0.01f, 0.84f, 0.2f, 0.06f);
         radioControlFiltre1.setBoundsRelative(0.01f, 0.92f, 0.2f, 0.06f);
@@ -270,6 +284,8 @@ private:
     MidiSlider  sliderVelocity;
     MidiSlider  sliderLfoSens;
     MidiSlider sliderResonnance;
-    
+
+    FilterGraphView filterGraph; // édition souris du grand graphe (cutoff/résonance)
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CommonFilter)
 };
