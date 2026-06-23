@@ -588,6 +588,12 @@ public:
         for (int i = 0; i < 6; ++i)
         {
             auto c = op (i);
+            // Retour table : rebascule les 4 champs en barres plates (le zoom les passe en potards).
+            for (MidiSlider* sl : { c.lvl, c.crs, c.det, c.pha })
+            {
+                sl->setSliderStyle (Slider::LinearBar);
+                sl->setTextBoxStyle (Slider::NoTextBox, true, 0, 0);
+            }
             const int y  = content.getY() + i * rowH;
             const int ry = y + 4, rh = rowH - 8;
             c.lvl->setBounds (cx (0.055f), ry, cw (0.20f),  rh);
@@ -623,21 +629,24 @@ public:
 
         area.removeFromTop (10);
 
-        // Champs LEVEL / COARSE / DETUNE / PHASE (légende attachée au-dessus) + ligne SYNC/MODE.
-        const int rowH = jmax (1, area.getHeight() / 5);
-        auto field = [&] (Component* comp)
+        // Boutons SYNC / MODE en bas.
+        auto btnRow = area.removeFromBottom (40);
+        c.syn->setBounds (btnRow.removeFromLeft (btnRow.getWidth() / 2).reduced (8, 4));
+        c.mod->setBounds (btnRow.reduced (8, 4));
+        area.removeFromBottom (10);
+
+        // On profite de l'espace : LEVEL / COARSE / DETUNE / PHASE en potards circulaires
+        // (légende attachée au-dessus, valeur en boîte sous le potard).
+        MidiSlider* knobs[4] = { c.lvl, c.crs, c.det, c.pha };
+        const int kw = jmax (1, area.getWidth() / 4);
+        for (int i = 0; i < 4; ++i)
         {
-            auto r = area.removeFromTop (rowH);
-            r.removeFromTop (18);                      // place pour la légende attachée
-            comp->setBounds (r.reduced (4, 4));
-        };
-        field (c.lvl);
-        field (c.crs);
-        field (c.det);
-        field (c.pha);
-        auto btnRow = area.removeFromTop (rowH).reduced (0, 6);
-        c.syn->setBounds (btnRow.removeFromLeft (btnRow.getWidth() / 2).reduced (6, 0));
-        c.mod->setBounds (btnRow.reduced (6, 0));
+            knobs[i]->setSliderStyle (Slider::RotaryHorizontalVerticalDrag);
+            knobs[i]->setTextBoxStyle (Slider::TextBoxBelow, false, jmin (70, kw - 12), 18);
+            auto cell = Rectangle<int> (area.getX() + i * kw, area.getY(), kw, area.getHeight());
+            cell.removeFromTop (18);                    // place pour la légende attachée
+            knobs[i]->setBounds (cell.reduced (10, 6));
+        }
     }
     void roundSize (Slider& slider)
     {

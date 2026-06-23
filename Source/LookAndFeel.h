@@ -387,6 +387,9 @@ public:
         // Recettes de potard pilotées par le thème (sinon « arc » par défaut ci-dessous).
         if (SYPal.knobStyle == "dot")     { drawKnobDot     (g, cx, cy, radius, startA, endA, angle, s); return; }
         if (SYPal.knobStyle == "vintage") { drawKnobVintage (g, cx, cy, radius, angle, s);              return; }
+        if (SYPal.knobStyle == "tick")    { drawKnobTick    (g, cx, cy, radius, startA, endA, angle, s); return; }
+        if (SYPal.knobStyle == "neon")    { drawKnobNeon    (g, cx, cy, radius, startA, endA, angle, s); return; }
+        if (SYPal.knobStyle == "arctick") { drawKnobArcTick (g, cx, cy, radius, startA, endA, angle, s); return; }
 
         const float ringThick = jmax (3.0f, radius * 0.30f);
         const float ringR      = radius - ringThick * 0.5f - 1.0f;
@@ -525,6 +528,15 @@ public:
             g.setColour (on ? SYPal.accent : SYPal.panelBorder);
             g.drawRoundedRectangle (r, cr, on ? 2.0f : SyMetrics::stroke);
         }
+        else if (style == "outline")
+        {
+            // « ghost » : fond transparent, contour accent ; rempli léger quand ON/survol.
+            const float cr = 5.0f;
+            if (on)           { g.setColour (SYPal.accent.withAlpha (0.16f)); g.fillRoundedRectangle (r, cr); }
+            else if (isOver)  { g.setColour (SYPal.accent.withAlpha (0.07f)); g.fillRoundedRectangle (r, cr); }
+            g.setColour (on ? SYPal.accent : SYPal.panelBorder.withAlpha (0.8f));
+            g.drawRoundedRectangle (r, cr, on ? 1.6f : SyMetrics::stroke);
+        }
         else   // "square" (défaut + legacy Dark Orange)
         {
             const float cr = 2.0f;
@@ -539,10 +551,10 @@ public:
     void drawButtonText (Graphics& g, TextButton& b, bool isOver, bool isDown) override
     {
         auto bg  = buttonFill (b, isOver, isDown);
-        // flat ON : texte couleur accent (fond est semi-transparent, contrasting() serait faux)
-        Colour ink = (SYPal.buttonStyle == "flat" && b.getToggleState())
-                         ? SYPal.accent
-                         : bg.contrasting();
+        const bool ghost = (SYPal.buttonStyle == "flat" || SYPal.buttonStyle == "outline");
+        // flat/outline : fond (semi-)transparent -> contrasting() serait faux ; on choisit l'encre nous-mêmes.
+        Colour ink = ghost ? (b.getToggleState() ? SYPal.accent : SYPal.textPrimary)
+                           : bg.contrasting();
         g.setColour (b.isEnabled() ? ink : ink.withAlpha (0.5f));
         g.setFont (getTextButtonFont (b, b.getHeight()));
         g.drawFittedText (b.getButtonText(), b.getLocalBounds().reduced (SyMetrics::pad, 0),
@@ -766,6 +778,49 @@ private:
             g.drawRoundedRectangle (r.reduced (0.5f), cr, SyMetrics::stroke);
             return;
         }
+        if (SYPal.sliderStyle == "notch")
+        {
+            g.setColour (SYPal.knobTrack);
+            g.fillRect (r);
+            g.setColour (acc);
+            g.fillRect (fillRect());
+            g.setColour (SYPal.background.withAlpha (0.45f));                 // crans (règle dentée)
+            const float lenAxis = horiz ? r.getWidth() : r.getHeight();
+            const int n = jmax (4, (int) (lenAxis / 14.0f));
+            for (int i = 1; i < n; ++i)
+            {
+                const float t = (float) i / (float) n;
+                if (horiz) { const float xx = r.getX() + t * r.getWidth();
+                             g.drawLine (xx, r.getY() + r.getHeight() * 0.25f, xx, r.getBottom() - r.getHeight() * 0.25f, 1.0f); }
+                else       { const float yy = r.getY() + t * r.getHeight();
+                             g.drawLine (r.getX() + r.getWidth() * 0.25f, yy, r.getRight() - r.getWidth() * 0.25f, yy, 1.0f); }
+            }
+            g.setColour (hot ? SYPal.accent : SYPal.panelBorder);
+            g.drawRect (r, SyMetrics::stroke);
+            return;
+        }
+        if (SYPal.sliderStyle == "dots")
+        {
+            g.setColour (SYPal.knobTrack);
+            g.fillRect (r);
+            const float lenAxis   = horiz ? r.getWidth()  : r.getHeight();
+            const float thickAxis = horiz ? r.getHeight() : r.getWidth();
+            const float d = jmin (thickAxis * 0.7f, 14.0f);
+            const int n = jmax (4, (int) (lenAxis / (d + 4.0f)));
+            const int lit = (int) std::round (pos01 * (float) n);
+            const float gap = lenAxis / (float) n;
+            for (int i = 0; i < n; ++i)
+            {
+                const float c  = (i + 0.5f) * gap;
+                const float dx = horiz ? r.getX() + c : r.getCentreX();
+                const float dy = horiz ? r.getCentreY() : r.getBottom() - c;
+                g.setColour (i < lit ? acc : SYPal.knobTrack.contrasting (0.10f));
+                g.fillEllipse (dx - d * 0.5f, dy - d * 0.5f, d, d);
+            }
+            g.setColour (SYPal.panelBorder);
+            g.drawRect (r, SyMetrics::stroke);
+            return;
+        }
         // "bar" (défaut) : rectangle plat rempli
         g.setColour (SYPal.knobTrack);
         g.fillRect (r);
@@ -825,6 +880,128 @@ private:
         ptr.applyTransform (AffineTransform::rotation (angle).translated (cx, cy));
         g.setColour (s.isEnabled() ? SYPal.accent : SYPal.textMuted);
         g.fillPath (ptr);
+    }
+
+    // « tick » : couronne de graduations (allumées jusqu'à la valeur) + aiguille centrale.
+    void drawKnobTick (Graphics& g, float cx, float cy, float radius,
+                       float startA, float endA, float angle, Slider& s)
+    {
+        const float r = radius - 2.0f;
+        if (r <= 1.0f) return;
+        g.setColour (SYPal.knobBody);
+        g.fillEllipse (cx - r, cy - r, r * 2.0f, r * 2.0f);
+        g.setColour (SYPal.panelBorder);
+        g.drawEllipse (cx - r, cy - r, r * 2.0f, r * 2.0f, 1.0f);
+
+        const int n = 11;
+        const float ro = r - 1.5f, ri = r - jmax (4.0f, r * 0.24f);
+        const float tw = jmax (1.5f, r * 0.07f);
+        for (int i = 0; i < n; ++i)
+        {
+            const float t = (float) i / (float) (n - 1);
+            const float a = startA + t * (endA - startA);
+            const bool  lit = s.isEnabled() && a <= angle + 0.001f;
+            g.setColour (lit ? SYPal.accent : SYPal.knobTrack);
+            g.drawLine (cx + std::sin (a) * ri, cy - std::cos (a) * ri,
+                        cx + std::sin (a) * ro, cy - std::cos (a) * ro, tw);
+        }
+        Path ptr;
+        const float pw = jmax (2.0f, r * 0.11f);
+        ptr.addRoundedRectangle (-pw * 0.5f, -ri + 2.0f, pw, ri * 0.9f, pw * 0.5f);
+        ptr.applyTransform (AffineTransform::rotation (angle).translated (cx, cy));
+        g.setColour (s.isEnabled() ? SYPal.accent : SYPal.textMuted);
+        g.fillPath (ptr);
+    }
+
+    // « neon » : corps sombre + anneau d'accent lumineux (halo) + point brillant (synthwave).
+    void drawKnobNeon (Graphics& g, float cx, float cy, float radius,
+                       float startA, float endA, float angle, Slider& s)
+    {
+        const float r = radius - 2.0f;
+        if (r <= 1.0f) return;
+        g.setColour (SYPal.knobBody.darker (SYPal.dark ? 0.35f : 0.0f));
+        g.fillEllipse (cx - r, cy - r, r * 2.0f, r * 2.0f);
+
+        const float ringR = r - 3.0f;
+        const float thick = jmax (2.0f, r * 0.13f);
+        if (ringR > 1.0f)
+        {
+            Path track; track.addCentredArc (cx, cy, ringR, ringR, 0.0f, startA, endA, true);
+            g.setColour (SYPal.knobTrack);
+            g.strokePath (track, PathStrokeType (thick, PathStrokeType::curved, PathStrokeType::rounded));
+            if (s.isEnabled())
+            {
+                Path val; val.addCentredArc (cx, cy, ringR, ringR, 0.0f, startA, angle, true);
+                g.setColour (SYPal.accent.withAlpha (0.35f));
+                g.strokePath (val, PathStrokeType (thick + 5.0f, PathStrokeType::curved, PathStrokeType::rounded));
+                g.setColour (SYPal.accent);
+                g.strokePath (val, PathStrokeType (thick, PathStrokeType::curved, PathStrokeType::rounded));
+                const float dx = cx + std::sin (angle) * ringR, dy = cy - std::cos (angle) * ringR;
+                const float dr = jmax (2.0f, r * 0.14f);
+                g.setColour (SYPal.accent.withAlpha (0.4f));
+                g.fillEllipse (dx - dr * 1.7f, dy - dr * 1.7f, dr * 3.4f, dr * 3.4f);
+                g.setColour (SYPal.accent);
+                g.fillEllipse (dx - dr, dy - dr, dr * 2.0f, dr * 2.0f);
+            }
+        }
+        g.setColour (SYPal.panelBorder);
+        g.drawEllipse (cx - r, cy - r, r * 2.0f, r * 2.0f, 1.0f);
+    }
+
+    // « arctick » : encodeur façon Nord — couronne de LED logée dans la goulotte
+    //               AUTOUR d'un cap central, allumées jusqu'à la valeur (avec halo).
+    void drawKnobArcTick (Graphics& g, float cx, float cy, float radius,
+                          float startA, float endA, float angle, Slider& s)
+    {
+        const float r = radius - 1.0f;
+        const float chThick = jmax (4.0f, r * 0.26f);
+        const float chMid   = r - chThick * 0.5f;          // rayon de la couronne de LED
+        if (chMid <= 1.0f) return;
+
+        // Goulotte sombre en anneau (le logement des LED).
+        Path channel; channel.addCentredArc (cx, cy, chMid, chMid, 0.0f, startA, endA, true);
+        g.setColour (SYPal.background.contrasting (SYPal.dark ? 0.0f : 0.05f).withAlpha (SYPal.dark ? 0.55f : 0.25f));
+        g.strokePath (channel, PathStrokeType (chThick, PathStrokeType::curved, PathStrokeType::butt));
+
+        // Couronne de LED, allumées jusqu'à la valeur.
+        const int n = 21;
+        const float dr = jmax (1.5f, chThick * 0.30f);
+        for (int i = 0; i < n; ++i)
+        {
+            const float t = (float) i / (float) (n - 1);
+            const float a = startA + t * (endA - startA);
+            const bool  lit = s.isEnabled() && a <= angle + 0.001f;
+            const float dx = cx + std::sin (a) * chMid, dy = cy - std::cos (a) * chMid;
+            if (lit)
+            {
+                g.setColour (SYPal.accent.withAlpha (0.35f));
+                g.fillEllipse (dx - dr * 1.8f, dy - dr * 1.8f, dr * 3.6f, dr * 3.6f);   // halo
+                g.setColour (SYPal.accent);
+            }
+            else
+                g.setColour (SYPal.knobTrack);
+            g.fillEllipse (dx - dr, dy - dr, dr * 2.0f, dr * 2.0f);
+        }
+
+        // Cap central + repère.
+        const float bodyR = chMid - chThick * 0.5f - 2.0f;
+        if (bodyR > 1.0f)
+        {
+            Rectangle<float> body (cx - bodyR, cy - bodyR, bodyR * 2.0f, bodyR * 2.0f);
+            Path bodyPath; bodyPath.addEllipse (body);
+            DropShadow (SYPal.shadow, SyMetrics::shadowRadius, { 0, 2 }).drawForPath (g, bodyPath);
+            g.setGradientFill (ColourGradient (SYPal.knobBody.brighter (SYPal.dark ? 0.18f : 0.04f), cx, body.getY(),
+                                               SYPal.knobBody.darker   (SYPal.dark ? 0.20f : 0.06f), cx, body.getBottom(), false));
+            g.fillEllipse (body);
+            g.setColour (SYPal.panelBorder);
+            g.drawEllipse (body, 1.0f);
+            Path ptr;
+            const float pw = jmax (2.0f, bodyR * 0.16f);
+            ptr.addRoundedRectangle (-pw * 0.5f, -bodyR + 2.0f, pw, bodyR * 0.5f, pw * 0.5f);
+            ptr.applyTransform (AffineTransform::rotation (angle).translated (cx, cy));
+            g.setColour (SYPal.accent);
+            g.fillPath (ptr);
+        }
     }
 
     Typeface::Ptr interRegular, interSemiBold;

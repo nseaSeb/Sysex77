@@ -23,10 +23,10 @@ public:
     {
         work = SYPal;                       // on part du thème courant
 
-        addStyleCombo (cbButtons, "Boutons",  { "square","round","flat","fun" },  work.buttonStyle);
-        addStyleCombo (cbPanels,  "Panneaux", { "square","round","flat","fun" },  work.panelStyle);
-        addStyleCombo (cbSliders, "Sliders",  { "bar","led","rail","groove" },    work.sliderStyle);
-        addStyleCombo (cbKnobs,   "Potards",  { "arc","dot","vintage" },          work.knobStyle);
+        addStyleCombo (cbButtons, "Boutons",  { "square","round","flat","fun","outline" },     work.buttonStyle);
+        addStyleCombo (cbPanels,  "Panneaux", { "square","round","flat","fun" },               work.panelStyle);
+        addStyleCombo (cbSliders, "Sliders",  { "bar","led","rail","groove","notch","dots" },  work.sliderStyle);
+        addStyleCombo (cbKnobs,   "Potards",  { "arc","dot","vintage","tick","neon","arctick" }, work.knobStyle);
 
         cbButtons.onChange = [this] { work.buttonStyle = cbButtons.getText(); apply(); };
         cbPanels .onChange = [this] { work.panelStyle  = cbPanels .getText(); apply(); };
