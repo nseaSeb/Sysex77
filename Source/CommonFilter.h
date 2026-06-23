@@ -183,16 +183,20 @@ public:
             sliderResonnance.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4RESONNANCEFILTRE, &um));
         }
 
-        // filtre1
-        sysexdata[6] = 0x01;
+        // Adresse filtre SY77 (CONFIRMÉE sur le synthé) : groupe 0x09,
+        // addrHi = (élément-1)<<5 | (n°filtre-1) ; param 0x00 = mode, 0x01 = cutoff.
+        const int elemBase = (element - 1) << 5;   // 0x00 / 0x20 / 0x40 / 0x60
+
+        sysexdata[4] = elemBase;            // Filtre 1
+        sysexdata[6] = 0x01;                // cutoff
         sliderFq1.setMidiSysex(sysexdata);
-        
-        sysexdata[4] = 0x04;  // filtre2
-        
-        sysexdata[6] = 0x00;
+        // (Mode filtre 1 = AH elemBase, param 0x00 confirmé synthé ; MidiRadio n'a pas
+        //  setMidiSysex -> à câbler autrement plus tard.)
+
+        sysexdata[4] = elemBase | 0x01;     // Filtre 2
+        sysexdata[6] = 0x00;                // mode (Thru/LPF/HPF)
         btFilter2.setMidiSysex(sysexdata);
-        
-        sysexdata[6] = 0x01;
+        sysexdata[6] = 0x01;                // cutoff
         sliderFq2.setMidiSysex(sysexdata);
         
         sysexdata[4] = 0x05;  // common

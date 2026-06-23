@@ -846,11 +846,18 @@ private:
                         if (target >= 0 && tabs.getCurrentTabIndex() != target)
                             tabs.setCurrentTabIndex (target);
                     }
+
+                    // Ligne DÉCODÉE lisible (rétro-ingénierie) : facile à copier-coller.
+                    auto hx = [] (int v) { return String::toHexString (v).paddedLeft ('0', 2); };
+                    messageText << ">> SY77  G=" << hx (data[3])
+                                << "  AH=" << hx (data[4]) << "  AL=" << hx (data[5])
+                                << "  P="  << hx (data[6])
+                                << "   val=" << (int) data[8] << " (0x" << hx (data[8]) << ")\n";
                 }
-                
-                
+
+
             }
-            
+
             messageText << message.getDescription() << "\n";
 
         }
