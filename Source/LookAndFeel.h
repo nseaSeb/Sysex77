@@ -27,6 +27,8 @@ struct SyPalette
     File   backgroundImage;      // image de fond optionnelle (rendu : hook à venir)
     String buttonStyle;          // "square" | "round" | "flat" | "fun"  (recettes codées dans ModernLookAndFeel)
     String panelStyle;           // "square" | "round" | "flat" | "fun"
+    String sliderStyle = "bar";  // "bar" | "led" | "rail" | "groove"   (rendu des barres/sliders linéaires)
+    String knobStyle   = "arc";  // "arc" | "dot" | "vintage"           (rendu des potards rotatifs)
 };
 
 // Images du thème actif (vides = rendu procédural / fond uni). Rafraîchies à chaque applySyPalette.
@@ -75,6 +77,8 @@ inline SyPalette syPaletteDarkOrange()
     p.glow            = Colours::darkorange.withAlpha (0.35f);
     p.buttonStyle     = "square";
     p.panelStyle      = "square";
+    p.sliderStyle     = "bar";
+    p.knobStyle       = "arc";
     return p;
 }
 
@@ -99,6 +103,8 @@ inline SyPalette syPaletteFmDark()
     p.glow            = Colour (0x55ff8a3d);
     p.buttonStyle     = "flat";
     p.panelStyle      = "flat";
+    p.sliderStyle     = "led";
+    p.knobStyle       = "arc";
     return p;
 }
 
@@ -123,6 +129,8 @@ inline SyPalette syPaletteLight()
     p.glow            = Colour (0x332f7df6);
     p.buttonStyle     = "round";   // boutons on/off arrondis…
     p.panelStyle      = "flat";    // …mais cards plates (pas de cards arrondies/circulaires)
+    p.sliderStyle     = "bar";
+    p.knobStyle       = "dot";     // potards minimalistes (anneau + point)
     return p;
 }
 
@@ -147,6 +155,8 @@ inline SyPalette syPaletteCrimson()
     p.glow            = Colour (0x55ff5a4d);
     p.buttonStyle     = "fun";
     p.panelStyle      = "round";
+    p.sliderStyle     = "groove";
+    p.knobStyle       = "vintage";
     return p;
 }
 
@@ -171,6 +181,8 @@ inline SyPalette syPaletteTangerine()
     p.glow            = Colour (0x55ff6a1a);
     p.buttonStyle     = "round";
     p.panelStyle      = "square";
+    p.sliderStyle     = "rail";
+    p.knobStyle       = "arc";
     return p;
 }
 
@@ -372,6 +384,10 @@ public:
         const float radius = jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f;
         const float angle  = startA + pos * (endA - startA);
 
+        // Recettes de potard pilotées par le thème (sinon « arc » par défaut ci-dessous).
+        if (SYPal.knobStyle == "dot")     { drawKnobDot     (g, cx, cy, radius, startA, endA, angle, s); return; }
+        if (SYPal.knobStyle == "vintage") { drawKnobVintage (g, cx, cy, radius, angle, s);              return; }
+
         const float ringThick = jmax (3.0f, radius * 0.30f);
         const float ringR      = radius - ringThick * 0.5f - 1.0f;
         if (ringR <= 1.0f) return;
@@ -461,34 +477,15 @@ public:
         }
         else if (style == Slider::LinearBar || style == Slider::LinearBarVertical)
         {
-            // Style « flat » : barre = simple rectangle rempli proportionnel à la valeur
-            // (lecture directe du niveau d'opérateur, sans potard ni curseur).
+            // Barre de valeur : rendu piloté par le thème (bar/led/rail/groove).
             Rectangle<float> r ((float) x, (float) y, (float) w, (float) h);
-            g.setColour (SYPal.knobTrack);
-            g.fillRect (r);
-
-            const bool hot = s.isMouseOverOrDragging();
-            g.setColour (SYPal.accent.withMultipliedAlpha (s.isEnabled() ? (hot ? 1.0f : 0.9f) : 0.4f));
-            if (style == Slider::LinearBar)
-            {
-                // Bipolaire (ex. detune) : remplit depuis le centre ; sinon depuis la gauche.
-                if (bipolar)
-                {
-                    const float c = r.getCentreX();
-                    g.fillRect (Rectangle<float> (jmin (c, sliderPos), r.getY(),
-                                                  std::abs (sliderPos - c), r.getHeight()));
-                }
-                else
-                    g.fillRect (r.withWidth (sliderPos - (float) x));    // remplit de gauche à la valeur
-            }
-            else
-                g.fillRect (r.withTop (sliderPos));                      // remplit du haut-valeur vers le bas
-
-            g.setColour (hot ? SYPal.accent : SYPal.panelBorder);
-            g.drawRect (r, SyMetrics::stroke);
+            const bool horiz = (style == Slider::LinearBar);
+            const float pos01 = (s.getMaximum() > s.getMinimum())
+                ? (float) ((s.getValue() - s.getMinimum()) / (s.getMaximum() - s.getMinimum())) : 0.0f;
+            drawValueBar (g, r, pos01, horiz, bipolar, s.isEnabled(), s.isMouseOverOrDragging());
 
             // Valeur numérique lisible dans la barre (lecture directe, façon éditeur SY77).
-            if (style == Slider::LinearBar && h >= 12)
+            if (horiz && h >= 12)
             {
                 g.setColour (s.isEnabled() ? SYPal.textPrimary : SYPal.textMuted);
                 g.setFont (Font (FontOptions (jmin (13.0f, (float) h * 0.7f))));
@@ -707,6 +704,122 @@ private:
         g.fillPath (p);
         g.setColour (SYPal.panelBorder);
         g.strokePath (p, PathStrokeType (SyMetrics::stroke));
+    }
+
+    //========================================================= Recettes de barre de valeur
+    // pos01 = 0..1 ; horiz = LinearBar (h) vs LinearBarVertical (v) ; bipolar = remplit depuis le centre.
+    void drawValueBar (Graphics& g, Rectangle<float> r, float pos01, bool horiz,
+                       bool bipolar, bool enabled, bool hot)
+    {
+        pos01 = jlimit (0.0f, 1.0f, pos01);
+        const Colour acc = SYPal.accent.withMultipliedAlpha (enabled ? (hot ? 1.0f : 0.9f) : 0.4f);
+        const float  px  = r.getX() + pos01 * r.getWidth();
+        const float  ox  = bipolar ? r.getCentreX() : r.getX();   // origine du remplissage (h)
+
+        if (SYPal.sliderStyle == "led")
+        {
+            g.setColour (SYPal.knobTrack);
+            g.fillRect (r);
+            const int n = jmax (6, (int) ((horiz ? r.getWidth() : r.getHeight()) / 9.0f));
+            const int lit = (int) std::round (pos01 * (float) n);
+            const float cell = (horiz ? r.getWidth() : r.getHeight()) / (float) n;
+            for (int i = 0; i < n; ++i)
+            {
+                auto seg = horiz
+                    ? Rectangle<float> (r.getX() + i * cell, r.getY(), cell, r.getHeight()).reduced (cell * 0.16f, r.getHeight() * 0.18f)
+                    : Rectangle<float> (r.getX(), r.getBottom() - (i + 1) * cell, r.getWidth(), cell).reduced (r.getWidth() * 0.18f, cell * 0.16f);
+                g.setColour (i < lit ? acc : SYPal.knobTrack.contrasting (0.08f));
+                g.fillRoundedRectangle (seg, 1.5f);
+            }
+            g.setColour (SYPal.panelBorder);
+            g.drawRect (r, SyMetrics::stroke);
+            return;
+        }
+        if (SYPal.sliderStyle == "rail")
+        {
+            const float cy = r.getCentreY();
+            const float railH = jmin (5.0f, r.getHeight() * 0.35f);
+            g.setColour (SYPal.knobTrack);
+            g.fillRoundedRectangle (r.getX(), cy - railH * 0.5f, r.getWidth(), railH, railH * 0.5f);
+            g.setColour (acc);
+            g.fillRoundedRectangle (jmin (ox, px), cy - railH * 0.5f, std::abs (px - ox), railH, railH * 0.5f);
+            const float tr = jmax (5.0f, r.getHeight() * 0.30f);
+            drawSliderThumb (g, Rectangle<float> (px - tr, cy - tr, tr * 2.0f, tr * 2.0f));
+            return;
+        }
+        if (SYPal.sliderStyle == "groove")
+        {
+            const float cr = jmin (r.getHeight(), r.getWidth()) * 0.5f * 0.7f;
+            g.setColour (SYPal.background.contrasting (SYPal.dark ? 0.0f : 0.06f).withAlpha (SYPal.dark ? 0.55f : 0.25f));
+            g.fillRoundedRectangle (r, cr);                                   // canal creusé
+            g.setColour (acc);
+            g.fillRoundedRectangle (Rectangle<float> (jmin (ox, px), r.getY(), std::abs (px - ox), r.getHeight()).reduced (1.5f), cr);
+            g.setColour (SYPal.panelBorder);
+            g.drawRoundedRectangle (r.reduced (0.5f), cr, SyMetrics::stroke);
+            return;
+        }
+        // "bar" (défaut) : rectangle plat rempli
+        g.setColour (SYPal.knobTrack);
+        g.fillRect (r);
+        g.setColour (acc);
+        if (horiz)
+            g.fillRect (Rectangle<float> (jmin (ox, px), r.getY(), std::abs (px - ox), r.getHeight()));
+        else
+            g.fillRect (r.withTop (r.getBottom() - pos01 * r.getHeight()));
+        g.setColour (hot ? SYPal.accent : SYPal.panelBorder);
+        g.drawRect (r, SyMetrics::stroke);
+    }
+
+    //========================================================= Recettes de potard
+    // « dot » : corps plat + anneau de valeur fin + point indicateur (minimaliste).
+    void drawKnobDot (Graphics& g, float cx, float cy, float radius,
+                      float startA, float endA, float angle, Slider& s)
+    {
+        const float r = radius - 2.0f;
+        if (r <= 1.0f) return;
+        g.setColour (SYPal.knobBody);
+        g.fillEllipse (cx - r, cy - r, r * 2.0f, r * 2.0f);
+        g.setColour (SYPal.panelBorder);
+        g.drawEllipse (cx - r, cy - r, r * 2.0f, r * 2.0f, 1.0f);
+
+        const float ringR = r - 3.0f;
+        if (ringR > 1.0f && s.isEnabled())
+        {
+            Path val; val.addCentredArc (cx, cy, ringR, ringR, 0.0f, startA, angle, true);
+            g.setColour (SYPal.accent);
+            g.strokePath (val, PathStrokeType (2.0f, PathStrokeType::curved, PathStrokeType::rounded));
+        }
+        const float dr   = jmax (1.0f, ringR - 1.0f);
+        const float dotR = jmax (2.0f, r * 0.14f);
+        const float dx = cx + std::sin (angle) * dr;
+        const float dy = cy - std::cos (angle) * dr;
+        g.setColour (s.isEnabled() ? SYPal.accent : SYPal.textMuted);
+        g.fillEllipse (dx - dotR, dy - dotR, dotR * 2.0f, dotR * 2.0f);
+    }
+
+    // « vintage » : corps glossy/métal (dégradé + reflet) + aiguille accent épaisse.
+    void drawKnobVintage (Graphics& g, float cx, float cy, float radius, float angle, Slider& s)
+    {
+        const float r = radius - 2.0f;
+        if (r <= 1.0f) return;
+        Rectangle<float> body (cx - r, cy - r, r * 2.0f, r * 2.0f);
+        Path bp; bp.addEllipse (body);
+        DropShadow (SYPal.shadow, SyMetrics::shadowRadius, { 0, 3 }).drawForPath (g, bp);
+        g.setGradientFill (ColourGradient (SYPal.knobBody.brighter (SYPal.dark ? 0.55f : 0.20f), cx, body.getY(),
+                                           SYPal.knobBody.darker   (SYPal.dark ? 0.40f : 0.12f), cx, body.getBottom(), false));
+        g.fillEllipse (body);
+        g.setColour (SYPal.panelBorder);
+        g.drawEllipse (body, jmax (1.5f, r * 0.08f));
+        g.setGradientFill (ColourGradient (Colours::white.withAlpha (SYPal.dark ? 0.22f : 0.30f), cx, body.getY(),
+                                           Colours::transparentWhite, cx, cy, false));
+        g.fillEllipse (body.reduced (r * 0.16f).removeFromTop (r));
+
+        Path ptr;
+        const float pw = jmax (2.5f, r * 0.15f);
+        ptr.addRoundedRectangle (-pw * 0.5f, -r + 3.0f, pw, r * 0.62f, pw * 0.5f);
+        ptr.applyTransform (AffineTransform::rotation (angle).translated (cx, cy));
+        g.setColour (s.isEnabled() ? SYPal.accent : SYPal.textMuted);
+        g.fillPath (ptr);
     }
 
     Typeface::Ptr interRegular, interSemiBold;

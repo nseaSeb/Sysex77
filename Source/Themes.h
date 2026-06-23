@@ -76,8 +76,12 @@ inline SyPalette syParseTheme (const juce::XmlElement& root, const juce::File& f
     {
         auto bs = s->getStringAttribute ("buttons").trim().toLowerCase();
         auto ps = s->getStringAttribute ("panels").trim().toLowerCase();
+        auto ss = s->getStringAttribute ("sliders").trim().toLowerCase();
+        auto ks = s->getStringAttribute ("knobs").trim().toLowerCase();
         if (bs.isNotEmpty()) p.buttonStyle = bs;
         if (ps.isNotEmpty()) p.panelStyle  = ps;
+        if (ss.isNotEmpty()) p.sliderStyle = ss;
+        if (ks.isNotEmpty()) p.knobStyle   = ks;
     }
     return p;
 }
@@ -115,6 +119,8 @@ inline juce::String syPaletteToXml (const SyPalette& p)
     auto* s = new juce::XmlElement ("STYLE");
     s->setAttribute ("buttons", p.buttonStyle.isNotEmpty() ? p.buttonStyle : "square");
     s->setAttribute ("panels",  p.panelStyle.isNotEmpty()  ? p.panelStyle  : "square");
+    s->setAttribute ("sliders", p.sliderStyle.isNotEmpty() ? p.sliderStyle : "bar");
+    s->setAttribute ("knobs",   p.knobStyle.isNotEmpty()   ? p.knobStyle   : "arc");
     root.addChildElement (s);
 
     return root.toString();

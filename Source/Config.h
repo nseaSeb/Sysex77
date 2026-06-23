@@ -12,6 +12,7 @@
 
 #include "AppSettings.h"
 #include "Themes.h"
+#include "ThemeBuilder.h"
 
 //==============================================================================
 
@@ -64,6 +65,19 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
         addAndMakeVisible(comboTheme);
         addAndMakeVisible(btReloadThemes);
         btReloadThemes.addListener(this);
+        addAndMakeVisible(btThemeBuilder);
+        btThemeBuilder.onClick = [this]
+        {
+            auto* tb = new ThemeBuilder();
+            DialogWindow::LaunchOptions o;
+            o.content.setOwned (tb);
+            o.dialogTitle = TRANS("Theme Builder");
+            o.dialogBackgroundColour = SYPal.background;
+            o.escapeKeyTriggersCloseButton = true;
+            o.useNativeTitleBar = true;
+            o.resizable = true;
+            o.launchAsync();
+        };
 
         // Système de thèmes : exporte les modèles intégrés (si absents), découvre tous les thèmes
         // (intégrés + dossier utilisateur) et peuple le sélecteur.
@@ -325,7 +339,8 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
         comboEngine.setBounds(getWidth()/2 +10, 58, getWidth()/2 - 20, 24);
         labTheme.setBounds(getWidth()/2 +10, 92, getWidth()/2 - 20, 20);
         comboTheme.setBounds(getWidth()/2 +10, 112, getWidth()/2 - 20, 24);
-        btReloadThemes.setBounds(getWidth()/2 +10, 144, getWidth()/2 - 20, 24);
+        btReloadThemes.setBounds(getWidth()/2 +10, 144, getWidth()/4 - 14, 24);
+        btThemeBuilder.setBounds(getWidth()*3/4 +2, 144, getWidth()/4 - 12, 24);
         labVersion.setBounds(10, getHeight() - 22, getWidth() - 20, 18);
     }
     void initProperties()
@@ -372,6 +387,7 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
     Label labTheme {"", TRANS("Theme")};
     ComboBox comboTheme;
     TextButton btReloadThemes {TRANS("Reload themes")};
+    TextButton btThemeBuilder {TRANS("Theme Builder")};
     std::vector<SyPalette> themes;
     Label labVersion;
 
