@@ -152,6 +152,7 @@ int intTabIndex;
 #include "Voice.h"
 #include "Librairie.h"
 #include "Effects.h"
+#include "DumpDiffView.h"   // outil RE : comparer 2 dumps .syx
 #include "MidiObjects.h"
 
 //==============================================================================
@@ -283,6 +284,22 @@ struct MidiSettingsPage : public Component
             getAppSettings()->setValue ("FollowSynth", followSynth);
             getAppSettings()->saveIfNeeded();
         };
+
+        // Outil RE : comparer deux dumps .syx (avant/après un changement d'UN paramètre)
+        // pour localiser l'octet -> bâtir la carte d'offsets bulk.
+        addAndMakeVisible (diffBtn);
+        diffBtn.onClick = [this]
+        {
+            auto* v = new DumpDiffView();
+            v->setSize (740, 540);
+            juce::DialogWindow::LaunchOptions o;
+            o.content.setOwned (v);
+            o.dialogTitle = "Diff 2 dumps (.syx)";
+            o.dialogBackgroundColour = SYColBackground;
+            o.resizable = true;
+            o.useNativeTitleBar = true;
+            o.launchAsync();
+        };
     }
 
     void resized() override
@@ -301,9 +318,10 @@ struct MidiSettingsPage : public Component
         bulkBtn.setBounds (half + m, rowY, half - 2*m, 24);
 
         followBtn.setBounds (m, rowY + 30, getWidth() - 2*m, 22);
+        diffBtn  .setBounds (m, rowY + 56, half - 2*m, 24);
 
-        monLab    .setBounds (m, rowY + 58,      getWidth() - 2*m, 24);
-        monitorRef.setBounds (m, rowY + 58 + 26, getWidth() - 2*m, getHeight() - (rowY + 58 + 26) - m);
+        monLab    .setBounds (m, rowY + 86,      getWidth() - 2*m, 24);
+        monitorRef.setBounds (m, rowY + 86 + 26, getWidth() - 2*m, getHeight() - (rowY + 86 + 26) - m);
     }
 
     Label&      inLab;
@@ -315,6 +333,7 @@ struct MidiSettingsPage : public Component
     Label&      monLab;
     TextEditor& monitorRef;
     ToggleButton followBtn { "Suivre le synthe : ouvrir la vue du parametre recu depuis le SY77" };
+    TextButton   diffBtn   { "Diff 2 dumps (.syx)..." };
 };
 
 //==============================================================================
