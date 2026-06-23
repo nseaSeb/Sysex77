@@ -117,9 +117,11 @@ public:
     }
     void setElementNumber ( int element, UndoManager& um) override
     {
-        Logger::writeToLog( "Filter1 setElement");
-        int sysexdata2[9] = { 0x43, 0X10, 0x34, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00 };
-        int sysexdata[9] = { 0x43, 0X10, 0x34, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+        Logger::writeToLog( "WaveEg setElement");
+        // EG d'ampli AFM = EG PAR OPÉRATEUR ; le groupe [3] sera diffusé aux 6 opérateurs
+        // (mode « All », cf. SY77 [F2] All). T2 [4] = (element-1)<<5 (réglé par bloc ci-dessous).
+        int sysexdata2[9] = { 0x43, 0X10, 0x34, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00 };
+        int sysexdata[9]  = { 0x43, 0X10, 0x34, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00 };
         
         if(element == 1)
         {
@@ -204,49 +206,27 @@ public:
             sliderRR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGVOLRR2 , &um));
             
         }
-        sysexdata[6] = 0x10;
-        sliderSlope.setMidiSysex(sysexdata);
-        
-        
-        sysexdata[6] = 0x09;
-        sysexdata2[6] = 0x03;
-        //       EgFilter.addSegment(10, 10, "L0R1", 64, sysexdata, 64, sysexdata2);
-        sliderL0.setMidiSysex(sysexdata);
-        sliderL0.setRangeAndRound(0, 64, 0);
-        sliderR1.setMidiSysex(sysexdata2);
-        sliderR1.setRangeAndRound(0, 64, 0);
-        
-        sysexdata[6] = 0x0a;
-        sysexdata2[6] = 0x04;
-        //        EgFilter.addSegment(10, 10, "L1R2", 64, sysexdata, 64, sysexdata2);
-        sliderL1.setMidiSysex(sysexdata);
-        sliderL1.setRangeAndRound(0, 64, 0);
-        sliderR2.setMidiSysex(sysexdata2);
-        sliderR2.setRangeAndRound(0, 64, 0);
-        
-        sysexdata[6] = 0x0b;
-        sysexdata2[6] = 0x05;
-        //        EgFilter.addSegment(10, 10, "L2R3", 64, sysexdata, 64, sysexdata2);
-        sliderL2.setMidiSysex(sysexdata);
-        sliderL2.setRangeAndRound(0, 64, 0);
-        sliderR3.setMidiSysex(sysexdata2);
-        sliderR3.setRangeAndRound(0, 64, 0);
-        
-        sysexdata[6] = 0x0c;
-        sysexdata2[6] = 0x06;
-        //       EgFilter.addSegment(10, 10, "L3R4", 64, sysexdata, 64, sysexdata2);
-        sliderL3.setMidiSysex(sysexdata);
-        sliderL3.setRangeAndRound(0, 64, 0);
-        sliderR4.setMidiSysex(sysexdata2);
-        sliderR4.setRangeAndRound(0, 64, 0);
-        
-        sysexdata[6] = 0x0d;
-        sysexdata2[6] = 0x07;
-        //       EgFilter.addSegment(10, 10, "L4RR1", 64, sysexdata, 64, sysexdata2);
-        sliderL4.setMidiSysex(sysexdata);
-        sliderL4.setRangeAndRound(0, 64, 0);
-        sliderRR1.setMidiSysex(sysexdata2);
-        sliderRR2.setRangeAndRound(0, 64, 0);
+        // --- EG d'ampli AFM = EG par OPÉRATEUR (Table 1-7). Mode « All » : chaque slider est
+        // diffusé aux 6 opérateurs (groupes 0x06/0x16/0x26/0x36/0x46/0x56). Offsets opérateur :
+        // R1-4=00-03, RR1=04, RR2=05, L1-4=06-09, RL1=0A, RL2=0B, L0=0E, RS(slope)=0F.
+        // (Les groupes opérateur sont distincts du groupe AWM 0x07 : sans effet sur un élément
+        //  AWM. Un éditeur d'EG d'ampli AWM dédié reste à faire, cf. [[project-eg-sysex-bug]].)
+        const Array<int> ops { 0x06, 0x16, 0x26, 0x36, 0x46, 0x56 };
+
+        auto wire = [&] (MidiSlider& s, int n2, int maxVal)
+        {
+            sysexdata[6] = n2;
+            s.setMidiSysex (sysexdata);
+            s.setMidiBroadcastGroups (ops);
+            s.setRangeAndRound (0, maxVal, 0);
+        };
+
+        wire (sliderR1,  0x00, 63); wire (sliderR2,  0x01, 63); wire (sliderR3, 0x02, 63); wire (sliderR4, 0x03, 63);
+        wire (sliderRR1, 0x04, 63); wire (sliderRR2, 0x05, 63);
+        wire (sliderL1,  0x06, 63); wire (sliderL2,  0x07, 63); wire (sliderL3, 0x08, 63); wire (sliderL4, 0x09, 63);
+        wire (sliderRL1, 0x0A, 63); wire (sliderRL2, 0x0B, 63);
+        wire (sliderL0,  0x0E, 63);
+        wire (sliderSlope, 0x0F, 64);   // RS rate scaling (-7..+7 s/m exact à affiner, cf. encodage EG)
     }
     void paint (Graphics& g) override
     {

@@ -107,10 +107,13 @@ public:
 
     void valueChanged(Value & value) override
     {
-    
+
         Logger::writeToLog("midislider value change");
         int val = value.getValue()[0];
-        if(sysexData[3] == val)
+        // En mode « All », accepte la resync depuis n'importe lequel des groupes diffusés.
+        const bool groupMatch = broadcastGroups.isEmpty() ? (sysexData[3] == val)
+                                                          : broadcastGroups.contains (val);
+        if(groupMatch)
         {
             val = value.getValue()[1];
             if(sysexData[4] ==  val)
@@ -197,13 +200,30 @@ public:
        // uint8 data = slider->getValue();
         sysexData[8] = value + midiTxOffset;   // ex. algo : affichage 1..45 -> synthé 0..44
 
-        sender.send(oscAddressPatern, (uint8) sysexData[0], sysexData[1], sysexData[2], sysexData[3], sysexData[4], sysexData[5], sysexData[6], sysexData[7], sysexData[8]);
+        if (broadcastGroups.isEmpty())
+        {
+            sender.send(oscAddressPatern, (uint8) sysexData[0], sysexData[1], sysexData[2], sysexData[3], sysexData[4], sysexData[5], sysexData[6], sysexData[7], sysexData[8]);
+        }
+        else
+        {
+            // Mode « All » (cf. SY77 [F2] All) : on diffuse la MÊME valeur à plusieurs groupes
+            // (ex. l'EG d'ampli AFM aux 6 opérateurs 0x06/0x16/.../0x56), en ne changeant que [3].
+            for (int g : broadcastGroups)
+            {
+                sysexData[3] = (uint8) g;
+                sender.send(oscAddressPatern, (uint8) sysexData[0], sysexData[1], sysexData[2], sysexData[3], sysexData[4], sysexData[5], sysexData[6], sysexData[7], sysexData[8]);
+            }
+        }
 
     }
 
     // Décalage appliqué entre l'affichage et l'octet sysex (TX: +offset, RX: -offset).
     // Sert quand le synthé indexe différemment de l'UI (ex. algorithme : 0..44 vs 1..45).
     void setMidiValueOffset (int o) { midiTxOffset = o; }
+
+    // Mode « All » : diffuse chaque envoi à tous ces groupes (octet [3]), même N2/T2.
+    // Vide = comportement normal (un seul groupe = sysexData[3]).
+    void setMidiBroadcastGroups (const Array<int>& groups) { broadcastGroups = groups; }
 
     void setMidiSysex (int sysexdata[0])
     {
@@ -220,6 +240,7 @@ private:
     bool boolInvert = false;
     int intNegativeDelta = 0; // correction for sysex
     int midiTxOffset = 0;     // décalage affichage<->sysex (cf. setMidiValueOffset)
+    Array<int> broadcastGroups; // mode « All » : groupes de diffusion (cf. setMidiBroadcastGroups)
     String oscAddressPatern {"/SYSEX"};
     String strOscAdress;
 //    MidiMessage midiMessage;
