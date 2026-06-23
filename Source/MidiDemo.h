@@ -150,6 +150,7 @@ int intTabIndex;
 #include "Config.h"
 #include "Voice.h"
 #include "Librairie.h"
+#include "Effects.h"
 #include "MidiObjects.h"
 
 //==============================================================================
@@ -176,6 +177,7 @@ struct DemoTabbedComponent  : public TabbedComponent
         addTab (TRANS("Librairie"),     colour, new LibrairiePage (), true);
        // addTab (TRANS("Midi"),     colour, new ControllerPage (), true);
         addTab (TRANS("Voice"), colour, new VoicePage(), true);
+        addTab (TRANS("Effects"), colour, new EffectsPage(), true);
         // L'onglet "Midi Setting" (index 3) est ajouté par MidiDemo avec un vrai
         // contenu (MidiSettingsPage), car il réutilise des composants de MidiDemo.
 
@@ -444,7 +446,7 @@ public:
         setSize (1280, 820);
         // Restaure l'onglet mémorisé (défaut : 3 = Midi Setting), puis autorise la sauvegarde.
         tabs.setCurrentTabIndex (jlimit (0, tabs.getNumTabs() - 1,
-                                         getAppSettings()->getIntValue ("CurrentTab", 3)));
+                                         getAppSettings()->getIntValue ("CurrentTab", 4))); // 4 = Midi Setting
         tabs.allowTabSave = true;
         startTimer (500);
     }
