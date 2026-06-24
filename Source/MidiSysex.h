@@ -144,6 +144,17 @@ void oscMessageReceived (const OSCMessage& message)
                     if (auto* tlw = getTopLevelComponent())
                         tlw->setName ("Sysex77 v" + String (Sysex77::kVersion)
                                       + (name.isNotEmpty() ? "  —  " + name : String()));
+
+                    // Charge aussi les paramètres sonores CONFIRMÉS hardware (opérateurs AFM,
+                    // élément 1) en les rejouant comme des messages param-change entrants :
+                    // chaque widget se met à jour via son propre chemin de réception (vérifié
+                    // Track A). Notification SYNCHRONE par param, sinon les Value JUCE coalescent
+                    // et seul le dernier paramètre serait appliqué.
+                    for (auto& vp : SyVoice::voiceBlobToParams (d, sz))
+                    {
+                        valueSysexIn = make_var_array (vp.group, vp.addrHi, vp.addrLo, vp.param, 0, vp.value);
+                        valueSysexIn.getValueSource().sendChangeMessage (true);
+                    }
                 }
 
                 // Bascule sur l'éditeur (onglet Voice = index 2) pour éditer la voix ouverte.

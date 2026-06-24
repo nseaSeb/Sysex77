@@ -513,6 +513,17 @@ public:
             int counter = 0;
             std::function<void(juce::Component*)> walk = [&] (juce::Component* c)
             {
+                // Descend dans les sous-onglets imbriqués (AfmVue/FilterVue/WaveVue) : un
+                // TabbedComponent ne garde dans l'arbre que l'onglet ACTIF -> on parcourt
+                // explicitement TOUS ses contenus via getTabContentComponent, sinon on ne
+                // voit que ~95 contrôles (les onglets affichés) au lieu de la totalité.
+                if (auto* tc = dynamic_cast<juce::TabbedComponent*> (c))
+                {
+                    for (int t = 0; t < tc->getNumTabs(); ++t)
+                        if (auto* cc = tc->getTabContentComponent (t))
+                            walk (cc);
+                    return;
+                }
                 for (auto* k : c->getChildren())
                 {
                     int a[9]; bool sent = false; const char* type = "";
@@ -557,6 +568,15 @@ public:
             int counter = 0;
             std::function<void(juce::Component*)> walk = [&] (juce::Component* c)
             {
+                // Même descente dans les TabbedComponent imbriqués que pour le fingerprint
+                // (sinon la lecture ne couvre que les sous-onglets actifs).
+                if (auto* tc = dynamic_cast<juce::TabbedComponent*> (c))
+                {
+                    for (int t = 0; t < tc->getNumTabs(); ++t)
+                        if (auto* cc = tc->getTabContentComponent (t))
+                            walk (cc);
+                    return;
+                }
                 for (auto* k : c->getChildren())
                 {
                     int a[9]; int val = 0; bool ok = false; const char* type = "";

@@ -140,7 +140,7 @@ namespace IDs
     DECLARE_ID (AFMELEMENT4OSCFINE5)
     DECLARE_ID (AFMELEMENT4OSCFINE6)
 
-    // AFM operator output level (rendu uniquement — pas encore d'envoi sysex)
+    // AFM operator output level (rendu + envoi sysex TL param 0x1B, groupe par-opérateur)
     DECLARE_ID (AFMELEMENT1LEVEL1)
     DECLARE_ID (AFMELEMENT1LEVEL2)
     DECLARE_ID (AFMELEMENT1LEVEL3)

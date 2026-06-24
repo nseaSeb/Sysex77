@@ -235,6 +235,27 @@ public:
         strOscAdress = oscAdress;
     }
 
+    // Outil RE (jetable) : envoie une valeur brute connue et renvoie l'adresse sysex,
+    // pour corréler avec un dump bulk -> carte d'offsets. Mono-groupe (n'utilise pas le
+    // broadcast), ce qui ISOLE un opérateur pour l'EG d'ampli AFM.
+    bool reSend (int wireValue, int outAddr[9])
+    {
+        if (sysexData[0] != 0x43) return false;   // pas d'adresse câblée
+        for (int i = 0; i < 9; ++i) outAddr[i] = sysexData[i];
+        sysexData[8] = (uint8) wireValue;  outAddr[8] = wireValue;
+        sender.send (oscAddressPatern, (uint8) sysexData[0], sysexData[1], sysexData[2], sysexData[3], sysexData[4], sysexData[5], sysexData[6], sysexData[7], sysexData[8]);
+        return true;
+    }
+
+    // Outil RE (jetable) : lit la valeur AFFICHÉE actuelle + l'adresse, sans rien envoyer.
+    bool reRead (int outAddr[9], int& value)
+    {
+        if (sysexData[0] != 0x43) return false;
+        for (int i = 0; i < 9; ++i) outAddr[i] = sysexData[i];
+        value = (int) getValue();
+        return true;
+    }
+
 private:
     bool boolNegative = false;   // set if neg value like pan
     bool boolInvert = false;
@@ -368,6 +389,26 @@ public:
         strOscAdress = oscAdress;
     }
     
+    // Outil RE (jetable) : un bouton est 0/1 -> envoie ON.
+    bool reSend (int wireValue, int outAddr[9])
+    {
+        if (sysexData[0] != 0x43) return false;
+        for (int i = 0; i < 9; ++i) outAddr[i] = sysexData[i];
+        const int v = (wireValue != 0) ? 1 : 0;
+        sysexData[8] = (uint8) v;  outAddr[8] = v;
+        sender.send (oscAddressPatern, (uint8) sysexData[0], sysexData[1], sysexData[2], sysexData[3], sysexData[4], sysexData[5], sysexData[6], sysexData[7], sysexData[8]);
+        return true;
+    }
+
+    // Outil RE (jetable) : lit l'état du bouton (0/1) + l'adresse, sans rien envoyer.
+    bool reRead (int outAddr[9], int& value)
+    {
+        if (sysexData[0] != 0x43) return false;
+        for (int i = 0; i < 9; ++i) outAddr[i] = sysexData[i];
+        value = getToggleState() ? 1 : 0;
+        return true;
+    }
+
 private:
 //    bool boolNegative = false;   // set if neg value like pan
 
@@ -389,17 +430,36 @@ public:
     {
         valueRadio.addListener(this);
         valueRadio.setValue(0);
+        valueSysexIn.addListener(this); // réception sysex (comme MidiCombo)
     }
     ~MidiRadio()
     {
         valueRadio.removeListener(this);
+        valueSysexIn.removeListener(this);
     }
     void valueChanged(Value & value) override
     {
+        // Réception sysex entrant : si l'adresse correspond, on aligne le radio
+        // (sans renvoyer -> l'émission ne se fait qu'au clic, cf. buttonClicked).
+        if (value.refersToSameSourceAs (valueSysexIn))
+        {
+            if (! hasSysex) return;
+            if (sysexData[3] == (int) value.getValue()[0]
+             && sysexData[4] == (int) value.getValue()[1]
+             && sysexData[5] == (int) value.getValue()[2]
+             && sysexData[6] == (int) value.getValue()[3])
+            {
+                int idx = value.getValue()[5];
+                if (idx >= 0 && idx < arrayButton.size())
+                    valueRadio.setValue (idx);
+            }
+            return;
+        }
+
         int val = value.getValue();
-        if(!arrayButton[val]->getToggleState())
+        if (val >= 0 && val < arrayButton.size() && ! arrayButton[val]->getToggleState())
             arrayButton[val]->setToggleState(true, NotificationType::dontSendNotification);
-               Logger::writeToLog("MidiRadio Value change"); 
+               Logger::writeToLog("MidiRadio Value change");
     }
 void buttonClicked (Button* button) override
     {
@@ -407,6 +467,21 @@ void buttonClicked (Button* button) override
         for(auto i =0; i < arrayButton.size();i++)
             if(arrayButton[i]->getToggleState())
                 valueRadio.setValue(i);
+
+        // Émission : la valeur sysex = l'index du bouton sélectionné (l'ordre des boutons
+        // doit donc suivre l'énum du synthé). Adressé via setMidiSysex.
+        if (hasSysex)
+        {
+            sysexData[8] = (int) valueRadio.getValue();
+            sender.send(oscAddressPatern, (uint8) sysexData[0], sysexData[1], sysexData[2], sysexData[3], sysexData[4], sysexData[5], sysexData[6], sysexData[7], sysexData[8]);
+        }
+    }
+
+    void setMidiSysex (int sysexdata[0])
+    {
+        for(int i = 0; i < 9 ; i++)
+            sysexData[i] = sysexdata[i];
+        hasSysex = true;
     }
 void addRadio(String text, int radioId)
     {
@@ -457,9 +532,33 @@ void resized() override
             
         }
     }
+    // Outil RE (jetable) : envoie une valeur brute connue, renvoie l'adresse sysex.
+    bool reSend (int wireValue, int outAddr[9])
+    {
+        if (! hasSysex) return false;
+        for (int i = 0; i < 9; ++i) outAddr[i] = sysexData[i];
+        sysexData[8] = (uint8) wireValue;  outAddr[8] = wireValue;
+        sender.send (oscAddressPatern, (uint8) sysexData[0], sysexData[1], sysexData[2], sysexData[3], sysexData[4], sysexData[5], sysexData[6], sysexData[7], sysexData[8]);
+        return true;
+    }
+
+    // Outil RE (jetable) : lit l'index radio + l'adresse, sans rien envoyer.
+    bool reRead (int outAddr[9], int& value)
+    {
+        if (! hasSysex) return false;
+        for (int i = 0; i < 9; ++i) outAddr[i] = sysexData[i];
+        value = (int) valueRadio.getValue();
+        return true;
+    }
+
 private:
     OwnedArray<TextButton> arrayButton;
     Value   valueRadio;
+
+    SysexBusSender sender;
+    uint8  sysexData[9] {};
+    bool   hasSysex = false;
+    String oscAddressPatern {"/SYSEX"};
 };
 
 //==============================================================================
@@ -546,6 +645,25 @@ public:
         strOscAdress = oscAdress;
     }
     
+    // Outil RE (jetable) : envoie une valeur brute connue, renvoie l'adresse sysex.
+    bool reSend (int wireValue, int outAddr[9])
+    {
+        if (sysexData[0] != 0x43) return false;
+        for (int i = 0; i < 9; ++i) outAddr[i] = sysexData[i];
+        sysexData[8] = (uint8) wireValue;  outAddr[8] = wireValue;
+        sender.send (oscAddressPatern, (uint8) sysexData[0], sysexData[1], sysexData[2], sysexData[3], sysexData[4], sysexData[5], sysexData[6], sysexData[7], sysexData[8]);
+        return true;
+    }
+
+    // Outil RE (jetable) : lit l'index combo (id-1) + l'adresse, sans rien envoyer.
+    bool reRead (int outAddr[9], int& value)
+    {
+        if (sysexData[0] != 0x43) return false;
+        for (int i = 0; i < 9; ++i) outAddr[i] = sysexData[i];
+        value = getSelectedId() - 1;
+        return true;
+    }
+
 private:
     //    bool boolNegative = false;   // set if neg value like pan
     

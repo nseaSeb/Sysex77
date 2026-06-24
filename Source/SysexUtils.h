@@ -100,6 +100,62 @@ namespace SyVoice
     }
 
     //==============================================================================
+    /** Un paramètre décodé d'un bloc voix, exprimé comme un message param-change
+        équivalent (mêmes group/addrHi/addrLo/param que les widgets de l'éditeur).
+        Injecté dans `valueSysexIn` au chargement -> chaque widget se met à jour via
+        son propre chemin de réception, déjà vérifié hardware (cf. Track A). */
+    struct VoiceParam { int group, addrHi, addrLo, param, value; };
+
+    /** Décode les paramètres FIABLES (vérifiés contre de vrais dumps SY77) d'un bloc
+        voix 1AFM (F0…F7, 466 octets, type@32 == 0x03) et les renvoie sous forme de
+        messages param-change équivalents, prêts à rejouer dans l'éditeur.
+
+        Couverture v1 — UNIQUEMENT les params confirmés hardware : pour chaque
+        opérateur AFM (élément 1, OP1..OP6) les rates/levels d'EG (R1-4, RR1-2,
+        L1-4, RL1-2, L0), le niveau de sortie (TL) et le fine. Les params dont
+        l'offset/encodage n'est pas encore vérifié (coarse, detune, RS, SLP, HT,
+        filtres, algo, effets, voice-common, éléments 2-4) sont VOLONTAIREMENT omis :
+        l'éditeur conserve sa valeur, on n'affiche jamais de donnée erronée
+        (« fiabilité d'abord »).
+
+        Provenance des offsets : carte calée sur les dumps SteelStrng + recoupement
+        du dump fingerprinté avec re_fingerprint.csv (match exact 6/6 sur TL & Fine ;
+        match exact sur R/L/RR/RL/L0). Voir docs/bulk_offset_map_WIP.md. */
+    inline juce::Array<VoiceParam> voiceBlobToParams (const juce::uint8* d, int sz)
+    {
+        juce::Array<VoiceParam> out;
+        if (d == nullptr || sz < 466) return out;   // bloc 1AFM complet F0..F7
+        if (d[32] != 0x03)            return out;    // type 1AFM uniquement (layout vérifié)
+
+        // 6 opérateurs : ordre de stockage OP6->OP1, 45 octets/record, OP6 @107.
+        // group param-change : OP6=0x06 … OP1=0x56 (cf. afmOperatorGroup), addrHi=0.
+        struct Op { int group, base; };
+        const Op ops[6] = { { 0x06, 107 }, { 0x16, 152 }, { 0x26, 197 },
+                            { 0x36, 242 }, { 0x46, 287 }, { 0x56, 332 } };
+
+        // param-change (N2) -> offset interne dans le record de 45 octets (CONFIRMÉS).
+        struct Pm { int param, intOff; };
+        const Pm pm[] = {
+            { 0x00, 0 }, { 0x01, 1 }, { 0x02, 2 }, { 0x03, 3 },   // R1-R4
+            { 0x04, 4 }, { 0x05, 5 },                             // RR1, RR2
+            { 0x06, 6 }, { 0x07, 7 }, { 0x08, 8 }, { 0x09, 9 },   // L1-L4
+            { 0x0A, 10 }, { 0x0B, 11 },                           // RL1, RL2
+            { 0x0E, 14 },                                         // L0
+            { 0x1B, 29 },                                         // TL (niveau de sortie)
+            { 0x26, 44 }                                          // Fine
+        };
+
+        for (auto& op : ops)
+            for (auto& m : pm)
+            {
+                const int off = op.base + m.intOff;
+                if (off < sz)
+                    out.add ({ op.group, 0, 0, m.param, (int) d[off] });
+            }
+        return out;
+    }
+
+    //==============================================================================
     /** Heuristique : ce buffer ressemble-t-il à un dump Sysex Yamaha (commence par
         0xF0 0x43) ? Sert à éviter de charger n'importe quel fichier comme banque. */
     inline bool looksLikeYamahaSysex (const juce::uint8* data, size_t size)

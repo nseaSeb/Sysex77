@@ -27,9 +27,11 @@ public:
         addAndMakeVisible(groupSens);
         
         // add radio for the first filter
-        radioFilter1Mode.addRadio("Thru",112);
+        // Ordre = énum synthé FiltType (carte TG77 vérifiée hardware) : 0=LPF, 1=HPF, 2=Thru.
+        // L'index du bouton = la valeur sysex envoyée (cf. MidiRadio::buttonClicked).
         radioFilter1Mode.addRadio("LPF",112);
         radioFilter1Mode.addRadio("HPF",112);
+        radioFilter1Mode.addRadio("Thru",112);
         addAndMakeVisible(radioFilter1Mode);
         
         radioControlFiltre1.addRadio("EG", 113);
@@ -190,8 +192,7 @@ public:
         sysexdata[4] = elemBase;            // Filtre 1
         sysexdata[6] = 0x01;                // cutoff
         sliderFq1.setMidiSysex(sysexdata);
-        // (Mode filtre 1 = AH elemBase, param 0x00 confirmé synthé ; MidiRadio n'a pas
-        //  setMidiSysex -> à câbler autrement plus tard.)
+        // (Mode/type filtre 1 = AH elemBase, param 0x00 ; câblé plus bas via radioFilter1Mode.)
 
         sysexdata[4] = elemBase | 0x01;     // Filtre 2
         sysexdata[6] = 0x00;                // mode (Thru/LPF/HPF)
@@ -208,6 +209,18 @@ public:
         sysexdata[6] = 0x34;                // LFO (param supposé, addrHi confirmé)
         sliderLfoSens.setMidiSysex(sysexdata);
 
+        // Type de filtre 1 (FTYPE, param 0x00) + mode de contrôle filtre 1 (FMODE, param 0x02),
+        // fN=0 (= elemBase). FTYPE: 0=LPF/1=HPF/2=Thru ; FMODE: 0=EG/1=LFO/2=EG-VA (carte TG77).
+        sysexdata[4] = elemBase;
+        sysexdata[6] = 0x00;
+        radioFilter1Mode.setMidiSysex(sysexdata);
+        sysexdata[6] = 0x02;
+        radioControlFiltre1.setMidiSysex(sysexdata);
+
+        // Mode de contrôle filtre 2 (FMODE, param 0x02), fN=1.
+        sysexdata[4] = elemBase | 0x01;
+        sysexdata[6] = 0x02;
+        radioControlFiltre2.setMidiSysex(sysexdata);
     }
     void paint (Graphics& g) override
     {

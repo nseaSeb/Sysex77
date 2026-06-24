@@ -248,7 +248,20 @@ public:
         sliderL4.setMidiSysex(sysexdata);
         sliderL4.setRangeAndRound(0, 64, 0);
         sliderRR1.setMidiSysex(sysexdata2);
+        sliderRR1.setRangeAndRound(0, 64, 0);
+
+        // Compléments EG filtre (spec table 1-10 / sy77midi_ocr.txt l.607-615) :
+        // FRR2 (rate, 0x08), FRL1 (level, 0x0E), FRL2 (level, 0x0F). Niveaux laissés en
+        // 0..64 comme L0-L4 (encodage offset-binary -64..+63 différé pour TOUS les niveaux).
+        sysexdata2[6] = 0x08;               // FRR2 (key_off Rate 2)
+        sliderRR2.setMidiSysex(sysexdata2);
         sliderRR2.setRangeAndRound(0, 64, 0);
+        sysexdata[6] = 0x0e;                // FRL1 (key_off cut_off Level 1)
+        sliderRL1.setMidiSysex(sysexdata);
+        sliderRL1.setRangeAndRound(0, 64, 0);
+        sysexdata[6] = 0x0f;                // FRL2 (key_off cut_off Level 2)
+        sliderRL2.setMidiSysex(sysexdata);
+        sliderRL2.setRangeAndRound(0, 64, 0);
     }
     void paint (Graphics& g) override
     {
