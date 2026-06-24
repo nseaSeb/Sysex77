@@ -94,6 +94,22 @@ public:
                                &sliderFreqFine4,&sliderFreqFine5,&sliderFreqFine6 })
             setSliderStyle(*s);
 
+        // Panel zoom : sensibilités, switches, scaling (cachés en mode table, cf. updateZoomVisibility).
+        for (int o = 0; o < 6; ++o)
+        {
+            for (MidiSlider* s : { &sensVel[o], &sensAm[o], &sensPm[o] })
+            { addChildComponent(*s); s->setSliderStyle(Slider::LinearBar); s->setTextBoxStyle(Slider::TextBoxRight,false,38,16); }
+            for (int k = 0; k < 4; ++k)
+            {
+                addChildComponent(bpScl[o][k]);  bpScl[o][k].setSliderStyle(Slider::LinearBar);  bpScl[o][k].setTextBoxStyle(Slider::TextBoxRight,false,34,16);
+                addChildComponent(offScl[o][k]); offScl[o][k].setSliderStyle(Slider::LinearBar); offScl[o][k].setTextBoxStyle(Slider::TextBoxRight,false,34,16);
+            }
+            addChildComponent(velSw[o]); velSw[o].setTextOnOff("Vel On","Vel Off");
+            addChildComponent(pegSw[o]); pegSw[o].setTextOnOff("PEG On","PEG Off");
+        }
+        for (Label* l : { &lblSensVel,&lblSensAm,&lblSensPm,&lblVelSw,&lblPegSw,&lblScaling })
+        { addChildComponent(*l); l->setJustificationType(Justification::centredLeft); }
+
        // addAndMakeVisible(labelOsc1);
        // labelOsc1.attachToComponent(&sliderOsc1, false);
         addAndMakeVisible(btFix1);
@@ -460,6 +476,39 @@ public:
                 fin[o]->setRangeAndRound (0, 99, 0);
             }
         }
+
+        // --- Panel zoom : SENSIT / SCALING / switches (par opérateur). Adresses spec (Table 1-7).
+        // Offsets bulk des SENSIT = meilleure estimation (à confirmer hardware) ; le reste est plain.
+        {
+            const int grp[6] = { 0x56,0x46,0x36,0x26,0x16,0x06 };   // OP1..OP6
+            const int aH = sysexdata[4];
+            for (int o = 0; o < 6; ++o)
+            {
+                auto wireS = [&] (MidiSlider& s, int param, int maxv, const String& prop)
+                {
+                    int sx[9] = { 0x43, 0X10, 0x34, grp[o], aH, 0x00, param, 0x00, 0x00 };
+                    s.setMidiSysex (sx);  s.setRangeAndRound (0, maxv, 0);
+                    s.getValueObject().referTo (valueTreeVoice.getPropertyAsValue (
+                        Identifier ("ELEMENT" + String (element) + prop + String (o + 1)), &um));
+                };
+                wireS (sensVel[o], 0x11, 15, "SVEL");
+                wireS (sensAm[o],  0x10,  7, "SAM");
+                wireS (sensPm[o],  0x18, 31, "SPM");
+                for (int k = 0; k < 4; ++k)
+                {
+                    wireS (bpScl[o][k],  0x1C + k, 127, "BP"  + String (k + 1) + "_");
+                    wireS (offScl[o][k], 0x20 + k, 127, "OFF" + String (k + 1) + "_");
+                }
+                int sv[9] = { 0x43, 0X10, 0x34, grp[o], aH, 0x00, 0x24, 0x00, 0x00 };   // RVSW
+                velSw[o].setMidiSysex (sv);
+                velSw[o].getToggleStateValue().referTo (valueTreeVoice.getPropertyAsValue (
+                    Identifier ("ELEMENT" + String (element) + "VELSW" + String (o + 1)), &um));
+                int sp[9] = { 0x43, 0X10, 0x34, 0x05, aH, 0x00, 0x0C, 0x00, 0x00 };     // FYPSW (élément)
+                pegSw[o].setMidiSysex (sp);
+                pegSw[o].getToggleStateValue().referTo (valueTreeVoice.getPropertyAsValue (
+                    Identifier ("ELEMENT" + String (element) + "PEGSW"), &um));
+            }
+        }
         
         sysexdata[6] = 0x1a;
         sysexdata[3] = 0x56;
@@ -619,7 +668,15 @@ public:
             c.det->setVisible (vis); c.pha->setVisible (vis); c.syn->setVisible (vis); c.mod->setVisible (vis);
             Label* L[4]; opLabels (i, L);
             for (auto* l : L) l->setVisible (zoom && i == zoomOp);   // légendes seulement en zoom
+
+            // Contrôles détaillés (SENSIT/SCALING/switches) : uniquement l'op zoomé.
+            const bool zv = zoom && i == zoomOp;
+            for (MidiSlider* s : { &sensVel[i], &sensAm[i], &sensPm[i] }) s->setVisible (zv);
+            for (int k = 0; k < 4; ++k) { bpScl[i][k].setVisible (zv); offScl[i][k].setVisible (zv); }
+            velSw[i].setVisible (zv); pegSw[i].setVisible (zv);
         }
+        for (Label* l : { &lblSensVel,&lblSensAm,&lblSensPm,&lblVelSw,&lblPegSw,&lblScaling })
+            l->setVisible (zoom);
     }
 
     // Table : 1 opérateur par ligne. Les fractions doivent coïncider avec paintTable().
@@ -676,30 +733,61 @@ public:
 
         area.removeFromTop (8);
 
-        // Forme d'onde agrandie (carrée, centrée).
-        auto waveRow = area.removeFromTop ((int) (area.getHeight() * 0.42f));
+        // Forme d'onde (réduite pour laisser la place au détail complet de l'opérateur).
+        auto waveRow = area.removeFromTop ((int) (area.getHeight() * 0.26f));
         const int wsz = jmin (waveRow.getHeight(), waveRow.getWidth());
         c.osc->setBounds (waveRow.withSizeKeepingCentre (wsz, wsz));
+        area.removeFromTop (8);
 
-        area.removeFromTop (10);
-
-        // Boutons SYNC / MODE en bas.
-        auto btnRow = area.removeFromBottom (40);
+        // SYNC / MODE en bas.
+        auto btnRow = area.removeFromBottom (36);
         c.syn->setBounds (btnRow.removeFromLeft (btnRow.getWidth() / 2).reduced (8, 4));
         c.mod->setBounds (btnRow.reduced (8, 4));
-        area.removeFromBottom (10);
+        area.removeFromBottom (8);
 
-        // On profite de l'espace : LEVEL / COARSE / DETUNE / PHASE en potards circulaires
-        // (légende attachée au-dessus, valeur en boîte sous le potard).
-        MidiSlider* knobs[5] = { c.lvl, c.crs, c.fin, c.det, c.pha };
-        const int kw = jmax (1, area.getWidth() / 5);
-        for (int i = 0; i < 5; ++i)
+        const int rowH = jmax (44, area.getHeight() / 3);
+
+        // Rangée 1 : LEVEL / COARSE / FINE / DET / PHASE (potards).
+        auto r1 = area.removeFromTop (rowH);
         {
-            knobs[i]->setSliderStyle (Slider::RotaryHorizontalVerticalDrag);
-            knobs[i]->setTextBoxStyle (Slider::TextBoxBelow, false, jmin (70, kw - 12), 18);
-            auto cell = Rectangle<int> (area.getX() + i * kw, area.getY(), kw, area.getHeight());
-            cell.removeFromTop (18);                    // place pour la légende attachée
-            knobs[i]->setBounds (cell.reduced (10, 6));
+            MidiSlider* knobs[5] = { c.lvl, c.crs, c.fin, c.det, c.pha };
+            const int kw = jmax (1, r1.getWidth() / 5);
+            for (int i = 0; i < 5; ++i)
+            {
+                knobs[i]->setSliderStyle (Slider::RotaryHorizontalVerticalDrag);
+                knobs[i]->setTextBoxStyle (Slider::TextBoxBelow, false, jmin (70, kw - 12), 18);
+                auto cell = Rectangle<int> (r1.getX() + i * kw, r1.getY() + 18, kw, r1.getHeight() - 18);
+                knobs[i]->setBounds (cell.reduced (10, 4));
+            }
+        }
+
+        // Rangée 2 : SENSIT (VEL / AM / PM) + VEL SW + PEG SW.
+        auto r2 = area.removeFromTop (rowH);
+        {
+            const int w = jmax (1, r2.getWidth() / 5);
+            auto put = [&] (Label& lab, Component& ctl, int i)
+            {
+                auto cell = Rectangle<int> (r2.getX() + i * w, r2.getY(), w, r2.getHeight());
+                lab.setBounds (cell.removeFromTop (16));
+                ctl.setBounds (cell.reduced (6, 4));
+            };
+            put (lblSensVel, sensVel[zoomOp], 0);
+            put (lblSensAm,  sensAm[zoomOp],  1);
+            put (lblSensPm,  sensPm[zoomOp],  2);
+            put (lblVelSw,   velSw[zoomOp],   3);
+            put (lblPegSw,   pegSw[zoomOp],   4);
+        }
+
+        // Rangée 3 : SCALING (4 break-points + 4 offsets de niveau).
+        auto r3 = area.removeFromTop (rowH);
+        {
+            lblScaling.setBounds (r3.removeFromTop (16));
+            const int w = jmax (1, r3.getWidth() / 8);
+            for (int k = 0; k < 4; ++k)
+            {
+                bpScl [zoomOp][k].setBounds (Rectangle<int> (r3.getX() + k       * w, r3.getY(), w, r3.getHeight()).reduced (4, 4));
+                offScl[zoomOp][k].setBounds (Rectangle<int> (r3.getX() + (4 + k) * w, r3.getY(), w, r3.getHeight()).reduced (4, 4));
+            }
         }
     }
     void roundSize (Slider& slider)
@@ -767,6 +855,13 @@ private:
 
     // Colonne FINE (fréquence fine, param 0x26) — distincte du coarse (sliderFine* = COARSE).
     MidiSlider sliderFreqFine1, sliderFreqFine2, sliderFreqFine3, sliderFreqFine4, sliderFreqFine5, sliderFreqFine6;
+
+    // Panel détaillé (vue zoom) : sensibilités, switches, scaling — par opérateur (tableaux).
+    MidiSlider sensVel[6], sensAm[6], sensPm[6];   // SENSIT VEL/AM/PM (params 0x11/0x10/0x18)
+    MidiButton velSw[6], pegSw[6];                 // VEL SW (RVSW 0x24), PEG SW (FYPSW elem 0x0C)
+    MidiSlider bpScl[6][4], offScl[6][4];          // SCALING : break-points (0x1C-1F) + offsets (0x20-23)
+    Label lblSensVel { "", "Vel" }, lblSensAm { "", "AM" }, lblSensPm { "", "PM" },
+          lblVelSw { "", "Vel SW" }, lblPegSw { "", "PEG SW" }, lblScaling { "", "Scaling (BP / Offset)" };
 
     // Niveau de sortie par opérateur (alimente le rendu FM ; pas d'envoi sysex pour l'instant)
     MidiSlider sliderLevel1;

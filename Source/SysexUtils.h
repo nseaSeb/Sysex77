@@ -179,10 +179,14 @@ namespace SyVoice
             { 0x25, 43 },                                         // FPC (Coarse) -> colonne COARSE
             { 0x17, 24 },                                         // PWAVE (waveform 0..15) -> colonne WAVE
             { 0x1A, 28 },                                         // FPD (Detune ±15 s/m) -> colonne DET
-            { 0x26, 44 }                                          // FPF (Fine 0..99) -> colonne FINE
-            // PHASE (0x19) NON chargé ici : l'octet 0x19 packe phase + enable-sync, et le bouton
-            // SYNC lit l'octet brut -> le charger corrompt le SYNC. À traiter par extraction de
-            // bits dans le panel opérateur (phase value vs sync enable séparés).
+            { 0x26, 44 },                                         // FPF (Fine 0..99) -> colonne FINE
+            // Panel détaillé. SENSIT : offsets bulk ESTIMÉS (à confirmer hardware) ; le reste plain.
+            { 0x11, 17 }, { 0x10, 16 }, { 0x18, 25 },             // SENSIT VEL / AM / PM
+            { 0x1C, 30 }, { 0x1D, 31 }, { 0x1E, 32 }, { 0x1F, 33 }, // SCALING break-points BP1-4
+            { 0x20, 35 }, { 0x21, 37 }, { 0x22, 39 }, { 0x23, 41 }, // SCALING offset-levels (LSB EGOS)
+            { 0x24, 42 }                                          // VEL SW (RVSW, 0/1)
+            // PHASE (0x19) NON chargé : octet packé phase+sync, le bouton SYNC lit l'octet brut
+            // -> le charger corromprait le SYNC (extraction de bits à faire).
         };
         const int opGroup[6] = { 0x06, 0x16, 0x26, 0x36, 0x46, 0x56 };   // OP6 … OP1
 
@@ -205,6 +209,7 @@ namespace SyVoice
                 out.add ({ 0x05, aH, 0, 0x02, (int) d[base + 272] }); // FPR2
                 out.add ({ 0x05, aH, 0, 0x03, (int) d[base + 273] }); // FPR3
                 out.add ({ 0x05, aH, 0, 0x04, (int) d[base + 274] }); // FPRR1
+                out.add ({ 0x05, aH, 0, 0x0C, (int) d[base + 282] }); // FYPSW (PEG switch, élément)
                 // Filtres (group 0x09). Blocs N2-ordonnés (bornes vérifiées FTYPE@+296,
                 // FCTOF@+297, FFTYPE2@+325, BP4@+316) : filtre 1 = base+296+N2, filtre 2 = base+325+N2.
                 out.add ({ 0x09, aH,        0, 0x01, (int) d[base + 297] }); // FCTOF1
