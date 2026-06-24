@@ -88,7 +88,12 @@ public:
         labelDetune6.setJustificationType(Justification::centred);
         setSliderStyle(sliderPhase6);
         labelPhase6.attachToComponent(&sliderPhase6, false);
-        
+
+        // Colonne FINE (fréquence fine) : même style barre que coarse/det.
+        for (MidiSlider* s : { &sliderFreqFine1,&sliderFreqFine2,&sliderFreqFine3,
+                               &sliderFreqFine4,&sliderFreqFine5,&sliderFreqFine6 })
+            setSliderStyle(*s);
+
        // addAndMakeVisible(labelOsc1);
        // labelOsc1.attachToComponent(&sliderOsc1, false);
         addAndMakeVisible(btFix1);
@@ -439,6 +444,22 @@ public:
         // Coarse affiché en 1-indexé (le SY77 montre 1..N, le bulk/sysex stocke 0..N-1).
         for (MidiSlider* s : { &sliderFine1,&sliderFine2,&sliderFine3,&sliderFine4,&sliderFine5,&sliderFine6 })
             s->setMidiValueOffset(-1);
+
+        // Colonne FINE (param 0x26, fréquence fine 0..99) : referTo + adresse par opérateur.
+        {
+            MidiSlider* fin[6] = { &sliderFreqFine1,&sliderFreqFine2,&sliderFreqFine3,
+                                   &sliderFreqFine4,&sliderFreqFine5,&sliderFreqFine6 };
+            const int grp[6] = { 0x56,0x46,0x36,0x26,0x16,0x06 };   // OP1..OP6
+            int sx[9] = { 0x43, 0X10, 0x34, 0x56, sysexdata[4], 0x00, 0x26, 0x00, 0x00 };
+            for (int o = 0; o < 6; ++o)
+            {
+                fin[o]->getValueObject().referTo (valueTreeVoice.getPropertyAsValue (
+                    Identifier ("ELEMENT" + String (element) + "FREQFINE" + String (o + 1)), &um));
+                sx[3] = grp[o];
+                fin[o]->setMidiSysex (sx);
+                fin[o]->setRangeAndRound (0, 99, 0);
+            }
+        }
         
         sysexdata[6] = 0x1a;
         sysexdata[3] = 0x56;
@@ -532,13 +553,14 @@ public:
         auto head = [&] (float f, float w, const String& t)
         { g.drawText (t, cx (f), header.getY(), cw (w), headerH, Justification::centred, false); };
         g.drawText ("OP", area.getX() + 4, header.getY(), cw (0.05f), headerH, Justification::centredLeft, false);
-        head (0.055f, 0.20f,  "LEVEL");
-        head (0.265f, 0.075f, "WAVE");
-        head (0.35f,  0.12f,  "COARSE");
-        head (0.48f,  0.09f,  "DET");
-        head (0.58f,  0.12f,  "PHASE");
-        head (0.71f,  0.12f,  "SYNC");
-        head (0.84f,  0.145f, "MODE");
+        head (0.055f, 0.17f,  "LEVEL");
+        head (0.235f, 0.06f,  "WAVE");
+        head (0.31f,  0.085f, "COARSE");
+        head (0.40f,  0.085f, "FINE");
+        head (0.49f,  0.075f, "DET");
+        head (0.575f, 0.085f, "PHASE");
+        head (0.665f, 0.13f,  "SYNC");
+        head (0.80f,  0.19f,  "MODE");
 
         g.setColour (SYPal.panelBorder);
         g.drawHorizontalLine (header.getBottom(), (float) area.getX(), (float) area.getRight());
@@ -593,7 +615,7 @@ public:
         {
             const bool vis = zoom ? (i == zoomOp) : true;
             auto c = op (i);
-            c.osc->setVisible (vis); c.lvl->setVisible (vis); c.crs->setVisible (vis);
+            c.osc->setVisible (vis); c.lvl->setVisible (vis); c.crs->setVisible (vis); c.fin->setVisible (vis);
             c.det->setVisible (vis); c.pha->setVisible (vis); c.syn->setVisible (vis); c.mod->setVisible (vis);
             Label* L[4]; opLabels (i, L);
             for (auto* l : L) l->setVisible (zoom && i == zoomOp);   // légendes seulement en zoom
@@ -617,23 +639,24 @@ public:
         {
             auto c = op (i);
             // Retour table : rebascule les 4 champs en barres plates (le zoom les passe en potards).
-            for (MidiSlider* sl : { c.lvl, c.crs, c.det, c.pha })
+            for (MidiSlider* sl : { c.lvl, c.crs, c.fin, c.det, c.pha })
             {
                 sl->setSliderStyle (Slider::LinearBar);
                 sl->setTextBoxStyle (Slider::NoTextBox, true, 0, 0);
             }
             const int y  = content.getY() + i * rowH;
             const int ry = y + 4, rh = rowH - 8;
-            c.lvl->setBounds (cx (0.055f), ry, cw (0.20f),  rh);
+            c.lvl->setBounds (cx (0.055f), ry, cw (0.17f),  rh);
             // Roue WAVE : carré centré dans sa cellule (sinon elle s'étire et devient laide).
-            auto oscCell = Rectangle<int> (cx (0.265f), y + 2, cw (0.075f), rowH - 4);
+            auto oscCell = Rectangle<int> (cx (0.235f), y + 2, cw (0.06f), rowH - 4);
             const int oscSide = jmin (oscCell.getWidth(), oscCell.getHeight());
             c.osc->setBounds (oscCell.withSizeKeepingCentre (oscSide, oscSide));
-            c.crs->setBounds (cx (0.35f),  ry, cw (0.12f),  rh);
-            c.det->setBounds (cx (0.48f),  ry, cw (0.09f),  rh);
-            c.pha->setBounds (cx (0.58f),  ry, cw (0.12f),  rh);
-            c.syn->setBounds (cx (0.71f),  ry, cw (0.12f),  rh);
-            c.mod->setBounds (cx (0.84f),  ry, cw (0.145f), rh);
+            c.crs->setBounds (cx (0.31f),  ry, cw (0.085f), rh);
+            c.fin->setBounds (cx (0.40f),  ry, cw (0.085f), rh);
+            c.det->setBounds (cx (0.49f),  ry, cw (0.075f), rh);
+            c.pha->setBounds (cx (0.575f), ry, cw (0.085f), rh);
+            c.syn->setBounds (cx (0.665f), ry, cw (0.13f),  rh);
+            c.mod->setBounds (cx (0.80f),  ry, cw (0.19f),  rh);
         }
     }
 
@@ -668,9 +691,9 @@ public:
 
         // On profite de l'espace : LEVEL / COARSE / DETUNE / PHASE en potards circulaires
         // (légende attachée au-dessus, valeur en boîte sous le potard).
-        MidiSlider* knobs[4] = { c.lvl, c.crs, c.det, c.pha };
-        const int kw = jmax (1, area.getWidth() / 4);
-        for (int i = 0; i < 4; ++i)
+        MidiSlider* knobs[5] = { c.lvl, c.crs, c.fin, c.det, c.pha };
+        const int kw = jmax (1, area.getWidth() / 5);
+        for (int i = 0; i < 5; ++i)
         {
             knobs[i]->setSliderStyle (Slider::RotaryHorizontalVerticalDrag);
             knobs[i]->setTextBoxStyle (Slider::TextBoxBelow, false, jmin (70, kw - 12), 18);
@@ -742,6 +765,9 @@ private:
     Label labelDetune6 {"f1", "Detune"};
     Label labelPhase6 {"f1", "Phase"};
 
+    // Colonne FINE (fréquence fine, param 0x26) — distincte du coarse (sliderFine* = COARSE).
+    MidiSlider sliderFreqFine1, sliderFreqFine2, sliderFreqFine3, sliderFreqFine4, sliderFreqFine5, sliderFreqFine6;
+
     // Niveau de sortie par opérateur (alimente le rendu FM ; pas d'envoi sysex pour l'instant)
     MidiSlider sliderLevel1;
     MidiSlider sliderLevel2;
@@ -779,18 +805,19 @@ private:
     TextButton btZoomNext { ">" };
     Rectangle<int> zoomTitleArea;   // zone du titre « OP3 » (dessiné dans paint)
 
-    struct OpCtrls { MidiSlider* osc; MidiSlider* lvl; MidiSlider* crs;
+    struct OpCtrls { MidiSlider* osc; MidiSlider* lvl; MidiSlider* crs; MidiSlider* fin;
                      MidiSlider* det; MidiSlider* pha; MidiButton* syn; MidiButton* mod; };
     OpCtrls op (int i)
     {
         MidiSlider* osc[6] = { &sliderOsc1,&sliderOsc2,&sliderOsc3,&sliderOsc4,&sliderOsc5,&sliderOsc6 };
         MidiSlider* lvl[6] = { &sliderLevel1,&sliderLevel2,&sliderLevel3,&sliderLevel4,&sliderLevel5,&sliderLevel6 };
         MidiSlider* crs[6] = { &sliderFine1,&sliderFine2,&sliderFine3,&sliderFine4,&sliderFine5,&sliderFine6 };
+        MidiSlider* fin[6] = { &sliderFreqFine1,&sliderFreqFine2,&sliderFreqFine3,&sliderFreqFine4,&sliderFreqFine5,&sliderFreqFine6 };
         MidiSlider* det[6] = { &sliderDetune1,&sliderDetune2,&sliderDetune3,&sliderDetune4,&sliderDetune5,&sliderDetune6 };
         MidiSlider* pha[6] = { &sliderPhase1,&sliderPhase2,&sliderPhase3,&sliderPhase4,&sliderPhase5,&sliderPhase6 };
         MidiButton* syn[6] = { &btPhase1,&btPhase2,&btPhase3,&btPhase4,&btPhase5,&btPhase6 };
         MidiButton* mod[6] = { &btFix1,&btFix2,&btFix3,&btFix4,&btFix5,&btFix6 };
-        return { osc[i],lvl[i],crs[i],det[i],pha[i],syn[i],mod[i] };
+        return { osc[i],lvl[i],crs[i],fin[i],det[i],pha[i],syn[i],mod[i] };
     }
     // Labels d'un opérateur (réutilisés comme légendes en mode zoom).
     void opLabels (int i, Label* out[4])

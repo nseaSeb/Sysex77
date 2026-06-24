@@ -210,7 +210,7 @@ struct SysexUtilsTests : public juce::UnitTest
 
             auto params = SyVoice::voiceBlobToParams (steel, (int) sizeof (steel));
             // 6 op×15 + (ELVL,ALGNUM,FCTOF1,FCTOF2,FFRES) + 4 pitch-rates + 2×7 filtre + VVOL.
-            expectEquals (params.size(), 6 * 17 + 5 + 4 + 14 + 1);
+            expectEquals (params.size(), 6 * 18 + 5 + 4 + 14 + 1);
 
             auto val = [&params] (int group, int param) -> int
             {
@@ -226,7 +226,8 @@ struct SysexUtilsTests : public juce::UnitTest
             expectEquals (val (0x06, 0x1B), 85);   // OP6 (offset 136)
             // Coarse (FPC, param 0x25, interne 43) + Waveform (PWAVE, param 0x17, interne 24), OP1.
             expectEquals (val (0x56, 0x25), 1);    // coarse OP1 (offset 375)
-            expectEquals (val (0x56, 0x17), 15);   // waveform OP1 (offset 356)
+            expectEquals (val (0x56, 0x17), 15);   // waveform OP1
+            expectEquals (val (0x56, 0x26), 46);   // fine OP1 (offset 376)
             // R1 (param 0x00) OP1 = octet @332.
             expectEquals (val (0x56, 0x00), 24);
             // ALGNUM (group 0x05, param 0x00) = octet @377 (confirmé par diff single-param).
@@ -254,11 +255,11 @@ struct SysexUtilsTests : public juce::UnitTest
             juce::MemoryBlock mono (steel, sizeof (steel));
             ((juce::uint8*) mono.getData())[32] = 0x00;
             expectEquals (SyVoice::voiceBlobToParams ((const juce::uint8*) mono.getData(),
-                                                      (int) mono.getSize()).size(), 6 * 17 + 5 + 4 + 14 + 1);
+                                                      (int) mono.getSize()).size(), 6 * 18 + 5 + 4 + 14 + 1);
 
             // 2 AFM / 4 AFM : N « layers » identiques (Table 2). On vérifie le compte et que
             // l'adressage par élément (addrHi = élément<<5) est bien produit.
-            const int perElem = 6 * 17 + 5 + 4 + 14;   // op + 5 abs + 4 pitch-rates + 2×7 filtre
+            const int perElem = 6 * 18 + 5 + 4 + 14;   // op + 5 abs + 4 pitch-rates + 2×7 filtre
             {
                 juce::MemoryBlock two; two.setSize (832, true);
                 ((juce::uint8*) two.getData())[32] = 0x01;   // 2 AFM
@@ -330,7 +331,7 @@ struct SysexUtilsTests : public juce::UnitTest
             auto* p = (juce::uint8*) mb.getData();
             p[0] = 0xF0; p[32] = 0x08;
             auto params = SyVoice::voiceBlobToParams (p, 586);
-            expectEquals (params.size(), 125 + 9 + 1);   // AFM él.(119) + AWM él.(9) + VVOL
+            expectEquals (params.size(), 131 + 9 + 1);   // AFM él.(119) + AWM él.(9) + VVOL
 
             bool afmE1 = false, awmE2 = false;
             for (auto& q : params)
