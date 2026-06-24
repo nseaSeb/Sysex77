@@ -29,7 +29,8 @@ Couverture actuelle du chargement = **voix 1 AFM POLY (type 3), élément 1 uniq
 |---|:---:|:---:|---|
 | Nom de voix | 🟡 | 🟢 | offsets 33-42 ; envoi spec-correct, hardware à confirmer |
 | Type / mode de voix | 🟡 | 🟢 | offset 32 |
-| Volume voix | 🟡 | ⬜ | group 0x02 / param 0x3F |
+| **Volume voix** | 🟡 | 🟢 | dump @95 (Table 2) ; group 0x02 / param 0x3F — à spot-checker |
+| Niveau élément 1 (ELVL) | 🟡 | 🟢 | dump @98 (Table 2) ; group 0x03 / param 0x00 — à spot-checker |
 | Pan, niveaux d'envoi (rev/cho/var) | 🟡 | ⬜ | — |
 
 ## AFM — Élément commun (élément 1)
@@ -63,8 +64,8 @@ Couverture actuelle du chargement = **voix 1 AFM POLY (type 3), élément 1 uniq
 | Type filtre 1 (FTYPE : LPF/HPF/Thru) | ✅ | ❓ | envoi Track A ; dump @403 (offset OK) mais encodage bulk ambigu (Thru→LPF = 0→1, ≠ enum) — besoin d'un point HPF |
 | Mode de contrôle (FMODE) | ✅ | ⬜ | Track A (filtre 1 & 2) |
 | **Cutoff filtre 1** | 🟡 | 🟢 | dump **@404 confirmé** (diff single-param 127→0) ; group 0x09/param 0x01 |
-| Cutoff filtre 2 | 🟡 | ⬜ | offset à confirmer (diff) |
-| Résonance | 🟡 | ⬜ | |
+| Cutoff filtre 2 | 🟡 | 🟢 | dump @433 (Table 2) ; group 0x09 addrHi 1 / param 0x01 — à spot-checker |
+| Résonance | 🟡 | 🟢 | dump @461 (Table 2) ; group 0x09 addrHi 2 / param 0x32 — à spot-checker |
 | Filter EG : RR2, RL1, RL2 | ✅ | ⬜ | Track A |
 | Filter EG : R1-4, RR1, L0-4, slope | 🟡 | ⬜ | câblé group 0x09 |
 

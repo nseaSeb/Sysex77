@@ -124,13 +124,13 @@ namespace SyVoice
         voix 1AFM (F0…F7, 466 octets, type@32 == 0x03) et les renvoie sous forme de
         messages param-change équivalents, prêts à rejouer dans l'éditeur.
 
-        Couverture v1 — UNIQUEMENT les params confirmés hardware : pour chaque
-        opérateur AFM (élément 1, OP1..OP6) les rates/levels d'EG (R1-4, RR1-2,
-        L1-4, RL1-2, L0), le niveau de sortie (TL) et le fine ; plus l'algorithme
-        (ALGNUM, element common). Les params dont l'offset/encodage n'est pas encore
-        vérifié (coarse, detune, RS, SLP, HT, filtres, effets, voice-common,
-        éléments 2-4) sont VOLONTAIREMENT omis : l'éditeur conserve sa valeur, on
-        n'affiche jamais de donnée erronée (« fiabilité d'abord »).
+        Couverture : par opérateur AFM (élément 1, OP1..OP6) les rates/levels d'EG
+        (R1-4, RR1-2, L1-4, RL1-2, L0), le niveau de sortie (TL) et le fine ; plus,
+        à offset absolu, volume de voix, niveau élément 1, algorithme, cutoff filtre 1
+        et 2, résonance. Les params dont l'encodage n'est pas vérifié (type filtre,
+        coarse, detune, RS, SLP, HT, sensibilités s/m, effets, pitch/LFO, éléments 2-4)
+        sont VOLONTAIREMENT omis : l'éditeur conserve sa valeur, on n'affiche jamais de
+        donnée erronée (« fiabilité d'abord »).
 
         Provenance des offsets : carte calée sur les dumps SteelStrng + recoupement
         du dump fingerprinté avec re_fingerprint.csv (match exact 6/6 sur TL & Fine ;
@@ -167,15 +167,25 @@ namespace SyVoice
                     out.add ({ op.group, 0, 0, m.param, (int) d[off] });
             }
 
-        // AFM element common (group 0x05, addrHi=0).
-        // ALGNUM @377 (0-indexé) : confirmé par diff single-param (RikielBass algo 16->1
-        // = byte 377 15->0). Le slider algo applique son propre offset d'affichage (1..45).
-        out.add ({ 0x05, 0, 0, 0x00, (int) d[377] });
-
-        // Filtre 1 (AFM, élément 1, fN=0 -> group 0x09 addrHi=0) : cutoff (FCTOF, param 0x01)
-        // @404, confirmé par diff single-param (RikielBass 127->0). 0..127, sans encodage.
-        // (Le TYPE de filtre @403 a un offset connu mais un encodage bulk encore ambigu -> omis.)
-        out.add ({ 0x09, 0, 0, 0x01, (int) d[404] });
+        // Paramètres à offset ABSOLU (hors records opérateur). Offsets pris dans la Table 2
+        // « Voice Bulk Dump » (1AFM) de la spec et/ou confirmés par diff single-param. Tous
+        // en u7 « plain » (0..127, pas d'encodage (o/b)/(s/m)) -> on passe l'octet tel quel ;
+        // le widget cible applique son propre affichage (ex. algo : 0..44 -> 1..45).
+        // {bulk offset, group, addrHi, param}.
+        struct Abs { int off, group, addrHi, param; };
+        const Abs absParams[] = {
+            {  95, 0x02, 0, 0x3F },   // VVOL   — volume de voix              (voice common)
+            {  98, 0x03, 0, 0x00 },   // ELVL0  — niveau élément 1            (element)
+            { 377, 0x05, 0, 0x00 },   // ALGNUM — algorithme   [diff ✓]       (AFM elem. commun)
+            { 404, 0x09, 0, 0x01 },   // FCTOF1 — cutoff filtre 1  [diff ✓]   (filtre 1, fN=0)
+            { 433, 0x09, 1, 0x01 },   // FCTOF2 — cutoff filtre 2             (filtre 2, fN=1)
+            { 461, 0x09, 2, 0x32 },   // FFRES  — résonance                   (filtre commun, fN=2)
+        };
+        for (auto& p : absParams)
+            if (p.off < sz)
+                out.add ({ p.group, p.addrHi, 0, p.param, (int) d[p.off] });
+        // Volontairement OMIS (offset connu mais encodage non vérifié) : type filtre @403
+        // (bulk≠enum), FFVSON@462 / FFCMS@463 (sign-magnitude), coarse/detune/RS/SLP opérateur.
 
         return out;
     }

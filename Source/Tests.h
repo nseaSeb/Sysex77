@@ -209,7 +209,7 @@ struct SysexUtilsTests : public juce::UnitTest
             };
 
             auto params = SyVoice::voiceBlobToParams (steel, (int) sizeof (steel));
-            expectEquals (params.size(), 6 * 15 + 2);   // 6 op × 15 + ALGNUM + cutoff F1
+            expectEquals (params.size(), 6 * 15 + 6);   // 6 op × 15 + 6 params à offset absolu
 
             auto val = [&params] (int group, int param) -> int
             {
@@ -229,8 +229,19 @@ struct SysexUtilsTests : public juce::UnitTest
             expectEquals (val (0x56, 0x00), 24);
             // ALGNUM (group 0x05, param 0x00) = octet @377 (confirmé par diff single-param).
             expectEquals (val (0x05, 0x00), 23);
-            // Cutoff filtre 1 (group 0x09, param 0x01) = octet @404 (confirmé par diff).
+            // Cutoff filtre 1 (group 0x09, addrHi 0, param 0x01) = octet @404 (confirmé par diff).
             expectEquals (val (0x09, 0x01), 27);
+            // Autres params à offset absolu (offsets Table 2 / spot-check SteelStrng).
+            expectEquals (val (0x02, 0x3F), 60);   // VVOL  @95  (volume de voix)
+            expectEquals (val (0x03, 0x00), 1);    // ELVL0 @98  (niveau élément 1)
+            // cutoff filtre 2 (addrHi 1) et résonance (addrHi 2) : helper val() ne filtre que
+            // addrHi==0, donc on les lit directement dans la liste.
+            auto valH = [&params] (int g, int h, int p) -> int {
+                for (auto& q : params)
+                    if (q.group == g && q.addrHi == h && q.param == p) return q.value;
+                return -1; };
+            expectEquals (valH (0x09, 1, 0x01), 50);   // FCTOF2 @433 (cutoff filtre 2)
+            expectEquals (valH (0x09, 2, 0x32), 59);   // FFRES  @461 (résonance)
 
             // Garde-fous « fiabilité d'abord » : pas de bloc -> rien ; type non-1AFM -> rien.
             juce::uint8 notAfm[466] = { 0 }; notAfm[32] = 0x01;
