@@ -431,6 +431,10 @@ public:
         sliderFine5.setMidiSysex(sysexdata);
         sysexdata[3] = 0x06;
         sliderFine6.setMidiSysex(sysexdata);
+
+        // Coarse affiché en 1-indexé (le SY77 montre 1..N, le bulk/sysex stocke 0..N-1).
+        for (MidiSlider* s : { &sliderFine1,&sliderFine2,&sliderFine3,&sliderFine4,&sliderFine5,&sliderFine6 })
+            s->setMidiValueOffset(-1);
         
         sysexdata[6] = 0x1a;
         sysexdata[3] = 0x56;
