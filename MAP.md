@@ -19,11 +19,12 @@
 | ❓ | **Douteux** (adresse ou offset incertain — à revérifier) |
 | ⬜ | **Non implémenté / non chargé** |
 
-Couverture actuelle du chargement = **toutes les voix AFM : 1/2/4 AFM (mono+poly), tous les éléments**.
-Pattern Table 2 vérifié : base élément 1 = 107 + 9×(N−1), bloc élément = 357 octets, addrHi = élément<<5.
-À spot-checker sur un vrai dump 2AFM / 4AFM (offsets lus dans le manuel clair, pas encore diff-vérifiés).
+Couverture du chargement : **AFM 1/2/4** (profond) **+ AWM 1/2/4** (waveform + niveau), mono+poly,
+tous les éléments. Pattern Table 2 : base élément 1 = 107 + 9×(N−1) ; bloc = 357 o. (AFM) / 112 o.
+(AWM) ; addrHi = élément<<5. AFM diff-vérifié ; AWM waveform confirmé (TARKUSCYMB, wave @+2).
 
-Restant : **AWM / mixtes AFM+AWM** (type 5-9) — structure différente (samples), section Table 2 distincte.
+Restant : **mixtes AFM+AWM** (type 8-9) + **drum** (10) ; et côté AWM, fine/fixed/amp-EG/filtre
+ne sont pas (ou peu) câblés dans l'éditeur — à câbler avant de pouvoir les charger.
 
 ---
 

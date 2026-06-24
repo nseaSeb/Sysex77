@@ -124,13 +124,13 @@ namespace SyVoice
         voix 1AFM (F0…F7, 466 octets, type@32 == 0x03) et les renvoie sous forme de
         messages param-change équivalents, prêts à rejouer dans l'éditeur.
 
-        Gère 1/2/4 AFM (mono ET poly) — N « layers » identiques. Pour CHAQUE élément :
-        par opérateur (OP1..OP6) les rates/levels d'EG (R1-4, RR1-2, L1-4, RL1-2, L0),
-        le niveau de sortie (TL) et le fine ; plus le niveau d'élément, l'algorithme,
-        les cutoff filtre 1 & 2 et la résonance. Les params dont l'encodage n'est pas
-        vérifié (type filtre, coarse, detune, RS, SLP, sensibilités s/m, effets,
-        pitch/LFO) et les voix AWM/mixtes sont VOLONTAIREMENT omis : l'éditeur conserve
-        sa valeur, on n'affiche jamais de donnée erronée (« fiabilité d'abord »).
+        Gère 1/2/4 AFM ET 1/2/4 AWM (mono ET poly) — N « layers » identiques.
+        AFM, par élément : opérateurs (R1-4, RR1-2, L1-4, RL1-2, L0, TL, Fine) + niveau
+        d'élément + algorithme + cutoff filtre 1 & 2 + résonance.
+        AWM, par élément : waveform (+ niveau d'élément). Plus le volume de voix (commun).
+        Les params à encodage/câblage non vérifié (type filtre, coarse, detune, s/m,
+        pitch-EG/LFO, effets, AWM fine/fixed/amp-EG/filtre) et les voix mixtes AFM+AWM /
+        drum sont VOLONTAIREMENT omis : l'éditeur conserve sa valeur (« fiabilité d'abord »).
 
         Provenance des offsets : Table 2 « Voice Bulk Dump » du manuel (lecture claire,
         pattern base=107+9*(N-1) / stride 357 vérifié sur 1/2/4 AFM) + recoupement diff
@@ -138,29 +138,31 @@ namespace SyVoice
     inline juce::Array<VoiceParam> voiceBlobToParams (const juce::uint8* d, int sz)
     {
         juce::Array<VoiceParam> out;
-        if (d == nullptr || sz < 466) return out;        // au moins un bloc 1AFM (F0..F7)
+        if (d == nullptr || sz < 43) return out;         // au moins en-tête + type + nom
+        // (la vraie borne dépend du type -> contrôle « bloc trop court » plus bas)
 
-        // Nombre d'éléments AFM selon le type @32 (Table 2 de la spec). MONO et POLY
-        // partagent la même structure. 1/2/4 AFM = 1/2/4 « layers » identiques.
-        int nElem = 0;
+        // Type @32 (Table 2) -> nombre d'éléments + moteur (AFM ou AWM). MONO et POLY
+        // partagent la structure. 1/2/4 = 1/2/4 « layers » identiques.
+        int nElem = 0; bool afm = true;
         switch (d[32])
         {
-            case 0x00: case 0x03: nElem = 1; break;   // 1 AFM (mono / poly)
-            case 0x01: case 0x04: nElem = 2; break;   // 2 AFM
-            case 0x02:            nElem = 4; break;   // 4 AFM
-            default: return out;                      // AWM / mixtes : autre layout -> intact
+            case 0x00: case 0x03: nElem = 1; afm = true;  break;   // 1 AFM (mono/poly)
+            case 0x01: case 0x04: nElem = 2; afm = true;  break;   // 2 AFM
+            case 0x02:            nElem = 4; afm = true;  break;   // 4 AFM
+            case 0x05:            nElem = 1; afm = false; break;   // 1 AWM
+            case 0x06:            nElem = 2; afm = false; break;   // 2 AWM
+            case 0x07:            nElem = 4; afm = false; break;   // 4 AWM
+            default: return out;            // mixtes AFM+AWM (8,9) / drum : autre layout -> intact
         }
 
-        // Disposition (Table 2, vérifiée sur 1/2/4 AFM) :
-        //  - base des opérateurs de l'élément 1 = 107 + 9*(nElem-1) (octets common en plus),
-        //  - chaque élément = bloc de 357 octets (OP6@base … FFCMS@base+356),
-        //  - opérateurs OP6@+0 … OP1@+225 (45 o./record), ALGNUM@+270, FCTOF1@+297,
-        //    FCTOF2@+326, FFRES@+354 ; niveau d'élément ELVL_e dans la zone common @98+9*e.
+        // Disposition (Table 2, vérifiée sur dumps réels) : base de l'élément 1 = 107 + 9*(N-1)
+        // (octets common en plus par layer) ; bloc par élément = 357 o. (AFM) / 112 o. (AWM) ;
+        // niveau d'élément ELVL_e dans la zone voice-common @98+9*e ; addrHi = élément<<5.
         const int firstBase = 107 + 9 * (nElem - 1);
-        const int STRIDE = 357;
-        if (sz < firstBase + (nElem - 1) * STRIDE + 357) return out;   // bloc trop court
+        const int STRIDE = afm ? 357 : 112;
+        if (sz < firstBase + nElem * STRIDE) return out;   // bloc trop court
 
-        // param-change (N2) -> offset interne dans le record opérateur de 45 octets (CONFIRMÉS).
+        // AFM : param-change (N2) -> offset interne dans le record opérateur de 45 o. (CONFIRMÉS).
         struct Pm { int param, intOff; };
         const Pm pm[] = {
             { 0x00, 0 }, { 0x01, 1 }, { 0x02, 2 }, { 0x03, 3 },   // R1-R4
@@ -175,24 +177,34 @@ namespace SyVoice
 
         for (int e = 0; e < nElem; ++e)
         {
-            const int base = firstBase + e * STRIDE;   // OP6 de l'élément e
+            const int base = firstBase + e * STRIDE;
             const int aH   = e << 5;                   // addrHi de l'élément (0/32/64/96)
 
-            for (int op = 0; op < 6; ++op)
-                for (auto& m : pm)
-                    out.add ({ opGroup[op], aH, 0, m.param, (int) d[base + op * 45 + m.intOff] });
+            out.add ({ 0x03, aH, 0, 0x00, (int) d[98 + 9 * e] });    // ELVL (niveau élément, commun)
 
-            // params « plain » (u7) à offset relatif au bloc / à la zone common.
-            out.add ({ 0x03, aH,        0, 0x00, (int) d[98 + 9 * e] }); // ELVL  (niveau élément)
-            out.add ({ 0x05, aH,        0, 0x00, (int) d[base + 270] }); // ALGNUM
-            out.add ({ 0x09, aH,        0, 0x01, (int) d[base + 297] }); // FCTOF1 (cutoff filtre 1)
-            out.add ({ 0x09, aH | 0x01, 0, 0x01, (int) d[base + 326] }); // FCTOF2 (cutoff filtre 2)
-            out.add ({ 0x09, aH | 0x02, 0, 0x32, (int) d[base + 354] }); // FFRES  (résonance)
+            if (afm)
+            {
+                for (int op = 0; op < 6; ++op)
+                    for (auto& m : pm)
+                        out.add ({ opGroup[op], aH, 0, m.param, (int) d[base + op * 45 + m.intOff] });
+                out.add ({ 0x05, aH,        0, 0x00, (int) d[base + 270] }); // ALGNUM
+                out.add ({ 0x09, aH,        0, 0x01, (int) d[base + 297] }); // FCTOF1
+                out.add ({ 0x09, aH | 0x01, 0, 0x01, (int) d[base + 326] }); // FCTOF2
+                out.add ({ 0x09, aH | 0x02, 0, 0x32, (int) d[base + 354] }); // FFRES
+            }
+            else
+            {
+                // AWM : seul le waveform est sûr (low7 @base+2, confirmé TARKUSCYMB=105 -> wave 106).
+                // PPF/fine (@+5, o/b) & PPM/fixed (@+3) non chargés (1 pt + encodage à lever) ; l'EG
+                // amp AWM (@base+89..) n'a pas encore de widget câblé dans l'éditeur.
+                out.add ({ 0x07, aH, 0, 0x01, (int) d[base + 2] });         // AWMWAVE (low 7 bits)
+            }
         }
 
         out.add ({ 0x02, 0, 0, 0x3F, (int) d[95] });   // VVOL — volume de voix (commun)
-        // Volontairement OMIS (offset connu mais encodage non vérifié) : type filtre @+296
-        // (bulk≠enum), FFVSON/FFCMS (s/m), coarse/detune/RS/SLP opérateur, pitch-EG/LFO, effets.
+        // Volontairement OMIS (offset connu, encodage/câblage non vérifié) : type filtre @+296
+        // (bulk≠enum), FFVSON/FFCMS (s/m), coarse/detune/RS/SLP opérateur, pitch-EG/LFO, effets,
+        // AWM fine/fixed/amp-EG/filtre, voix mixtes AFM+AWM.
 
         return out;
     }
