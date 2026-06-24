@@ -445,6 +445,11 @@ public:
         
         sliderWaveForm.setMidiSysex(sysexdata);
         sliderWaveForm.setRangeAndRound(0, 127,0);
+        // Relie le slider à la MÊME propriété que le nom de wave affiché (vignette élément,
+        // cf. Element.h ELEMENTnWAVEFORM) : ainsi un wave reçu (chargement d'un .syx) OU bougé
+        // au slider met à jour le nom — sinon il restait figé sur le défaut (« Piano »).
+        sliderWaveForm.getValueObject().referTo (valueTreeVoice.getPropertyAsValue (
+            Identifier ("ELEMENT" + String (number) + "WAVEFORM"), &um));
         sliderWaveForm.setPopupDisplayEnabled(true, true, this);
         addAndMakeVisible(sliderWaveForm);
         
