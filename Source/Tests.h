@@ -320,6 +320,26 @@ struct SysexUtilsTests : public juce::UnitTest
             expectEquals (val (0x07, 0, 0x55), 48);    // PAL2
             expectEquals (val (0x07, 0, 0x56), 63);    // PAL3
         }
+
+        beginTest ("voiceBlobToParams handles mixed AFM+AWM (1AFM_1AWM, type 8)");
+        {
+            // type $08 : élément 1 AFM (357 o.) + élément 2 AWM (112 o.). firstBase=116,
+            // taille = 116 + 357 + 112 = 585 (+F7).
+            juce::MemoryBlock mb; mb.setSize (586, true);
+            auto* p = (juce::uint8*) mb.getData();
+            p[0] = 0xF0; p[32] = 0x08;
+            auto params = SyVoice::voiceBlobToParams (p, 586);
+            expectEquals (params.size(), 113 + 9 + 1);   // AFM él.(113) + AWM él.(9) + VVOL
+
+            bool afmE1 = false, awmE2 = false;
+            for (auto& q : params)
+            {
+                if (q.addrHi == 0  && q.group == 0x56) afmE1 = true;   // OP1 élément 1 (AFM)
+                if (q.addrHi == 32 && q.group == 0x07) awmE2 = true;   // AWM élément 2
+            }
+            expect (afmE1);   // l'élément 1 est bien décodé en AFM
+            expect (awmE2);   // l'élément 2 est bien décodé en AWM (addrHi 0x20)
+        }
     }
 };
 

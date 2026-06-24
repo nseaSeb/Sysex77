@@ -28,12 +28,15 @@ Le **filtre AWM** est désormais **câblé** (édition) : les éditeurs de filtr
 quand l'élément est AWM (à spot-checker hardware). Son **chargement** depuis dump n'est pas encore
 ajouté (offsets AWM filtre non vérifiés).
 
-> **Validation offline (2026-06-24)** : le décodeur a été rejoué sur **566 voix AFM/AWM réelles**
-> (14 banques `.syx`) — **0 valeur hors plage** à tous les offsets chargés. Forte confiance.
-> NB : sur 1224 voix, ~658 sont **mixtes AFM+AWM (type 8-9) / drum (10)** → gros gisement non géré.
+Les **voix mixtes AFM+AWM** (1AFM_1AWM type 8, 2AFM_2AWM type 9) sont gérées : moteur par élément,
+blocs cumulatifs (AFM 357 o. / AWM 112 o.).
 
-Restant : **mixtes AFM+AWM** (type 8-9, ~moitié de la librairie !) + **drum** (10) ;
-AWM filtre (chargement) + fine/fixed (encodage à lever) ; niveaux EG en o/b.
+> **Validation offline (2026-06-24)** : décodeur rejoué sur **811 voix réelles** (14 banques, types
+> 0-9 dont 171 mixtes type-8 + 74 type-9) — **0 valeur hors plage**. Forte confiance.
+> Sur 1224 voix, ~413 restantes = surtout **drum (type 10)**.
+
+Restant : **drum** (type 10) ; AWM filtre (chargement) + fine/fixed (encodage à lever) ;
+niveaux EG en o/b ; effets ; LFO.
 
 ---
 

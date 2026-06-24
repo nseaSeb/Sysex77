@@ -124,7 +124,8 @@ namespace SyVoice
         voix 1AFM (F0…F7, 466 octets, type@32 == 0x03) et les renvoie sous forme de
         messages param-change équivalents, prêts à rejouer dans l'éditeur.
 
-        Gère 1/2/4 AFM ET 1/2/4 AWM (mono ET poly) — N « layers » identiques.
+        Gère 1/2/4 AFM, 1/2/4 AWM ET les voix mixtes AFM+AWM (1AFM_1AWM, 2AFM_2AWM),
+        mono ET poly — moteur par élément, blocs cumulatifs (AFM 357 o. / AWM 112 o.).
         AFM, par élément : opérateurs (R1-4, RR1-2, L1-4, RL1-2, L0, TL, Fine) + niveau
         d'élément + algorithme + cutoff filtre 1 & 2 + résonance.
         AWM, par élément : waveform (+ niveau d'élément). Plus le volume de voix (commun).
@@ -141,26 +142,30 @@ namespace SyVoice
         if (d == nullptr || sz < 43) return out;         // au moins en-tête + type + nom
         // (la vraie borne dépend du type -> contrôle « bloc trop court » plus bas)
 
-        // Type @32 (Table 2) -> nombre d'éléments + moteur (AFM ou AWM). MONO et POLY
-        // partagent la structure. 1/2/4 = 1/2/4 « layers » identiques.
-        int nElem = 0; bool afm = true;
+        // Type @32 (Table 2) -> nombre d'éléments + MOTEUR PAR ÉLÉMENT (true=AFM, false=AWM).
+        // MONO/POLY partagent la structure ; les voix mixtes alternent (ex. 1AFM_1AWM = [AFM,AWM]).
+        bool eng[4] = { true, true, true, true };
+        int nElem = 0;
         switch (d[32])
         {
-            case 0x00: case 0x03: nElem = 1; afm = true;  break;   // 1 AFM (mono/poly)
-            case 0x01: case 0x04: nElem = 2; afm = true;  break;   // 2 AFM
-            case 0x02:            nElem = 4; afm = true;  break;   // 4 AFM
-            case 0x05:            nElem = 1; afm = false; break;   // 1 AWM
-            case 0x06:            nElem = 2; afm = false; break;   // 2 AWM
-            case 0x07:            nElem = 4; afm = false; break;   // 4 AWM
-            default: return out;            // mixtes AFM+AWM (8,9) / drum : autre layout -> intact
+            case 0x00: case 0x03: nElem = 1; break;                                      // 1 AFM
+            case 0x01: case 0x04: nElem = 2; break;                                      // 2 AFM
+            case 0x02:            nElem = 4; break;                                      // 4 AFM
+            case 0x05:            nElem = 1; eng[0] = false; break;                      // 1 AWM
+            case 0x06:            nElem = 2; eng[0] = eng[1] = false; break;             // 2 AWM
+            case 0x07:            nElem = 4; eng[0]=eng[1]=eng[2]=eng[3]=false; break;   // 4 AWM
+            case 0x08:            nElem = 2; eng[1] = false; break;                      // 1AFM_1AWM
+            case 0x09:            nElem = 4; eng[2] = eng[3] = false; break;             // 2AFM_2AWM
+            default: return out;            // drum (10) : autre layout -> intact
         }
 
-        // Disposition (Table 2, vérifiée sur dumps réels) : base de l'élément 1 = 107 + 9*(N-1)
-        // (octets common en plus par layer) ; bloc par élément = 357 o. (AFM) / 112 o. (AWM) ;
-        // niveau d'élément ELVL_e dans la zone voice-common @98+9*e ; addrHi = élément<<5.
+        // Table 2 : base de l'élément 1 = 107 + 9*(N-1) (octets common par layer) ; les blocs
+        // d'éléments se SUIVENT (cumulatif) — AFM = 357 o., AWM = 112 o. ; ELVL_e @98+9*e ;
+        // addrHi = élément<<5.
         const int firstBase = 107 + 9 * (nElem - 1);
-        const int STRIDE = afm ? 357 : 112;
-        if (sz < firstBase + nElem * STRIDE) return out;   // bloc trop court
+        int total = firstBase;
+        for (int e = 0; e < nElem; ++e) total += eng[e] ? 357 : 112;
+        if (sz < total) return out;   // bloc trop court
 
         // AFM : param-change (N2) -> offset interne dans le record opérateur de 45 o. (CONFIRMÉS).
         struct Pm { int param, intOff; };
@@ -175,14 +180,14 @@ namespace SyVoice
         };
         const int opGroup[6] = { 0x06, 0x16, 0x26, 0x36, 0x46, 0x56 };   // OP6 … OP1
 
+        int base = firstBase;
         for (int e = 0; e < nElem; ++e)
         {
-            const int base = firstBase + e * STRIDE;
-            const int aH   = e << 5;                   // addrHi de l'élément (0/32/64/96)
+            const int aH = e << 5;                     // addrHi de l'élément (0/32/64/96)
 
             out.add ({ 0x03, aH, 0, 0x00, (int) d[98 + 9 * e] });    // ELVL (niveau élément, commun)
 
-            if (afm)
+            if (eng[e])
             {
                 for (int op = 0; op < 6; ++op)
                     for (auto& m : pm)
@@ -207,6 +212,7 @@ namespace SyVoice
                 }
                 // OMIS : type filtre @296/+325 (encodage bulk ambigu), niveaux EG (o/b — repr.
                 // éditeur 0..64 à aligner), FRS/FPRS/FYPSW (s/m), pitch-EG levels (o/b).
+                base += 357;   // bloc AFM
             }
             else
             {
@@ -221,13 +227,14 @@ namespace SyVoice
                 out.add ({ 0x07, aH, 0, 0x55, (int) d[base + 94] });   // PAL2
                 out.add ({ 0x07, aH, 0, 0x56, (int) d[base + 95] });   // PAL3
                 // PPF/fine (@+5 o/b) & PPM/fixed (@+3) & PARS (@+96 s/m) : encodage à lever -> omis.
+                base += 112;   // bloc AWM
             }
         }
 
         out.add ({ 0x02, 0, 0, 0x3F, (int) d[95] });   // VVOL — volume de voix (commun)
         // Volontairement OMIS (offset connu, encodage/câblage non vérifié) : type filtre @+296
-        // (bulk≠enum), FFVSON/FFCMS (s/m), coarse/detune/RS/SLP opérateur, pitch-EG/LFO, effets,
-        // AWM fine/fixed/amp-EG/filtre, voix mixtes AFM+AWM.
+        // (bulk≠enum), FFVSON/FFCMS (s/m), coarse/detune/RS/SLP opérateur, LFO, effets,
+        // AWM fine/fixed/filtre, niveaux EG (o/b) ; voix drum (type 10).
 
         return out;
     }
