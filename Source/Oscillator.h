@@ -602,14 +602,17 @@ public:
         auto head = [&] (float f, float w, const String& t)
         { g.drawText (t, cx (f), header.getY(), cw (w), headerH, Justification::centred, false); };
         g.drawText ("OP", area.getX() + 4, header.getY(), cw (0.05f), headerH, Justification::centredLeft, false);
-        head (0.055f, 0.17f,  "LEVEL");
-        head (0.235f, 0.06f,  "WAVE");
-        head (0.31f,  0.085f, "COARSE");
-        head (0.40f,  0.085f, "FINE");
-        head (0.49f,  0.075f, "DET");
-        head (0.575f, 0.085f, "PHASE");
-        head (0.665f, 0.13f,  "SYNC");
-        head (0.80f,  0.19f,  "MODE");
+        head (0.030f, 0.095f, "OUT");
+        head (0.135f, 0.07f,  "SENSIT");
+        head (0.205f, 0.05f,  "WAVE");
+        head (0.265f, 0.075f, "PHASE");
+        head (0.350f, 0.045f, "CRS");
+        head (0.400f, 0.045f, "FINE");
+        head (0.450f, 0.045f, "DET");
+        head (0.500f, 0.060f, "MODE");
+        head (0.580f, 0.155f, "SCALING");
+        head (0.760f, 0.105f, "VEL SW");
+        head (0.875f, 0.115f, "PEG SW");
 
         g.setColour (SYPal.panelBorder);
         g.drawHorizontalLine (header.getBottom(), (float) area.getX(), (float) area.getRight());
@@ -669,14 +672,14 @@ public:
             Label* L[4]; opLabels (i, L);
             for (auto* l : L) l->setVisible (zoom && i == zoomOp);   // légendes seulement en zoom
 
-            // Contrôles détaillés (SENSIT/SCALING/switches) : uniquement l'op zoomé.
-            const bool zv = zoom && i == zoomOp;
-            for (MidiSlider* s : { &sensVel[i], &sensAm[i], &sensPm[i] }) s->setVisible (zv);
-            for (int k = 0; k < 4; ++k) { bpScl[i][k].setVisible (zv); offScl[i][k].setVisible (zv); }
-            velSw[i].setVisible (zv); pegSw[i].setVisible (zv);
+            // Grille façon SynthWorks : SENSIT/SCALING/switches visibles par op (comme les autres).
+            for (MidiSlider* s : { &sensVel[i], &sensAm[i], &sensPm[i] }) s->setVisible (vis);
+            for (int k = 0; k < 4; ++k) { bpScl[i][k].setVisible (vis); offScl[i][k].setVisible (vis); }
+            velSw[i].setVisible (vis); pegSw[i].setVisible (vis);
         }
+        // Légendes de colonnes dessinées dans paintTable() -> labels widgets masqués.
         for (Label* l : { &lblSensVel,&lblSensAm,&lblSensPm,&lblVelSw,&lblPegSw,&lblScaling })
-            l->setVisible (zoom);
+            l->setVisible (false);
     }
 
     // Table : 1 opérateur par ligne. Les fractions doivent coïncider avec paintTable().
@@ -695,25 +698,34 @@ public:
         for (int i = 0; i < 6; ++i)
         {
             auto c = op (i);
-            // Retour table : rebascule les 4 champs en barres plates (le zoom les passe en potards).
-            for (MidiSlider* sl : { c.lvl, c.crs, c.fin, c.det, c.pha })
-            {
-                sl->setSliderStyle (Slider::LinearBar);
-                sl->setTextBoxStyle (Slider::NoTextBox, true, 0, 0);
-            }
             const int y  = content.getY() + i * rowH;
             const int ry = y + 4, rh = rowH - 8;
-            c.lvl->setBounds (cx (0.055f), ry, cw (0.17f),  rh);
-            // Roue WAVE : carré centré dans sa cellule (sinon elle s'étire et devient laide).
-            auto oscCell = Rectangle<int> (cx (0.235f), y + 2, cw (0.06f), rowH - 4);
-            const int oscSide = jmin (oscCell.getWidth(), oscCell.getHeight());
-            c.osc->setBounds (oscCell.withSizeKeepingCentre (oscSide, oscSide));
-            c.crs->setBounds (cx (0.31f),  ry, cw (0.085f), rh);
-            c.fin->setBounds (cx (0.40f),  ry, cw (0.085f), rh);
-            c.det->setBounds (cx (0.49f),  ry, cw (0.075f), rh);
-            c.pha->setBounds (cx (0.575f), ry, cw (0.085f), rh);
-            c.syn->setBounds (cx (0.665f), ry, cw (0.13f),  rh);
-            c.mod->setBounds (cx (0.80f),  ry, cw (0.19f),  rh);
+
+            // Barres horizontales (valeurs) vs verticales (SENSIT/SCALING/PHASE) — façon SynthWorks.
+            for (MidiSlider* sl : { c.lvl, c.crs, c.fin, c.det })
+            { sl->setSliderStyle (Slider::LinearBar);      sl->setTextBoxStyle (Slider::NoTextBox, true, 0, 0); }
+            for (MidiSlider* sl : { c.pha, &sensVel[i],&sensAm[i],&sensPm[i],
+                                    &bpScl[i][0],&bpScl[i][1],&bpScl[i][2],&bpScl[i][3],
+                                    &offScl[i][0],&offScl[i][1],&offScl[i][2],&offScl[i][3] })
+            { sl->setSliderStyle (Slider::LinearVertical); sl->setTextBoxStyle (Slider::NoTextBox, true, 0, 0); }
+
+            auto box  = [&] (float fx, float fw) { return Rectangle<int> (cx (fx), ry, cw (fw), rh); };
+            auto vert = [&] (Component& s, float fx) { s.setBounds (cx (fx), ry, cw (0.016f), rh); };
+
+            c.lvl->setBounds (box (0.030f, 0.095f));                                  // OUT
+            vert (sensVel[i], 0.140f); vert (sensAm[i], 0.160f); vert (sensPm[i], 0.180f); // SENSIT V/A/P
+            auto oc = Rectangle<int> (cx (0.205f), y + 2, cw (0.05f), rowH - 4);      // WAVE (roue)
+            { int s = jmin (oc.getWidth(), oc.getHeight()); c.osc->setBounds (oc.withSizeKeepingCentre (s, s)); }
+            vert (*c.pha, 0.265f);                                                    // PHASE init
+            c.syn->setBounds (box (0.285f, 0.055f));                                  // SYNC
+            c.crs->setBounds (box (0.350f, 0.045f));                                  // CRS
+            c.fin->setBounds (box (0.400f, 0.045f));                                  // FINE
+            c.det->setBounds (box (0.450f, 0.045f));                                  // DET
+            c.mod->setBounds (box (0.500f, 0.060f));                                  // MODE
+            for (int k = 0; k < 4; ++k) vert (bpScl[i][k],  0.580f + (float) k * 0.018f);  // SCALING BP
+            for (int k = 0; k < 4; ++k) vert (offScl[i][k], 0.665f + (float) k * 0.018f);  // SCALING OFFS
+            velSw[i].setBounds (box (0.760f, 0.105f));                                // VEL SW
+            pegSw[i].setBounds (box (0.875f, 0.115f));                                // PEG SW
         }
     }
 

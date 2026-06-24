@@ -181,7 +181,8 @@ namespace SyVoice
             { 0x1A, 28 },                                         // FPD (Detune ±15 s/m) -> colonne DET
             { 0x26, 44 },                                         // FPF (Fine 0..99) -> colonne FINE
             // Panel détaillé. SENSIT : offsets bulk ESTIMÉS (à confirmer hardware) ; le reste plain.
-            { 0x11, 17 }, { 0x10, 16 }, { 0x18, 25 },             // SENSIT VEL / AM / PM
+            { 0x11, 17 }, { 0x10, 16 },                           // SENSIT VEL / AM (PM=0x18 NON chargé :
+            // packé avec le MODE freq (Fixed/Ratio) -> le charger basculait MODE. Bit-split à faire.
             { 0x1C, 30 }, { 0x1D, 31 }, { 0x1E, 32 }, { 0x1F, 33 }, // SCALING break-points BP1-4
             { 0x20, 35 }, { 0x21, 37 }, { 0x22, 39 }, { 0x23, 41 }, // SCALING offset-levels (LSB EGOS)
             { 0x24, 42 }                                          // VEL SW (RVSW, 0/1)
