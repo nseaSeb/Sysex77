@@ -224,8 +224,9 @@ struct SysexUtilsTests : public juce::UnitTest
             expectEquals (val (0x56, 0x1B), 91);   // OP1 (offset 361)
             expectEquals (val (0x46, 0x1B), 48);   // OP2 (offset 316)
             expectEquals (val (0x06, 0x1B), 85);   // OP6 (offset 136)
-            // Fine (param 0x26) OP1 — confirmé (offset 376).
-            expectEquals (val (0x56, 0x26), 46);
+            // Coarse (FPC, param 0x25, interne 43) + Waveform (PWAVE, param 0x17, interne 24), OP1.
+            expectEquals (val (0x56, 0x25), 1);    // coarse OP1 (offset 375)
+            expectEquals (val (0x56, 0x17), 15);   // waveform OP1 (offset 356)
             // R1 (param 0x00) OP1 = octet @332.
             expectEquals (val (0x56, 0x00), 24);
             // ALGNUM (group 0x05, param 0x00) = octet @377 (confirmé par diff single-param).

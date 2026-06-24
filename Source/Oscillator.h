@@ -357,6 +357,9 @@ public:
             btPhase6.getToggleStateValue().referTo(valueTreeVoice.getPropertyAsValue(IDs::AFMELEMENT4OSCSYNC6, &um));
             
         }
+        // Colonne WAVE (roue waveLook) = forme d'onde de l'opérateur (PWAVE, param 0x17, 0..15).
+        // (Avant : 0x25 = coarse, ce qui mettait le coarse dans la colonne WAVE et décalait tout.)
+        sysexdata[6] = 0x17;
         sysexdata[3] = 0x56;
         sliderOsc1.setMidiSysex(sysexdata);
              sysexdata[3] = 0x46;
@@ -413,7 +416,9 @@ public:
         sliderPhase6.setMidiSysex(sysexdata);
         sysexdata[7] = 0x00;
         
-        sysexdata[6] = 0x26;
+        // Colonne COARSE = fréquence Coarse (FPC, param 0x25). (Avant : 0x26 = fine -> la
+        // colonne COARSE affichait le fine, toujours 0 sur beaucoup de presets.)
+        sysexdata[6] = 0x25;
         sysexdata[3] = 0x56;
         sliderFine1.setMidiSysex(sysexdata);
         sysexdata[3] = 0x46;
