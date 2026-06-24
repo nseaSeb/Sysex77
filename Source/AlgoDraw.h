@@ -1,603 +1,279 @@
 /*
   ==============================================================================
 
-    This file was auto-generated!
+    AlgoDraw.h — schéma de TOPOLOGIE des 45 algorithmes AFM du SY77.
+
+    Style ORTHOGONAL (façon widget « ALGORITHM » de l'écran AFM ELEMENT du SY77,
+    cf. docs/MT_91_01_geerdes_sy77_full.jpg) : opérateurs en boîtes numérotées,
+    modulateur EMPILÉ au-dessus de sa cible, connecteurs uniquement HORIZONTAUX ou
+    VERTICAUX (coudes à angle droit) — jamais de diagonale, jamais de trait qui
+    traverse une boîte. Porteuses (-> sortie audio) sur la rangée du bas, reliées à
+    une barre de sortie. Toutes les couleurs proviennent des rôles de la palette
+    de thème (jamais de couleur en dur).
 
   ==============================================================================
 */
 #pragma once
 
 #include <JuceHeader.h>
+#include "EnvelopeDraw.h"   // SyDraw::afmTopology / kAlgo (topologie exacte AFM)
 
 //==============================================================================
-/*
- This component lives inside our window, and this is where you should put all
- your controls and content.
- */
-class FMOperator   : public Component
-{
-public:
-    //==============================================================================
-    FMOperator()
-    {
-
-        setSliderStyle(sliderIn1);
-        setSliderStyle(sliderIn2);
-
-        
-        addAndMakeVisible(sliderOut1);
-        sliderOut1.setSliderStyle(Slider::SliderStyle::LinearBar);
-
-        sliderOut1.setTextBoxStyle(Slider::NoTextBox, true, 10, 10);
-        sliderOut1.setRange(0, 127);
-        sliderOut1.setNumDecimalPlacesToDisplay(0);
-        sliderOut1.setColour(Slider::ColourIds::trackColourId, SYColSelected);
-        sliderOut1.setPopupDisplayEnabled(false, true, this);
-        sliderOut1.setColour(Slider::ColourIds::textBoxOutlineColourId, SYColSelected);
-        
-        
-    }
-    ~FMOperator()
-    {
-        
-    }
-    void setSliderStyle(Slider& slider)
-    {
-        addAndMakeVisible(slider);
-        slider.setSliderStyle(Slider::SliderStyle::LinearBarVertical);
-        
-        slider.setTextBoxStyle(Slider::NoTextBox, true, 10, 10);
-        slider.setRange(0, 7);
-        slider.setNumDecimalPlacesToDisplay(0);
-        slider.setColour(Slider::ColourIds::trackColourId, SYColSelected);
-        slider.setColour(Slider::ColourIds::textBoxOutlineColourId, SYColSelected);
-        slider.setPopupDisplayEnabled(false, true, this);
-        
-    }
-    //==============================================================================
-    void paint (Graphics& g) override
-    {
-        
-        g.setColour ( SYColSelected);
-        g.drawRect(2, 6, getWidth()-4, getHeight()-12);
-        g.fillRect(10, getHeight()-8, 3, 6);
-        g.fillRect(10, 0, 3, 6);
-        g.fillRect(getWidth()-14, 0, 3, 6);
-        
-        g.setColour(SYPal.textPrimary);
-        g.drawText(getName(), 0, 10, getWidth(), getHeight(), Justification::centredTop);
-        
-    }
-    void resized() override
-    {
-     //   sliderIn1.setBoundsRelative(0.02f, 0.14f, 0.2f, 0.5f);
-        /*
-        sliderIn1.setBounds(2, 6, 8, getHeight()-20);
-        sliderIn2.setBounds(getWidth()-12,6,8,getHeight()-20);
-        sliderOut1.setBounds(2, getHeight()-20, getWidth()-4, 8);
-         */
-    }
-    
-private:
-    //==============================================================================
-    // Your private member variables go here...
-    Slider sliderIn1;
-    Slider sliderIn2;
-    Slider sliderOut1;
-    
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FMOperator)
-};
-
 class AlgoDraw   : public Component
 {
 public:
-    //==============================================================================
-    AlgoDraw()
-    {
-        addAndMakeVisible(FMOp1);
-        addAndMakeVisible(FMOp2);
-        addAndMakeVisible(FMOp3);
-        addAndMakeVisible(FMOp4);
-        addAndMakeVisible(FMOp5);
-        addAndMakeVisible(FMOp6);
-        FMOp1.setName("op1");
-        FMOp2.setName("op2");
-        FMOp3.setName("op3");
-        FMOp4.setName("op4");
-        FMOp5.setName("op5");
-        FMOp6.setName("op6");
-    }
-    ~AlgoDraw()
-    {
-        
-    }
-    void setAlgo (int number)
-    {
-        intAlgoNumber = number;
-    }
+    AlgoDraw()                         { setInterceptsMouseClicks (false, false); }
+    ~AlgoDraw() override               {}
+
+    void setAlgo (int number)          { intAlgoNumber = number; repaint(); }
+
     //==============================================================================
     void paint (Graphics& g) override
     {
-        g.fillAll (SYColBackground);   // fond opaque (couvre ce qu'il y a dessous)
+        g.fillAll (SYPal.background);                 // fond opaque (rôle thème)
+        g.setColour (SYPal.panelBorder);
+        g.drawRect (0, 0, getWidth(), getHeight());   // cadre discret (rôle thème)
 
-        auto colour = SYColSelected;
-        g.setColour (colour);
-        g.drawRect(0, 0, getWidth(), getHeight());
-        float h6 = 0.85f;
-        float h5 = 0.68f;
-        float h4 = 0.52f;
-        float h3 = 0.35f;
-        float h2 = 0.18f;
-        float h1 = 0.01f;
-        
-        if(intAlgoNumber == 1)
-        {
-            
-            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h3, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h3, h2, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h3, h1, 0.5f, 0.14f);
-
-        }
-        if(intAlgoNumber == 2)
-        {
-            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h3, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h3, h2, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h4, h2, 0.5f, 0.14f);
-        }
-        if(intAlgoNumber == 3)
-        {
-            
-            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h3, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h3, h2, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h4, h3, 0.5f, 0.14f);
-
-        }
-        if(intAlgoNumber == 4)
-        {
-            
-            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h3, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h3, h2, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h4, h4, 0.5f, 0.14f);
-
-        }
-        if(intAlgoNumber == 5)
-        {
-            
-            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h3, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h3, h2, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h4, h5, 0.5f, 0.14f);
-
-        }
-        if(intAlgoNumber == 6)
-        {
-            
-            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h3, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h4, h3, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h5, h3, 0.5f, 0.14f);
-
-        }
-        if(intAlgoNumber == 7)
-        {
-            
-            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h3, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h4, h4, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h4, h3, 0.5f, 0.14f);
-
-        }
-        if(intAlgoNumber == 8)
-        {
-            
-            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h3, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h4, h4, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h5, h4, 0.5f, 0.14f);
-
-
-        }
-        if(intAlgoNumber == 9)
-        {
-            
-            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h4, h4, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h3, h3, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h2, h3, 0.5f, 0.14f);
-
-        }
-        if(intAlgoNumber == 10)
-        {
-            
-            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h3, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h4, h5, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h4, h4, 0.5f, 0.14f);
-
-        }
-        if(intAlgoNumber == 11)
-        {
-            
-            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h3, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h4, h5, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h5, h5, 0.5f, 0.14f);
-
-        }
-        if(intAlgoNumber == 12)
-        {
-            
-            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h4, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h3, h3, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h4, h3, 0.5f, 0.14f);
-
-        }
-        if(intAlgoNumber == 13)
-        {
-            
-            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h4, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h3, h3, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h2, h4, 0.5f, 0.14f);
-
-        }
-        if(intAlgoNumber == 14)
-        {
-            
-            FMOp1.setBoundsRelative(h2, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h2, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h2, h4, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h4, h4, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h5, h4, 0.5f, 0.14f);
-    
-        }
-        if(intAlgoNumber == 15)
-        {
-            
-            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h2, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h4, h4, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h5, h4, 0.5f, 0.14f);
-
-        }
-        if(intAlgoNumber == 16)
-        {
-            
-            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h4, h5, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h4, h4, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h5, h5, 0.5f, 0.14f);
-
-        }
-        if(intAlgoNumber == 17)
-        {
-            
-            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h4, h5, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h4, h4, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h5, h4, 0.5f, 0.14f);
-
-        }
-        if(intAlgoNumber == 18)
-        {
-            FMOp1.setBoundsRelative(h2, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h2, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h2, h4, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h4, h5, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h5, h5, 0.5f, 0.14f);
-        }
-        if(intAlgoNumber == 19)
-        {
-            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h4, h5, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h5, h5, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h4, h4, 0.5f, 0.14f);
-        }
-        if(intAlgoNumber == 20)
-        {
-            FMOp1.setBoundsRelative(h2, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h2, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h4, h5, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h5, h5, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h6, h5, 0.5f, 0.14f);
-        }
-        if(intAlgoNumber == 21)
-        {
-            FMOp1.setBoundsRelative(h4, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h3, h3, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h3, h2, 0.5f, 0.14f);
-        }
-        if(intAlgoNumber == 22)
-        {
-            FMOp1.setBoundsRelative(h4, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h3, h3, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h4, h3, 0.5f, 0.14f);
-        }
-        if(intAlgoNumber == 23)
-        {
-            FMOp1.setBoundsRelative(h4, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h3, h3, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h4, h4, 0.5f, 0.14f);
-        }
-        if(intAlgoNumber == 24)
-        {
-            FMOp1.setBoundsRelative(h4, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h3, h3, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h4, h5, 0.5f, 0.14f);
-        }
-        if(intAlgoNumber == 25)
-        {
-            FMOp1.setBoundsRelative(h4, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h4, h4, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h5, h4, 0.5f, 0.14f);
-        }
-        if(intAlgoNumber == 26)
-        {
-            FMOp1.setBoundsRelative(h4, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h4, h5, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h4, h4, 0.5f, 0.14f);
-        }
-        if(intAlgoNumber == 27)
-        {
-            FMOp1.setBoundsRelative(h4, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h4, h5, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h5, h5, 0.5f, 0.14f);
-        }
-        if(intAlgoNumber == 28)
-        {
-            FMOp1.setBoundsRelative(h4, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h4, h5, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h2, h4, 0.5f, 0.14f);
-        }
-        if(intAlgoNumber == 29)
-        {
-            FMOp1.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h2, h6, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h2, h5, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h4, h5, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h5, h5, 0.5f, 0.14f);
-        }
-        if(intAlgoNumber == 30)
-        {
-            FMOp1.setBoundsRelative(h4, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h4, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h3, h3, 0.5f, 0.14f);
-        }
-        if(intAlgoNumber == 31)
-        {
-            FMOp1.setBoundsRelative(h4, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h4, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h4, h4, 0.5f, 0.14f);
-        }
-        if(intAlgoNumber == 32)
-        {
-            FMOp1.setBoundsRelative(h4, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h4, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h2, h6, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h2, h5, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h2, h4, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-        }
-        if(intAlgoNumber == 33)
-        {
-            FMOp1.setBoundsRelative(h5, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h5, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h2, h6, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h2, h5, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h4, h5, 0.5f, 0.14f);
-        }
-        if(intAlgoNumber==34)
-        {
-            FMOp1.setBoundsRelative(h4, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h4, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h4, h4, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-        }
-        if(intAlgoNumber==35)
-        {
-            FMOp1.setBoundsRelative(h4, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h4, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h4, h4, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h2, h6, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h2, h5, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-        }
-        if(intAlgoNumber==36)
-        {
-            FMOp1.setBoundsRelative(h4, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h4, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h5, h5, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h2, h6, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h2, h5, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-        }
-        if(intAlgoNumber==37)
-        {
-            FMOp1.setBoundsRelative(h5, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h4, h6, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h3, h3, 0.5f, 0.14f);
-        }
-        if(intAlgoNumber==38)
-        {
-            FMOp1.setBoundsRelative(h5, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h4, h6, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h4, h4, 0.5f, 0.14f);
-        }
-        if(intAlgoNumber==39)
-        {
-            FMOp1.setBoundsRelative(h5, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h4, h6, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h4, h5, 0.5f, 0.14f);
-        }
-        if(intAlgoNumber==40)
-        {
-            FMOp1.setBoundsRelative(h5, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h4, h6, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h4, h5, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h3, h4, 0.5f, 0.14f);
-        }
-        if(intAlgoNumber==41)
-        {
-            FMOp1.setBoundsRelative(h5, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h4, h6, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h4, h5, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h2, h6, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h2, h5, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-        }
-        if(intAlgoNumber==42)
-        {
-            FMOp1.setBoundsRelative(h5, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h5, h5, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h4, h6, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h4, h5, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h3, h5, 0.5f, 0.14f);
-        }
-        if(intAlgoNumber==43)
-        {
-            FMOp1.setBoundsRelative(h5, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h4, h6, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h2, h6, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h2, h5, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h2, h4, 0.5f, 0.14f);
-        }
-        if(intAlgoNumber == 44)
-        {
-            FMOp1.setBoundsRelative(h6, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h5, h6, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h4, h6, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h2, h6, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h2, h5, 0.5f, 0.14f);
-
-        }
-        if(intAlgoNumber==45)
-        {
-            
-            FMOp1.setBoundsRelative(h6, h6, 0.5f, 0.14f);
-            FMOp2.setBoundsRelative(h5, h6, 0.5f, 0.14f);
-            FMOp3.setBoundsRelative(h4, h6, 0.5f, 0.14f);
-            FMOp4.setBoundsRelative(h3, h6, 0.5f, 0.14f);
-            FMOp5.setBoundsRelative(h2, h6, 0.5f, 0.14f);
-            FMOp6.setBoundsRelative(h1, h6, 0.5f, 0.14f);
-
-        }
-        roundSize(FMOp1);
-        roundSize(FMOp2);
-        roundSize(FMOp3);
-        roundSize(FMOp4);
-        roundSize(FMOp5);
-        roundSize(FMOp6);
+        drawAlgo (g, intAlgoNumber, getLocalBounds().toFloat().reduced (8.0f), /*labels*/ true);
     }
-    void resized() override
+
+    //==============================================================================
+    // Rendu COMPACT (vue Voice / carte ALGO-ROUTAGE) : même moteur, boîtes plus
+    // petites, numéros si la place le permet. 'area' = zone allouée au glyphe.
+    static void drawAlgoGlyph (Graphics& g, int algoNum, Rectangle<float> area)
     {
- 
+        drawAlgo (g, algoNum, area, /*labels*/ area.getHeight() > 44.0f);
     }
-    void roundSize (FMOperator& slider)
+
+    //==============================================================================
+    // Moteur de dessin partagé (grand schéma et glyphe). Calcule un placement en
+    // grille (rangée = profondeur, colonne centrée sur les cibles) puis route les
+    // liens en orthogonal strict via des couloirs entre rangées.
+    static void drawAlgo (Graphics& g, int algoNum, Rectangle<float> area, bool labels)
     {
-        int w;
-        w = jmin(slider.getWidth(),slider.getHeight());
-        slider.setBounds(slider.getX(), slider.getY(), w, w);
+        bool edge[6][6], fb[6], car[6];
+        SyDraw::afmTopology (algoNum, edge, fb, car);
+
+        int   row[6];        // 0 = porteuse (bas) ; profondeur croissante vers le haut
+        float colF[6];       // colonne fractionnaire (centroïde) avant normalisation
+        layout (edge, car, row, colF);
+
+        // --- Normalise les colonnes sur une grille entière compacte (sans trous). ---
+        // Tri des valeurs de colonne distinctes -> index 0..C-1 (ordre gauche->droite).
+        float uniq[6]; int nUniq = 0;
+        for (int o = 0; o < 6; ++o)
+        {
+            bool found = false;
+            for (int k = 0; k < nUniq; ++k) if (std::abs (uniq[k] - colF[o]) < 0.001f) { found = true; break; }
+            if (! found) uniq[nUniq++] = colF[o];
+        }
+        for (int a = 0; a < nUniq; ++a) for (int b = a + 1; b < nUniq; ++b) if (uniq[b] < uniq[a]) std::swap (uniq[a], uniq[b]);
+        int col[6];
+        for (int o = 0; o < 6; ++o)
+            for (int k = 0; k < nUniq; ++k) if (std::abs (uniq[k] - colF[o]) < 0.001f) { col[o] = k; break; }
+
+        int maxRow = 0, cols = nUniq;
+        for (int o = 0; o < 6; ++o) maxRow = jmax (maxRow, row[o]);
+        const int rows = maxRow + 1;
+
+        // --- Géométrie : cellule = boîte + gouttière. Réserve une rangée sous les
+        //     porteuses pour la barre de sortie. ---
+        const float cellW = area.getWidth()  / (float) jmax (1, cols);
+        const float cellH = area.getHeight() / (float) (rows + 1);     // +1 = sortie
+        const float boxS  = jmin (cellW, cellH) * 0.62f;
+        const float colW  = boxS + jmax (boxS * 0.6f, 8.0f);           // pas horizontal régulier
+        const float rowH  = boxS + jmax (boxS * 0.9f, 10.0f);          // pas vertical (gouttière de routage)
+
+        const float gridW = colW * cols;
+        const float xL    = area.getX() + (area.getWidth() - gridW) * 0.5f + colW * 0.5f;
+        const float yBot  = area.getBottom() - rowH;                   // centre des porteuses (rangée 0)
+
+        auto cx = [&] (int o) { return xL + col[o] * colW; };
+        auto cy = [&] (int o) { return yBot - row[o] * rowH; };
+        auto boxOf = [&] (int o) { return Rectangle<float> (0, 0, boxS, boxS).withCentre ({ cx (o), cy (o) }); };
+
+        const Colour modCol = SYPal.textMuted;
+        const Colour carCol = SYPal.accent;
+        const float  lw     = jmax (1.0f, boxS * 0.07f);
+
+        // --- 1) Liens modulateur -> cible, EN ORTHOGONAL. ---
+        // Couloir horizontal = milieu de la gouttière SOUS la rangée du modulateur
+        // (toujours vide de boîtes). Stub vertical depuis le bas du modulateur, segment
+        // horizontal dans le couloir, stub vertical dans le haut de la cible.
+        g.setColour (modCol);
+        for (int dst = 0; dst < 6; ++dst)
+            for (int src = 0; src < 6; ++src)
+                if (edge[dst][src])
+                    routeOrtho (g, boxOf (src), boxOf (dst), modCol, lw);
+
+        // --- 2) Feedback : petite boucle orthogonale sur le coin sup. droit. ---
+        for (int o = 0; o < 6; ++o)
+            if (fb[o]) drawFeedback (g, boxOf (o), modCol, lw);
+
+        // --- 3) Barre de sortie + descente verticale de chaque porteuse. ---
+        const float outY = area.getBottom() - rowH * 0.30f;
+        g.setColour (carCol);
+        g.drawLine (area.getX() + 2.0f, outY, area.getRight() - 2.0f, outY, lw + 0.4f);
+        for (int o = 0; o < 6; ++o)
+            if (car[o])
+            {
+                auto b = boxOf (o);
+                g.drawLine (b.getCentreX(), b.getBottom(), b.getCentreX(), outY, lw + 0.2f);
+            }
+        if (labels)
+        {
+            g.setColour (SYPal.textMuted);
+            g.setFont (Font (jmin (11.0f, rowH * 0.30f)));
+            g.drawText ("OUT", area.removeFromRight (30).withTop (outY - 13.0f).withHeight (12.0f),
+                        Justification::topRight);
+        }
+
+        // --- 4) Boîtes d'opérateurs PAR-DESSUS les traits. ---
+        g.setFont (Font (jmax (8.0f, boxS * 0.52f), Font::bold));
+        for (int o = 0; o < 6; ++o)
+        {
+            auto b = boxOf (o);
+            const Colour eC = car[o] ? carCol : modCol;
+            g.setColour (car[o] ? carCol.withAlpha (SYPal.dark ? 0.20f : 0.14f) : SYPal.surfaceAlt);
+            g.fillRoundedRectangle (b, 2.5f);
+            g.setColour (eC);
+            g.drawRoundedRectangle (b, 2.5f, car[o] ? lw + 0.5f : lw);
+            if (labels)
+            {
+                g.setColour (car[o] ? carCol : SYPal.textPrimary);
+                g.drawText (String (o + 1), b, Justification::centred);
+            }
+        }
     }
+
 private:
     //==============================================================================
-    // Your private member variables go here...
-    FMOperator FMOp1;
-    FMOperator FMOp2;
-    FMOperator FMOp3;
-    FMOperator FMOp4;
-    FMOperator FMOp5;
-    FMOperator FMOp6;
-    
-    int intAlgoNumber;
+    // Placement type « arbre centré » (façon widget algo du SY77) :
+    //   rangée  = profondeur (0 = porteuse en bas, croissant vers le haut) ;
+    //   colonne = parcours postfixe depuis chaque PORTEUSE en remontant ses modulateurs.
+    // Les feuilles (modulateurs sans modulateur) prennent des colonnes successives dans
+    // l'ordre de visite ; chaque op interne se centre sur le barycentre de SES modulateurs.
+    // Modulateurs visités par n° d'op croissant -> rangées du haut lisibles (2,4,5,6…),
+    // porteuses centrées sous leur grappe. Pas de croisement pour les algos arborescents.
+    static void layout (const bool edge[6][6], const bool car[6], int row[6], float colF[6])
+    {
+        // Profondeur = plus long chemin op -> porteuse (le long des arêtes mod->cible).
+        for (int o = 0; o < 6; ++o) { row[o] = 0; colF[o] = -1.0f; }
+        for (int pass = 0; pass < 6; ++pass)
+            for (int dst = 0; dst < 6; ++dst)
+                for (int src = 0; src < 6; ++src)
+                    if (edge[dst][src]) row[src] = jmax (row[src], row[dst] + 1);
+
+        int maxR = 0; for (int o = 0; o < 6; ++o) maxR = jmax (maxR, row[o]);
+
+        // (1) PORTEUSES (rangée 0) : colonnes distinctes, gauche->droite par n° d'op.
+        //     Distinctes par construction -> jamais de chevauchement sur la barre de sortie.
+        float nextCol = 0.0f;
+        for (int o = 0; o < 6; ++o) if (car[o] && row[o] == 0) colF[o] = nextCol++;
+
+        // (2) MODULATEURS, rangée par rangée du bas vers le haut : chaque op VISE le
+        //     barycentre des cibles qu'il module (déjà placées, rangées inférieures).
+        //     Puis, dans la rangée, on RÉSOUT LES COLLISIONS par un balayage gauche->droite
+        //     imposant un écart minimal de 1.0 (façon Reingold-Tilford) : les ops sont triés
+        //     par colonne désirée (puis n° d'op), poussés vers la droite pour ne jamais se
+        //     chevaucher, puis le bloc est recentré sur le barycentre des désirs. Garantit
+        //     ZÉRO chevauchement de boîtes — corrige les cas (36/40/41/19/43…) où deux
+        //     grappes voisines (carriers à distance 1, chacun avec 2 modulateurs) se
+        //     télescopaient sur une colonne commune.
+        for (int r = 1; r <= maxR; ++r)
+        {
+            float want[6]; int ops[6]; int m = 0;
+            for (int o = 0; o < 6; ++o)
+            {
+                if (row[o] != r || colF[o] >= 0.0f) continue;
+                float sum = 0.0f; int n = 0;
+                for (int dst = 0; dst < 6; ++dst)
+                    if (edge[dst][o] && colF[dst] >= 0.0f) { sum += colF[dst]; ++n; }
+                want[o] = (n > 0) ? sum / (float) n : nextCol++;   // sans cible placée : colonne neuve
+                ops[m++] = o;
+            }
+            if (m == 0) continue;
+
+            // Tri par (colonne désirée croissante, puis n° d'op) — ordre stable type oracle.
+            for (int a = 0; a < m; ++a) for (int b = a + 1; b < m; ++b)
+                if (want[ops[b]] < want[ops[a]] - 0.001f
+                    || (std::abs (want[ops[b]] - want[ops[a]]) <= 0.001f && ops[b] < ops[a]))
+                    std::swap (ops[a], ops[b]);
+
+            // Balayage : pos[k] >= pos[k-1] + 1, et >= want.
+            float pos[6];
+            pos[0] = want[ops[0]];
+            for (int k = 1; k < m; ++k)
+                pos[k] = jmax (want[ops[k]], pos[k - 1] + 1.0f);
+
+            // Recentre le bloc pour minimiser le décalage moyen / désir (garde l'alignement).
+            float shift = 0.0f;
+            for (int k = 0; k < m; ++k) shift += (want[ops[k]] - pos[k]);
+            shift /= (float) m;
+            for (int k = 0; k < m; ++k) colF[ops[k]] = pos[k] + shift;
+
+            // Met à jour nextCol pour les rangées suivantes (évite de réutiliser ces colonnes).
+            for (int k = 0; k < m; ++k) nextCol = jmax (nextCol, colF[ops[k]] + 1.0f);
+        }
+
+        // (3) Filet de sécurité : ops jamais placés (cycles purs) -> colonne neuve.
+        for (int o = 0; o < 6; ++o) if (colF[o] < 0.0f) colF[o] = nextCol++;
+    }
+
+    //==============================================================================
+    // Route un lien src(haut) -> dst(bas) en ORTHOGONAL strict (jamais en diagonale,
+    // jamais à travers une boîte). Si même colonne : trait vertical direct. Sinon :
+    // descente verticale jusqu'au couloir de la gouttière sous la rangée du modulateur,
+    // segment horizontal, puis descente verticale dans le haut de la cible.
+    static void routeOrtho (Graphics& g, Rectangle<float> bs, Rectangle<float> bd, Colour c, float lw)
+    {
+        g.setColour (c);
+        const float sx = bs.getCentreX(), sb = bs.getBottom();
+        const float dx = bd.getCentreX(), dt = bd.getY();
+
+        if (std::abs (sx - dx) < 0.5f)                      // même colonne -> vertical pur
+        {
+            g.drawLine (sx, sb, dx, dt, lw);
+            return;
+        }
+        // Couloir horizontal : à mi-chemin entre le bas du modulateur et le haut de la
+        // cible (cet espace est une gouttière sans boîte par construction du placement).
+        const float chY = (sb + dt) * 0.5f;
+        g.drawLine (sx, sb, sx, chY, lw);                  // descente verticale (modulateur)
+        g.drawLine (sx, chY, dx, chY, lw);                 // segment horizontal (couloir)
+        g.drawLine (dx, chY, dx, dt, lw);                  // descente verticale (cible)
+    }
+
+    // Indicateur de FEEDBACK (auto-modulation) : petite BOUCLE FERMÉE, à angle droit,
+    // qui sort du HAUT de la boîte, contourne le coin supérieur droit et REVIENT dans le
+    // haut de la même boîte — symbole de rebouclage sortie->entrée, entièrement rattaché
+    // à l'opérateur (aucun trait flottant dans le vide). Inspiré du repère de feedback du
+    // widget algo SynthWorks, version orthogonale propre.
+    static void drawFeedback (Graphics& g, Rectangle<float> b, Colour c, float lw)
+    {
+        g.setColour (c);
+        const float s   = jmin (b.getWidth(), b.getHeight()) * 0.34f;  // taille de la boucle
+        const float yT  = b.getY();                       // bord haut de la boîte
+        const float xOut = b.getCentreX() + b.getWidth() * 0.18f;      // départ (sortie rebouclée)
+        const float xIn  = b.getCentreX() - b.getWidth() * 0.18f;      // arrivée (entrée)
+        const float top  = yT - s;                        // sommet de la boucle
+
+        Path p;
+        p.startNewSubPath (xOut, yT);     // part du haut de la boîte (sortie)
+        p.lineTo (xOut, top);             // monte
+        p.lineTo (xIn,  top);             // traverse vers la gauche (au-dessus de la boîte)
+        p.lineTo (xIn,  yT);              // redescend dans le haut de la boîte (entrée)
+        g.strokePath (p, PathStrokeType (lw, PathStrokeType::mitered, PathStrokeType::square));
+
+        // Petite pointe de flèche à l'arrivée -> indique le sens (rebouclage vers l'entrée).
+        const float ah = jmax (2.0f, s * 0.30f);
+        Path tri;
+        tri.addTriangle (xIn, yT,
+                         xIn - ah * 0.6f, yT - ah,
+                         xIn + ah * 0.6f, yT - ah);
+        g.fillPath (tri);
+    }
+
+    int intAlgoNumber = 1;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AlgoDraw)
 };

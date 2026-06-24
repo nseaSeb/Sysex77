@@ -396,6 +396,63 @@ namespace SyDraw
       { {0,0,0,0,0,0}, {0,0,0,0,0,0}, {1,1,1,1,1,1}, {1,1,1,1,1,0}, {0,0,0,3,2,1} }, // 45
     };
 
+    //==============================================================================
+    // Décode la TOPOLOGIE EXACTE (modulateur -> opérateur) d'un algorithme AFM depuis
+    // kAlgo, en SIMULANT le pipeline du SY77 (mêmes règles que fmEvalAlgo : ops évalués
+    // OP6..OP1, registres + ACCUMULATEUR). edge[dst][src]=true si op(src) module op(dst) ;
+    // feedback[op]=auto-modulation ; carrier[op]=op dont la sortie atteint l'accumulateur
+    // FINAL (= va vers la sortie audio).
+    //
+    // Point CLÉ : le code d'entrée 9 (accumulateur) EST une vraie liaison de modulation —
+    // l'op qui le lit est modulé par tous les ops déjà sommés/initialisés dans l'accumulateur
+    // à cet instant (ordre OP6..OP1). L'ignorer donnait de faux algos (ex. algo 18 : sans
+    // l'acc, OP4/5/6 paraissaient porteuses ; en réalité ils modulent OP1 via l'acc — vérifié
+    // sur la grille SynthWorks et le widget algo de l'écran AFM). Codes : 1=thru op n+1,
+    // 3/4/5=registre écrit par un op, 6/7/8=feedback, 9=accumulateur.
+    inline void afmTopology (int algoNum, bool edge[6][6], bool feedback[6], bool carrier[6])
+    {
+        for (int d = 0; d < 6; ++d) { feedback[d] = false; carrier[d] = false; for (int s = 0; s < 6; ++s) edge[d][s] = false; }
+
+        const AlgoDef& A = kAlgo[ ((algoNum - 1) % 45 + 45) % 45 ];
+        int regProd[4] = { 0, 0, 0, 0 };
+        for (int i = 0; i < 6; ++i) if (A.outd[i] >= 1 && A.outd[i] <= 3) regProd[A.outd[i]] = i + 1;
+
+        // Contenu courant de l'accumulateur (numéros d'op), mis à jour OP6..OP1.
+        int acc[6]; int accN = 0;
+        auto addEdge = [&] (int dstNum, int srcNum)
+        {
+            if (srcNum >= 1 && srcNum <= 6 && dstNum >= 1 && dstNum <= 6 && srcNum != dstNum)
+                edge[dstNum - 1][srcNum - 1] = true;
+        };
+
+        for (int num = 6; num >= 1; --num)
+        {
+            const int i = num - 1;
+            const int src[2] = { A.in0[i], A.in1[i] };
+            for (int s = 0; s < 2; ++s)
+            {
+                switch (src[s])
+                {
+                    case 1:  addEdge (num, num + 1);     break;             // thru : op n+1
+                    case 3:  addEdge (num, regProd[1]);  break;
+                    case 4:  addEdge (num, regProd[2]);  break;
+                    case 5:  addEdge (num, regProd[3]);  break;
+                    case 6: case 7: case 8: feedback[i] = true; break;     // auto-modulation
+                    case 9:  for (int k = 0; k < accN; ++k) addEdge (num, acc[k]); break; // acc = modulation réelle
+                    default: break;                                        // 0 off, 2 AWM, 10 bruit
+                }
+            }
+            // Mise à JOUR de l'accumulateur APRÈS lecture (comme fmEvalAlgo).
+            const int a0 = A.acc0[i], a1 = A.acc1[i];
+            if      (a0 == 1 && a1 == 0) { accN = 0; acc[accN++] = num; }   // init/remplace
+            else if (a0 == 1 && a1 == 1) { acc[accN++] = num; }            // somme (porteuse)
+            else if (a0 == 0 && a1 == 1) { /* conserve */ }
+            else                         { accN = 0; }                      // reset
+        }
+        // Porteuses = contenu FINAL de l'accumulateur (ce qui sonne).
+        for (int k = 0; k < accN; ++k) carrier[acc[k] - 1] = true;
+    }
+
     // Émule le pipeline AFM du SY77 : 6 opérateurs calculés OP6->OP1 (thru = op n+1),
     // registres + accumulateur (= somme des porteuses = sortie). fb[6] conserve l'état de
     // feedback de l'échantillon précédent (auto-modulation approchée pour les 6 algos à

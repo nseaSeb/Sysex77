@@ -51,9 +51,10 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
 - Abouti : écran Voice (grille 4 éléments + routage dessiné), grille AFM 6 opérateurs façon
   SynthWorks + zoom par op, filtres, AWM, effets. Édition souris (cutoff/réso, nœuds EG),
   rendu FM approximé, ModernLookAndFeel + 5 thèmes + Theme Builder.
-- Trous : **topologie des 45 algos non dessinée** (données `kAlgo` présentes, carrés sans liens) ;
+- Trous : ~~topologie des 45 algos non dessinée~~ **FAIT (3.1)** — liens modulateur→porteuse tracés
+  dans `AlgoDraw` (vue AFM) + glyphe compact par élément AFM dans la carte ALGO/ROUTAGE de Voice ;
   pas d'éditeur **LFO** ; pas de **drum set** ; voice-common incomplet (microtuning, portamento…) ;
-  sliders verticaux étroits illisibles (pan/volume 16-24 px) ; code mort (`FMOperator`, `SADSR`,
+  sliders verticaux étroits illisibles (pan/volume 16-24 px) ; code mort (`SADSR`,
   `sendChangeMessage()` dans `paint()`) ; couleurs en dur échappant au thème.
 
 ---
@@ -86,7 +87,7 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
 ### Vague 3 — Rapprocher de SynthWorks + ergonomie
 | # | Tâche | Agent | Effort |
 |---|---|---|---|
-| 3.1 | Dessiner la topologie des 45 algos (depuis `kAlgo`) + l'afficher dans Voice | ui | moyen |
+| 3.1 | ~~Dessiner la topologie des 45 algos (depuis `kAlgo`) + l'afficher dans Voice~~ **FAIT** | ui | moyen | Topologie décodée depuis `kAlgo` (table partagée avec le rendu son) via `SyDraw::afmTopology` : edges modulateur→porteuse (thru/registres/feedback), **porteuse = puits du graphe** (ne module aucun op → sortie) — donne les vrais algos SY77 (algo 1 = 1 porteuse OP1 ; 45 = 6 // ; 44 = OP6→{1..5}+fb). `AlgoDraw` (vue AFM, Operator.h) trace désormais les liens : flèches modulateur→cible, boucle de feedback, porteuses (accent thème) descendant vers une barre OUT ; modulateurs sourds (textMuted). `AlgoDraw::drawAlgoGlyph` rend une version compacte par élément AFM dans la carte ALGO/ROUTAGE de la vue Voice (`paintOverChildren`). Couleurs = rôles de palette (jamais en dur). Code mort `FMOperator` (sliders inutilisés) remplacé par une boîte d'opérateur propre. Preuve : snapshots PNG (`createComponentSnapshot` + glyph) relus pour algos 1/5/8/21/42/44/45 — liens conformes à `kAlgo` ; grand schéma confirmé en vrai dans l'app (vue AFM). RENDU ACCEPTÉ EN L'ÉTAT (2026-06-25), perfectible — artefacts de tracé connus (stub de feedback sur les modulateurs ; algos 19/36/40/41/43), routage pas pleinement orthogonal ; polissage visuel différé. La logique/topologie est bonne, c'est le tracé à fignoler. Build 635/635. |
 | 3.2 | Unifier rotatif vs barre ; remplacer les sliders verticaux illisibles | ui | moyen |
 | 3.3 | Éditeur LFO (Main + Sub) | ui+sysex+midi | moyen |
 | 3.4 | Nettoyer le code mort + couleurs en dur → rôles de thème | ui | bas |

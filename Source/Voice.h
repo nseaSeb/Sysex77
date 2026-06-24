@@ -269,6 +269,21 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
             const float ox = b.getRight() - 4.0f;            // sortie pan de l'élément
             const float lY = b.getY() + b.getHeight() * 0.32f;
             const float rY = b.getY() + b.getHeight() * 0.68f;
+
+            // Mini-schéma de l'ALGORITHME AFM de l'élément, dans l'espace libre de la
+            // carte ALGO/ROUTAGE entre la sortie de l'élément et les bus de reverb.
+            // (Même topologie/couleurs que le grand schéma AFM ; AWM = pas d'algo.)
+            if (els[i]->getOpMode() == Element::mode::AFMmono
+                || els[i]->getOpMode() == Element::mode::AFMPoly)
+            {
+                const int algo = (int) valueTreeVoice.getProperty (
+                                     Identifier ("AFMALGOELEMENT" + String (i + 1)), 1);
+                Rectangle<float> gly (ox + 6.0f, b.getY() + 1.0f,
+                                      jmax (0.0f, boxL - ox - 14.0f), b.getHeight() - 2.0f);
+                if (gly.getWidth() > 24.0f && algo >= 1 && algo <= 45)
+                    AlgoDraw::drawAlgoGlyph (g, algo, gly);
+            }
+
             // Routage piloté par les bascules de groupe de l'élément :
             // Groupe 1 -> Reverb Hall, Groupe 2 -> Reverb Room (aucune = non routé).
             const bool g1 = (bool) valueTreeVoice.getProperty (Identifier ("ELEMENT" + String (i + 1) + "GROUP1"), false);
