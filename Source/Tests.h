@@ -296,8 +296,8 @@ struct SysexUtilsTests : public juce::UnitTest
             };
 
             auto p = SyVoice::voiceBlobToParams (awm, (int) sizeof (awm));
-            // 1 AWM : par élément = waveform + ELVL ; + VVOL commun = 3.
-            expectEquals (p.size(), 3);
+            // 1 AWM : par élément = ELVL + waveform + 7 params amp-EG ; + VVOL commun = 10.
+            expectEquals (p.size(), 10);
 
             auto val = [&p] (int g, int h, int prm) -> int {
                 for (auto& q : p) if (q.group == g && q.addrHi == h && q.param == prm) return q.value;
@@ -305,6 +305,14 @@ struct SysexUtilsTests : public juce::UnitTest
             expectEquals (val (0x07, 0, 0x01), 105);   // AWMWAVE @109 (low7) -> wave "106" (0-indexé)
             expectEquals (val (0x03, 0, 0x00), 127);   // ELVL0 @98
             expectEquals (val (0x02, 0, 0x3F), 127);   // VVOL  @95
+            // amp-EG AWM (offsets @base+89.., valeurs confirmées par l'utilisateur).
+            expectEquals (val (0x07, 0, 0x50), 32);    // PAR1
+            expectEquals (val (0x07, 0, 0x51), 17);    // PAR2
+            expectEquals (val (0x07, 0, 0x52), 23);    // PAR3
+            expectEquals (val (0x07, 0, 0x53), 0);     // PAR4
+            expectEquals (val (0x07, 0, 0x54), 28);    // PARR1
+            expectEquals (val (0x07, 0, 0x55), 48);    // PAL2
+            expectEquals (val (0x07, 0, 0x56), 63);    // PAL3
         }
     }
 };

@@ -115,6 +115,11 @@ public:
             resized();
         repaint();
     }
+    // En contexte AWM (vue Wave), l'EG de volume cible l'amp-EG AWM (group 0x07, Table 1-8)
+    // au lieu de diffuser aux opérateurs AFM. Activé par WaveVue. À appeler AVANT setElementNumber.
+    void setAwmMode (bool b) { isAwm = b; }
+    bool isAwm = false;
+
     void setElementNumber ( int element, UndoManager& um) override
     {
         Logger::writeToLog( "WaveEg setElement");
@@ -206,11 +211,33 @@ public:
             sliderRR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGVOLRR2 , &um));
             
         }
+        // --- EG d'ampli AWM (Table 1-8, group 0x07) : un seul groupe (pas de diffusion).
+        // Correspondance sliders -> N2 : PAR1-4@50-53, PARR1@54, PAL2@55, PAL3@56, PARS@57.
+        // addrHi = (élément-1)<<5 (déjà dans sysexdata[4]). Les sliders sans équivalent AWM
+        // (RR2/L0/L1/L4/RL1/RL2) gardent leur referTo (render) mais n'émettent rien.
+        if (isAwm)
+        {
+            int awm[9] = { 0x43, 0X10, 0x34, 0x07, sysexdata[4], 0x00, 0x00, 0x00, 0x00 };
+            auto wireAwm = [&] (MidiSlider& s, int n2, int maxVal)
+            {
+                awm[6] = n2;
+                s.setMidiSysex (awm);
+                s.setMidiBroadcastGroups ({});
+                s.setRangeAndRound (0, maxVal, 0);
+            };
+            wireAwm (sliderR1, 0x50, 63); wireAwm (sliderR2, 0x51, 63);
+            wireAwm (sliderR3, 0x52, 63); wireAwm (sliderR4, 0x53, 63);
+            wireAwm (sliderRR1, 0x54, 63);
+            wireAwm (sliderL2, 0x55, 63); wireAwm (sliderL3, 0x56, 63);
+            wireAwm (sliderSlope, 0x57, 64);   // PARS (s/m, encodage à affiner)
+            for (MidiSlider* s : { &sliderRR2, &sliderL0, &sliderL1, &sliderL4, &sliderRL1, &sliderRL2 })
+                s->setMidiBroadcastGroups ({});
+            return;
+        }
+
         // --- EG d'ampli AFM = EG par OPÉRATEUR (Table 1-7). Mode « All » : chaque slider est
         // diffusé aux 6 opérateurs (groupes 0x06/0x16/0x26/0x36/0x46/0x56). Offsets opérateur :
         // R1-4=00-03, RR1=04, RR2=05, L1-4=06-09, RL1=0A, RL2=0B, L0=0E, RS(slope)=0F.
-        // (Les groupes opérateur sont distincts du groupe AWM 0x07 : sans effet sur un élément
-        //  AWM. Un éditeur d'EG d'ampli AWM dédié reste à faire, cf. [[project-eg-sysex-bug]].)
         const Array<int> ops { 0x06, 0x16, 0x26, 0x36, 0x46, 0x56 };
 
         auto wire = [&] (MidiSlider& s, int n2, int maxVal)

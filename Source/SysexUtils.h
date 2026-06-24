@@ -194,10 +194,17 @@ namespace SyVoice
             }
             else
             {
-                // AWM : seul le waveform est sûr (low7 @base+2, confirmé TARKUSCYMB=105 -> wave 106).
-                // PPF/fine (@+5, o/b) & PPM/fixed (@+3) non chargés (1 pt + encodage à lever) ; l'EG
-                // amp AWM (@base+89..) n'a pas encore de widget câblé dans l'éditeur.
-                out.add ({ 0x07, aH, 0, 0x01, (int) d[base + 2] });         // AWMWAVE (low 7 bits)
+                // AWM (Table 1-8, group 0x07). Offsets confirmés sur TARKUSCYMB.
+                out.add ({ 0x07, aH, 0, 0x01, (int) d[base + 2]  });   // AWMWAVE (low 7 bits)
+                // amp-EG AWM (params @50-56, désormais câblés dans WaveEg mode AWM) :
+                out.add ({ 0x07, aH, 0, 0x50, (int) d[base + 89] });   // PAR1
+                out.add ({ 0x07, aH, 0, 0x51, (int) d[base + 90] });   // PAR2
+                out.add ({ 0x07, aH, 0, 0x52, (int) d[base + 91] });   // PAR3
+                out.add ({ 0x07, aH, 0, 0x53, (int) d[base + 92] });   // PAR4
+                out.add ({ 0x07, aH, 0, 0x54, (int) d[base + 93] });   // PARR1
+                out.add ({ 0x07, aH, 0, 0x55, (int) d[base + 94] });   // PAL2
+                out.add ({ 0x07, aH, 0, 0x56, (int) d[base + 95] });   // PAL3
+                // PPF/fine (@+5 o/b) & PPM/fixed (@+3) & PARS (@+96 s/m) : encodage à lever -> omis.
             }
         }
 
