@@ -12,6 +12,7 @@
 
 #include <JuceHeader.h>
 #include "LookAndFeel.h"   // AfmOscLookAndFeel + AfmWaveLookAndFeel (sprite teinté au thème)
+#include "Operator.h"      // panneau algorithme (AlgoDraw + sélecteur 1..45) embarqué à droite
 
 //==============================================================================
 /*
@@ -137,6 +138,9 @@ public:
         btZoomPrev.onClick = [this] { if (zoomOp > 0) setZoomOp(zoomOp - 1); };
         btZoomNext.onClick = [this] { if (zoomOp >= 0 && zoomOp < 5) setZoomOp(zoomOp + 1); };
         btZoomBack.setTooltip("Retour à la table des 6 opérateurs");
+
+        // Panneau algorithme (colonne droite), masqué automatiquement en mode zoom.
+        addAndMakeVisible(algoPanel);
     }
 
     void setSliderLevel (Slider& slider)
@@ -453,6 +457,9 @@ public:
         sliderLevel5.setMidiSysex(sysexdata);
         sysexdata[3] = 0x06;
         sliderLevel6.setMidiSysex(sysexdata);
+
+        // Route aussi l'algorithme de l'élément courant vers le panneau embarqué.
+        algoPanel.setElementNumber(element, um);
     }
     
     void buttonClicked (Button* button) override
@@ -465,9 +472,10 @@ public:
     {
         if (zoomOp >= 0) return;
         auto area = getLocalBounds();
-        const int headerH = jmax (18, area.getHeight() / 14);
+        area.removeFromRight (algoPanelWidth());   // exclut la colonne algo (cf. layoutTable)
+        const int headerH = tableHeaderH (area.getHeight());
         area.removeFromTop (headerH);
-        const int rowH = jmax (1, area.getHeight() / 6);
+        const int rowH = tableRowH (area.getHeight());
         const int gutter = (int) (0.05f * (float) area.getWidth());
         if (e.x >= area.getX() && e.x < area.getX() + gutter && e.y >= area.getY())
         {
@@ -494,9 +502,13 @@ public:
     void paintTable (Graphics& g)
     {
         auto area = getLocalBounds();
-        const int headerH = jmax (18, area.getHeight() / 14);
+        // Réserve (et matérialise) la colonne droite du panneau algo, cohérente avec layoutTable().
+        auto algoArea = area.removeFromRight (algoPanelWidth());
+        g.setColour (SYPal.panelBorder);
+        g.drawVerticalLine (algoArea.getX(), (float) area.getY(), (float) area.getBottom());
+        const int headerH = tableHeaderH (area.getHeight());
         auto header = area.removeFromTop (headerH);
-        const int rowH = jmax (1, area.getHeight() / 6);
+        const int rowH = tableRowH (area.getHeight());
         const int W = area.getWidth();
         auto cx = [&] (float f) { return area.getX() + (int) (f * (float) W); };
         auto cw = [&] (float f) { return (int) (f * (float) W); };
@@ -557,6 +569,7 @@ public:
         btZoomBack.setVisible (zoom);
         btZoomPrev.setVisible (zoom);
         btZoomNext.setVisible (zoom);
+        algoPanel.setVisible (! zoom);   // panneau algo visible seulement en mode table
         btZoomPrev.setEnabled (zoomOp > 0);
         btZoomNext.setEnabled (zoomOp >= 0 && zoomOp < 5);
 
@@ -578,9 +591,11 @@ public:
     void layoutTable()
     {
         auto content = getLocalBounds();
-        const int headerH = jmax (18, content.getHeight() / 14);
+        // Colonne droite : schéma d'algorithme (comme l'éditeur Atari d'origine).
+        algoPanel.setBounds (content.removeFromRight (algoPanelWidth()).reduced (6));
+        const int headerH = tableHeaderH (content.getHeight());
         content.removeFromTop (headerH);
-        const int rowH = jmax (1, content.getHeight() / 6);
+        const int rowH = tableRowH (content.getHeight());   // plafonnée, lignes calées en haut
         const int W = content.getWidth();
         auto cx = [&] (float f) { return content.getX() + (int) (f * (float) W); };
         auto cw = [&] (float f) { return (int) (f * (float) W); };
@@ -597,7 +612,10 @@ public:
             const int y  = content.getY() + i * rowH;
             const int ry = y + 4, rh = rowH - 8;
             c.lvl->setBounds (cx (0.055f), ry, cw (0.20f),  rh);
-            c.osc->setBounds (cx (0.265f), y + 2, cw (0.075f), rowH - 4);
+            // Roue WAVE : carré centré dans sa cellule (sinon elle s'étire et devient laide).
+            auto oscCell = Rectangle<int> (cx (0.265f), y + 2, cw (0.075f), rowH - 4);
+            const int oscSide = jmin (oscCell.getWidth(), oscCell.getHeight());
+            c.osc->setBounds (oscCell.withSizeKeepingCentre (oscSide, oscSide));
             c.crs->setBounds (cx (0.35f),  ry, cw (0.12f),  rh);
             c.det->setBounds (cx (0.48f),  ry, cw (0.09f),  rh);
             c.pha->setBounds (cx (0.58f),  ry, cw (0.12f),  rh);
@@ -779,5 +797,21 @@ private:
     }
 
     AfmWaveLookAndFeel waveLook;   // formes d'onde des 6 opérateurs (vraie image SY77, teintée au thème)
+
+    // Panneau algorithme embarqué (colonne droite) — réutilise toute la logique d'Operator
+    // (sélecteur 1..45, schéma AlgoDraw, sysex ALGNUM avec offset -1). Masqué en mode zoom.
+    Operator algoPanel;
+
+    // Largeur réservée au panneau algorithme à droite ; layoutTable() et paintTable()
+    // doivent utiliser la même valeur pour rester cohérents.
+    int algoPanelWidth() const { return jmax (180, getWidth() * 30 / 100); }
+
+    // Hauteur de ligne plafonnée : évite que les potards (roue WAVE) soient étirés quand la
+    // vue est haute. En dessous, la ligne peut rétrécir (scroll à prévoir si trop petit).
+    // layoutTable(), paintTable() et mouseDown() DOIVENT utiliser ces mêmes helpers.
+    static constexpr int kMaxRowH = 60;
+    int tableHeaderH (int totalH) const { return jlimit (18, 28, totalH / 14); }
+    int tableRowH    (int bodyH)  const { return jmin (kMaxRowH, jmax (1, bodyH / 6)); }
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Oscillator)
 };

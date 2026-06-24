@@ -109,8 +109,10 @@ public:
     {
         // This method is where you should set the bounds of any child
         // components that your component contains..
-        algoFm.setBoundsRelative(0.01f, 0.15f, 0.4f, 0.84f);
-        sliderAlgo.setBoundsRelative(0.01f, 0.06f, 0.4f, 0.08f);
+        // Panneau « algorithme » : occupe désormais toute la largeur de son conteneur
+        // (intégré comme colonne droite de la vue AFM, à l'image du « ALGORITHM » de l'éditeur Atari).
+        sliderAlgo.setBoundsRelative(0.04f, 0.06f, 0.92f, 0.08f);
+        algoFm.setBoundsRelative(0.04f, 0.18f, 0.92f, 0.78f);
         repaint();
     }
     

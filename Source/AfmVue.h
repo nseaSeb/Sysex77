@@ -22,8 +22,8 @@ struct TabAFM  : public TabbedComponent
     : TabbedComponent (TabbedButtonBar::TabsAtTop)
     {
         auto colour = findColour (ResizableWindow::backgroundColourId);
-        addTab (("AFM OP"),     colour, new Operator (), true);
-        addTab (("AFM OSC"),     colour, new Oscillator (), true);
+        // Vue AFM unique : table des 6 opérateurs + schéma d'algorithme (Oscillator embarque Operator).
+        addTab (("AFM"),     colour, new Oscillator (), true);
         addTab (("Volume EG"),     colour, new WaveEg (), true);
         addTab (("Pitch EG"),     colour, new PitchEg (), true);
         addTab  (TRANS("Close"), colour, nullptr,false);
@@ -68,7 +68,7 @@ public:
     }
     void setTabVolume()
     {
-        tabs.setCurrentTabIndex(2);
+        tabs.setCurrentTabIndex(1);   // onglet « Volume EG » (0 = AFM, 1 = Volume EG, 2 = Pitch EG, 3 = Close)
     }
     void setElementNumber ( int number, UndoManager& undoman)
     {
@@ -109,7 +109,7 @@ public:
     void timerCallback() override
     {
         
-        if(tabs.getCurrentTabIndex()==4)
+        if(tabs.getCurrentTabIndex()==3)   // onglet « Close » (dernier après la fusion AFM)
         {
             tabs.setCurrentTabIndex(0);
             setVisible(false);
