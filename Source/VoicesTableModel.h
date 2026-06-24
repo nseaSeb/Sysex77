@@ -29,7 +29,7 @@ class BankVoicesTable    : public Component
 {
 public:
     BankVoicesTable (int baseOffset, String bankLabel)
-        : sourceModel (baseOffset, *this), label (std::move (bankLabel))
+        : baseOffset (baseOffset), sourceModel (baseOffset, *this), label (std::move (bankLabel))
     {
         setName (label);
         sourceListBox.setModel (&sourceModel);
@@ -43,6 +43,13 @@ public:
 
     /** Retire la sélection de cette colonne (sans déclencher onRowSelected). */
     void deselectAllRows() { sourceListBox.deselectAllRows(); }
+
+    /** Index global (0..63) de la voix sélectionnée dans cette colonne, ou < 0 si aucune. */
+    int getSelectedGlobalIndex() const
+    {
+        const int row = sourceListBox.getSelectedRow();
+        return row < 0 ? -1 : baseOffset + row;
+    }
 
     void resized() override
     {
@@ -123,6 +130,7 @@ private:
     };
 
     //==============================================================================
+    int baseOffset;
     ListBox sourceListBox  { "D+D source", nullptr };
     SourceItemListboxContents sourceModel;
     String label;

@@ -64,6 +64,20 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
             for (auto* col : { &voicesListA, &voicesListB, &voicesListC, &voicesListD })
                 if (col != selected)
                     col->deselectAllRows();
+
+            // Info à la sélection : nom + type de la voix (octet @32 du bloc) + indication
+            // si elle est chargeable dans l'éditeur (loader v1 = 1 AFM POLY, type 3).
+            const int idx = selected->getSelectedGlobalIndex();
+            auto block = SyVoice::getVoiceBlock ((const uint8*) currentBankData.getData(),
+                                                 currentBankData.getSize(), idx);
+            if (block.getSize() > 33)
+            {
+                const int type = ((const uint8*) block.getData())[32];
+                const String name = arrayListVoices[idx].trim();
+                labelInfoLine.setText (name + "  —  " + SyVoice::voiceTypeLabel (type)
+                                       + (type == 3 ? "   · chargeable dans l'editeur" : ""),
+                                       dontSendNotification);
+            }
         };
         voicesListA.onRowSelected = selectOnlyThis;
         voicesListB.onRowSelected = selectOnlyThis;

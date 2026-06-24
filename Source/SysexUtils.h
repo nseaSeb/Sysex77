@@ -77,6 +77,20 @@ namespace SyVoice
     }
 
     //==============================================================================
+    /** Libellé lisible du type de voix SY77, lu à l'octet @32 du bloc voix.
+        Mêmes intitulés que le sélecteur comboMode (id = typeByte + 1). */
+    inline juce::String voiceTypeLabel (int typeByte)
+    {
+        static const char* const labels[] = {
+            "1 AFM MONO", "2 AFM MONO", "4 AFM MONO", "1 AFM POLY", "2 AFM POLY",
+            "1 AWM POLY", "2 AWM POLY", "4 AWM POLY", "1 AFM & 1 AWM POLY", "2 AFM & 2 AWM POLY"
+        };
+        if (typeByte >= 0 && typeByte < (int) (sizeof (labels) / sizeof (labels[0])))
+            return labels[typeByte];
+        return "type " + juce::String (typeByte) + " ?";
+    }
+
+    //==============================================================================
     /** Une différence d'octet entre deux blocs de voix : position + ancienne/nouvelle valeur. */
     struct VoiceByteDiff { int offset; juce::uint8 before; juce::uint8 after; };
 
