@@ -210,7 +210,7 @@ struct SysexUtilsTests : public juce::UnitTest
 
             auto params = SyVoice::voiceBlobToParams (steel, (int) sizeof (steel));
             // 6 op×15 + (ELVL,ALGNUM,FCTOF1,FCTOF2,FFRES) + 4 pitch-rates + 2×7 filtre + VVOL.
-            expectEquals (params.size(), 6 * 15 + 5 + 4 + 14 + 1);
+            expectEquals (params.size(), 6 * 16 + 5 + 4 + 14 + 1);
 
             auto val = [&params] (int group, int param) -> int
             {
@@ -253,11 +253,11 @@ struct SysexUtilsTests : public juce::UnitTest
             juce::MemoryBlock mono (steel, sizeof (steel));
             ((juce::uint8*) mono.getData())[32] = 0x00;
             expectEquals (SyVoice::voiceBlobToParams ((const juce::uint8*) mono.getData(),
-                                                      (int) mono.getSize()).size(), 6 * 15 + 5 + 4 + 14 + 1);
+                                                      (int) mono.getSize()).size(), 6 * 16 + 5 + 4 + 14 + 1);
 
             // 2 AFM / 4 AFM : N « layers » identiques (Table 2). On vérifie le compte et que
             // l'adressage par élément (addrHi = élément<<5) est bien produit.
-            const int perElem = 6 * 15 + 5 + 4 + 14;   // op + 5 abs + 4 pitch-rates + 2×7 filtre
+            const int perElem = 6 * 16 + 5 + 4 + 14;   // op + 5 abs + 4 pitch-rates + 2×7 filtre
             {
                 juce::MemoryBlock two; two.setSize (832, true);
                 ((juce::uint8*) two.getData())[32] = 0x01;   // 2 AFM
@@ -329,7 +329,7 @@ struct SysexUtilsTests : public juce::UnitTest
             auto* p = (juce::uint8*) mb.getData();
             p[0] = 0xF0; p[32] = 0x08;
             auto params = SyVoice::voiceBlobToParams (p, 586);
-            expectEquals (params.size(), 113 + 9 + 1);   // AFM él.(113) + AWM él.(9) + VVOL
+            expectEquals (params.size(), 119 + 9 + 1);   // AFM él.(119) + AWM él.(9) + VVOL
 
             bool afmE1 = false, awmE2 = false;
             for (auto& q : params)

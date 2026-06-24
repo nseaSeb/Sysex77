@@ -176,6 +176,7 @@ namespace SyVoice
             { 0x0A, 10 }, { 0x0B, 11 },                           // RL1, RL2
             { 0x0E, 14 },                                         // L0
             { 0x1B, 29 },                                         // TL (niveau de sortie)
+            { 0x25, 43 },                                         // FPC (Coarse) -> rendu FM
             { 0x26, 44 }                                          // Fine
         };
         const int opGroup[6] = { 0x06, 0x16, 0x26, 0x36, 0x46, 0x56 };   // OP6 … OP1
