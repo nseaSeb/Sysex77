@@ -172,6 +172,11 @@ namespace SyVoice
         // = byte 377 15->0). Le slider algo applique son propre offset d'affichage (1..45).
         out.add ({ 0x05, 0, 0, 0x00, (int) d[377] });
 
+        // Filtre 1 (AFM, élément 1, fN=0 -> group 0x09 addrHi=0) : cutoff (FCTOF, param 0x01)
+        // @404, confirmé par diff single-param (RikielBass 127->0). 0..127, sans encodage.
+        // (Le TYPE de filtre @403 a un offset connu mais un encodage bulk encore ambigu -> omis.)
+        out.add ({ 0x09, 0, 0, 0x01, (int) d[404] });
+
         return out;
     }
 

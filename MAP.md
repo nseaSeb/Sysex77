@@ -60,9 +60,10 @@ Couverture actuelle du chargement = **voix 1 AFM POLY (type 3), élément 1 uniq
 
 | Paramètre | Envoi → synthé | Ouverture dump | Notes |
 |---|:---:|:---:|---|
-| Type (FTYPE : LPF/HPF/Thru) | ✅ | ⬜ | Track A |
+| Type filtre 1 (FTYPE : LPF/HPF/Thru) | ✅ | ❓ | envoi Track A ; dump @403 (offset OK) mais encodage bulk ambigu (Thru→LPF = 0→1, ≠ enum) — besoin d'un point HPF |
 | Mode de contrôle (FMODE) | ✅ | ⬜ | Track A (filtre 1 & 2) |
-| Cutoff | 🟡 | ⬜ | group 0x09 |
+| **Cutoff filtre 1** | 🟡 | 🟢 | dump **@404 confirmé** (diff single-param 127→0) ; group 0x09/param 0x01 |
+| Cutoff filtre 2 | 🟡 | ⬜ | offset à confirmer (diff) |
 | Résonance | 🟡 | ⬜ | |
 | Filter EG : RR2, RL1, RL2 | ✅ | ⬜ | Track A |
 | Filter EG : R1-4, RR1, L0-4, slope | 🟡 | ⬜ | câblé group 0x09 |
