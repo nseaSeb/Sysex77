@@ -74,9 +74,8 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
             {
                 const int type = ((const uint8*) block.getData())[32];
                 const String name = arrayListVoices[idx].trim();
-                // AFM 1/2/4 (types 0-4) + AWM 1/2/4 (types 5-7). Mixtes AFM+AWM (8,9) /
-                // drum (10) pas encore gérés.
-                const bool loadable = (type >= 0 && type <= 7);
+                // AFM 1/2/4 (0-4) + AWM 1/2/4 (5-7) + mixtes AFM+AWM (8-9). Drum (10) non géré.
+                const bool loadable = (type >= 0 && type <= 9);
                 labelInfoLine.setText (name + "  —  " + SyVoice::voiceTypeLabel (type)
                                        + (loadable ? "   · chargeable dans l'editeur" : ""),
                                        dontSendNotification);
