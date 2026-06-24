@@ -15,7 +15,7 @@
 //==============================================================================
 /*
  */
-class Operator    : public ElementComponent, public TextButton::Listener
+class Operator    : public ElementComponent, public TextButton::Listener, public Value::Listener
 {
 public:
     Operator()
@@ -34,6 +34,10 @@ public:
         sliderAlgo.setTextBoxStyle(Slider::NoTextBox, true, 10, 10);
         sliderAlgo.setColour(Slider::ColourIds::thumbColourId, SYColSelected);
         sliderAlgo.onValueChange = [this] {setAlgorythm();};
+        // Redessine la topologie AUSSI quand la valeur change sans notification (chargement
+        // d'une voix : MidiSlider fait setValue(dontSendNotification) -> onValueChange ne se
+        // déclenche pas, mais le Value sous-jacent change -> ce listener régénère le dessin).
+        sliderAlgo.getValueObject().addListener(this);
         addAndMakeVisible(labelAlgo);
         labelAlgo.attachToComponent(&sliderAlgo, false);
 
@@ -83,6 +87,10 @@ public:
     {
         algoFm.setAlgo(sliderAlgo.getValue());
         repaint();
+    }
+    void valueChanged (Value&) override   // valeur algo changée (y compris au chargement) -> redraw
+    {
+        setAlgorythm();
     }
     void buttonClicked (Button* button) override
     {
