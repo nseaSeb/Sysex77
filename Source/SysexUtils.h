@@ -124,33 +124,43 @@ namespace SyVoice
         voix 1AFM (F0…F7, 466 octets, type@32 == 0x03) et les renvoie sous forme de
         messages param-change équivalents, prêts à rejouer dans l'éditeur.
 
-        Couverture : par opérateur AFM (élément 1, OP1..OP6) les rates/levels d'EG
-        (R1-4, RR1-2, L1-4, RL1-2, L0), le niveau de sortie (TL) et le fine ; plus,
-        à offset absolu, volume de voix, niveau élément 1, algorithme, cutoff filtre 1
-        et 2, résonance. Les params dont l'encodage n'est pas vérifié (type filtre,
-        coarse, detune, RS, SLP, HT, sensibilités s/m, effets, pitch/LFO, éléments 2-4)
-        sont VOLONTAIREMENT omis : l'éditeur conserve sa valeur, on n'affiche jamais de
-        donnée erronée (« fiabilité d'abord »).
+        Gère 1/2/4 AFM (mono ET poly) — N « layers » identiques. Pour CHAQUE élément :
+        par opérateur (OP1..OP6) les rates/levels d'EG (R1-4, RR1-2, L1-4, RL1-2, L0),
+        le niveau de sortie (TL) et le fine ; plus le niveau d'élément, l'algorithme,
+        les cutoff filtre 1 & 2 et la résonance. Les params dont l'encodage n'est pas
+        vérifié (type filtre, coarse, detune, RS, SLP, sensibilités s/m, effets,
+        pitch/LFO) et les voix AWM/mixtes sont VOLONTAIREMENT omis : l'éditeur conserve
+        sa valeur, on n'affiche jamais de donnée erronée (« fiabilité d'abord »).
 
-        Provenance des offsets : carte calée sur les dumps SteelStrng + recoupement
-        du dump fingerprinté avec re_fingerprint.csv (match exact 6/6 sur TL & Fine ;
-        match exact sur R/L/RR/RL/L0). Voir docs/bulk_offset_map_WIP.md. */
+        Provenance des offsets : Table 2 « Voice Bulk Dump » du manuel (lecture claire,
+        pattern base=107+9*(N-1) / stride 357 vérifié sur 1/2/4 AFM) + recoupement diff
+        single-param (algo @377, cutoff @404) et fingerprint (TL/Fine/R/L/RR/RL/L0). */
     inline juce::Array<VoiceParam> voiceBlobToParams (const juce::uint8* d, int sz)
     {
         juce::Array<VoiceParam> out;
-        if (d == nullptr || sz < 466) return out;        // bloc 1AFM complet F0..F7
-        // Type @32 : la Table 2 de la spec range MONO ($00) et POLY ($03) sous la MÊME
-        // structure « (1) 1AFM » -> mêmes offsets. Les 2AFM/4AFM/AWM ont d'autres dispositions
-        // (non encore mappées) -> on les laisse intacts (« fiabilité d'abord »).
-        if (d[32] != 0x00 && d[32] != 0x03) return out;
+        if (d == nullptr || sz < 466) return out;        // au moins un bloc 1AFM (F0..F7)
 
-        // 6 opérateurs : ordre de stockage OP6->OP1, 45 octets/record, OP6 @107.
-        // group param-change : OP6=0x06 … OP1=0x56 (cf. afmOperatorGroup), addrHi=0.
-        struct Op { int group, base; };
-        const Op ops[6] = { { 0x06, 107 }, { 0x16, 152 }, { 0x26, 197 },
-                            { 0x36, 242 }, { 0x46, 287 }, { 0x56, 332 } };
+        // Nombre d'éléments AFM selon le type @32 (Table 2 de la spec). MONO et POLY
+        // partagent la même structure. 1/2/4 AFM = 1/2/4 « layers » identiques.
+        int nElem = 0;
+        switch (d[32])
+        {
+            case 0x00: case 0x03: nElem = 1; break;   // 1 AFM (mono / poly)
+            case 0x01: case 0x04: nElem = 2; break;   // 2 AFM
+            case 0x02:            nElem = 4; break;   // 4 AFM
+            default: return out;                      // AWM / mixtes : autre layout -> intact
+        }
 
-        // param-change (N2) -> offset interne dans le record de 45 octets (CONFIRMÉS).
+        // Disposition (Table 2, vérifiée sur 1/2/4 AFM) :
+        //  - base des opérateurs de l'élément 1 = 107 + 9*(nElem-1) (octets common en plus),
+        //  - chaque élément = bloc de 357 octets (OP6@base … FFCMS@base+356),
+        //  - opérateurs OP6@+0 … OP1@+225 (45 o./record), ALGNUM@+270, FCTOF1@+297,
+        //    FCTOF2@+326, FFRES@+354 ; niveau d'élément ELVL_e dans la zone common @98+9*e.
+        const int firstBase = 107 + 9 * (nElem - 1);
+        const int STRIDE = 357;
+        if (sz < firstBase + (nElem - 1) * STRIDE + 357) return out;   // bloc trop court
+
+        // param-change (N2) -> offset interne dans le record opérateur de 45 octets (CONFIRMÉS).
         struct Pm { int param, intOff; };
         const Pm pm[] = {
             { 0x00, 0 }, { 0x01, 1 }, { 0x02, 2 }, { 0x03, 3 },   // R1-R4
@@ -161,34 +171,28 @@ namespace SyVoice
             { 0x1B, 29 },                                         // TL (niveau de sortie)
             { 0x26, 44 }                                          // Fine
         };
+        const int opGroup[6] = { 0x06, 0x16, 0x26, 0x36, 0x46, 0x56 };   // OP6 … OP1
 
-        for (auto& op : ops)
-            for (auto& m : pm)
-            {
-                const int off = op.base + m.intOff;
-                if (off < sz)
-                    out.add ({ op.group, 0, 0, m.param, (int) d[off] });
-            }
+        for (int e = 0; e < nElem; ++e)
+        {
+            const int base = firstBase + e * STRIDE;   // OP6 de l'élément e
+            const int aH   = e << 5;                   // addrHi de l'élément (0/32/64/96)
 
-        // Paramètres à offset ABSOLU (hors records opérateur). Offsets pris dans la Table 2
-        // « Voice Bulk Dump » (1AFM) de la spec et/ou confirmés par diff single-param. Tous
-        // en u7 « plain » (0..127, pas d'encodage (o/b)/(s/m)) -> on passe l'octet tel quel ;
-        // le widget cible applique son propre affichage (ex. algo : 0..44 -> 1..45).
-        // {bulk offset, group, addrHi, param}.
-        struct Abs { int off, group, addrHi, param; };
-        const Abs absParams[] = {
-            {  95, 0x02, 0, 0x3F },   // VVOL   — volume de voix              (voice common)
-            {  98, 0x03, 0, 0x00 },   // ELVL0  — niveau élément 1            (element)
-            { 377, 0x05, 0, 0x00 },   // ALGNUM — algorithme   [diff ✓]       (AFM elem. commun)
-            { 404, 0x09, 0, 0x01 },   // FCTOF1 — cutoff filtre 1  [diff ✓]   (filtre 1, fN=0)
-            { 433, 0x09, 1, 0x01 },   // FCTOF2 — cutoff filtre 2             (filtre 2, fN=1)
-            { 461, 0x09, 2, 0x32 },   // FFRES  — résonance                   (filtre commun, fN=2)
-        };
-        for (auto& p : absParams)
-            if (p.off < sz)
-                out.add ({ p.group, p.addrHi, 0, p.param, (int) d[p.off] });
-        // Volontairement OMIS (offset connu mais encodage non vérifié) : type filtre @403
-        // (bulk≠enum), FFVSON@462 / FFCMS@463 (sign-magnitude), coarse/detune/RS/SLP opérateur.
+            for (int op = 0; op < 6; ++op)
+                for (auto& m : pm)
+                    out.add ({ opGroup[op], aH, 0, m.param, (int) d[base + op * 45 + m.intOff] });
+
+            // params « plain » (u7) à offset relatif au bloc / à la zone common.
+            out.add ({ 0x03, aH,        0, 0x00, (int) d[98 + 9 * e] }); // ELVL  (niveau élément)
+            out.add ({ 0x05, aH,        0, 0x00, (int) d[base + 270] }); // ALGNUM
+            out.add ({ 0x09, aH,        0, 0x01, (int) d[base + 297] }); // FCTOF1 (cutoff filtre 1)
+            out.add ({ 0x09, aH | 0x01, 0, 0x01, (int) d[base + 326] }); // FCTOF2 (cutoff filtre 2)
+            out.add ({ 0x09, aH | 0x02, 0, 0x32, (int) d[base + 354] }); // FFRES  (résonance)
+        }
+
+        out.add ({ 0x02, 0, 0, 0x3F, (int) d[95] });   // VVOL — volume de voix (commun)
+        // Volontairement OMIS (offset connu mais encodage non vérifié) : type filtre @+296
+        // (bulk≠enum), FFVSON/FFCMS (s/m), coarse/detune/RS/SLP opérateur, pitch-EG/LFO, effets.
 
         return out;
     }

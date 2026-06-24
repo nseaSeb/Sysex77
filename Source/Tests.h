@@ -249,8 +249,27 @@ struct SysexUtilsTests : public juce::UnitTest
             expectEquals (SyVoice::voiceBlobToParams ((const juce::uint8*) mono.getData(),
                                                       (int) mono.getSize()).size(), 6 * 15 + 6);
 
-            // Garde-fous « fiabilité d'abord » : pas de bloc -> rien ; type non-1AFM -> rien.
-            juce::uint8 notAfm[466] = { 0 }; notAfm[32] = 0x01;   // 2 AFM (autre structure)
+            // 2 AFM / 4 AFM : N « layers » identiques (Table 2). On vérifie le compte et que
+            // l'adressage par élément (addrHi = élément<<5) est bien produit.
+            const int perElem = 6 * 15 + 5;   // 90 op + ELVL+ALGNUM+FCTOF1+FCTOF2+FFRES
+            {
+                juce::MemoryBlock two; two.setSize (832, true);
+                ((juce::uint8*) two.getData())[32] = 0x01;   // 2 AFM
+                auto p2 = SyVoice::voiceBlobToParams ((const juce::uint8*) two.getData(), 832);
+                expectEquals (p2.size(), perElem * 2 + 1);   // + VVOL commun
+
+                juce::MemoryBlock four; four.setSize (1564, true);
+                ((juce::uint8*) four.getData())[32] = 0x02;  // 4 AFM
+                auto p4 = SyVoice::voiceBlobToParams ((const juce::uint8*) four.getData(), 1564);
+                expectEquals (p4.size(), perElem * 4 + 1);
+                bool e2 = false, e4 = false;
+                for (auto& q : p4) { if (q.addrHi == 32) e2 = true; if (q.addrHi == 96) e4 = true; }
+                expect (e2);   // élément 2 (addrHi 0x20)
+                expect (e4);   // élément 4 (addrHi 0x60)
+            }
+
+            // Garde-fous « fiabilité d'abord » : un type AWM ($05) -> rien (layout différent).
+            juce::uint8 notAfm[466] = { 0 }; notAfm[32] = 0x05;   // 1 AWM
             expect (SyVoice::voiceBlobToParams (notAfm, 466).isEmpty());
             expect (SyVoice::voiceBlobToParams (steel, 100).isEmpty());   // tronqué
             expect (SyVoice::voiceBlobToParams (nullptr, 466).isEmpty());
