@@ -209,7 +209,8 @@ struct SysexUtilsTests : public juce::UnitTest
             };
 
             auto params = SyVoice::voiceBlobToParams (steel, (int) sizeof (steel));
-            expectEquals (params.size(), 6 * 15 + 6);   // 6 op × 15 + 6 params à offset absolu
+            // 6 op×15 + (ELVL,ALGNUM,FCTOF1,FCTOF2,FFRES) + 4 pitch-rates + 2×7 filtre + VVOL.
+            expectEquals (params.size(), 6 * 15 + 5 + 4 + 14 + 1);
 
             auto val = [&params] (int group, int param) -> int
             {
@@ -242,16 +243,21 @@ struct SysexUtilsTests : public juce::UnitTest
                 return -1; };
             expectEquals (valH (0x09, 1, 0x01), 50);   // FCTOF2 @433 (cutoff filtre 2)
             expectEquals (valH (0x09, 2, 0x32), 59);   // FFRES  @461 (résonance)
+            // Pitch-EG rates (group 0x05) + filtre 1 mode/rate (group 0x09) : bloc N2-ordonné.
+            expectEquals (val (0x05, 0x02), 16);   // FPR2  @379
+            expectEquals (val (0x05, 0x03), 13);   // FPR3  @380
+            expectEquals (val (0x09, 0x02), 2);    // FMODE filtre 1 @405
+            expectEquals (val (0x09, 0x03), 11);   // FR1   filtre 1 @406
 
             // 1 AFM MONO (type $00) partage la structure 1AFM -> doit charger aussi (Table 2).
             juce::MemoryBlock mono (steel, sizeof (steel));
             ((juce::uint8*) mono.getData())[32] = 0x00;
             expectEquals (SyVoice::voiceBlobToParams ((const juce::uint8*) mono.getData(),
-                                                      (int) mono.getSize()).size(), 6 * 15 + 6);
+                                                      (int) mono.getSize()).size(), 6 * 15 + 5 + 4 + 14 + 1);
 
             // 2 AFM / 4 AFM : N « layers » identiques (Table 2). On vérifie le compte et que
             // l'adressage par élément (addrHi = élément<<5) est bien produit.
-            const int perElem = 6 * 15 + 5;   // 90 op + ELVL+ALGNUM+FCTOF1+FCTOF2+FFRES
+            const int perElem = 6 * 15 + 5 + 4 + 14;   // op + 5 abs + 4 pitch-rates + 2×7 filtre
             {
                 juce::MemoryBlock two; two.setSize (832, true);
                 ((juce::uint8*) two.getData())[32] = 0x01;   // 2 AFM

@@ -188,9 +188,25 @@ namespace SyVoice
                     for (auto& m : pm)
                         out.add ({ opGroup[op], aH, 0, m.param, (int) d[base + op * 45 + m.intOff] });
                 out.add ({ 0x05, aH,        0, 0x00, (int) d[base + 270] }); // ALGNUM
+                // Pitch EG rates (element commun, group 0x05). Bloc element-commun = base+270+N2
+                // (bornes vérifiées : ALGNUM@+270 ... avant le filtre @+296).
+                out.add ({ 0x05, aH, 0, 0x01, (int) d[base + 271] }); // FPR1
+                out.add ({ 0x05, aH, 0, 0x02, (int) d[base + 272] }); // FPR2
+                out.add ({ 0x05, aH, 0, 0x03, (int) d[base + 273] }); // FPR3
+                out.add ({ 0x05, aH, 0, 0x04, (int) d[base + 274] }); // FPRR1
+                // Filtres (group 0x09). Blocs N2-ordonnés (bornes vérifiées FTYPE@+296,
+                // FCTOF@+297, FFTYPE2@+325, BP4@+316) : filtre 1 = base+296+N2, filtre 2 = base+325+N2.
                 out.add ({ 0x09, aH,        0, 0x01, (int) d[base + 297] }); // FCTOF1
                 out.add ({ 0x09, aH | 0x01, 0, 0x01, (int) d[base + 326] }); // FCTOF2
-                out.add ({ 0x09, aH | 0x02, 0, 0x32, (int) d[base + 354] }); // FFRES
+                out.add ({ 0x09, aH | 0x02, 0, 0x32, (int) d[base + 354] }); // FFRES (common)
+                // Mode de contrôle (FMODE@02) + rates EG (FR1-4@03-06, FRR1-2@07-08) des 2 filtres.
+                for (int n2 = 0x02; n2 <= 0x08; ++n2)
+                {
+                    out.add ({ 0x09, aH,        0, n2, (int) d[base + 296 + n2] }); // filtre 1
+                    out.add ({ 0x09, aH | 0x01, 0, n2, (int) d[base + 325 + n2] }); // filtre 2
+                }
+                // OMIS : type filtre @296/+325 (encodage bulk ambigu), niveaux EG (o/b — repr.
+                // éditeur 0..64 à aligner), FRS/FPRS/FYPSW (s/m), pitch-EG levels (o/b).
             }
             else
             {
