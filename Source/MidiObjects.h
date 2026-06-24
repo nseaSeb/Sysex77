@@ -205,7 +205,7 @@ public:
 
         if (broadcastGroups.isEmpty())
         {
-            sender.send(oscAddressPatern, (uint8) sysexData[0], sysexData[1], sysexData[2], sysexData[3], sysexData[4], sysexData[5], sysexData[6], sysexData[7], sysexData[8]);
+            sender.sendParam9 (oscAddressPatern, sysexData);
         }
         else
         {
@@ -214,7 +214,7 @@ public:
             for (int g : broadcastGroups)
             {
                 sysexData[3] = (uint8) g;
-                sender.send(oscAddressPatern, (uint8) sysexData[0], sysexData[1], sysexData[2], sysexData[3], sysexData[4], sysexData[5], sysexData[6], sysexData[7], sysexData[8]);
+                sender.sendParam9 (oscAddressPatern, sysexData);
             }
         }
 
@@ -246,7 +246,7 @@ public:
         if (sysexData[0] != 0x43) return false;   // pas d'adresse câblée
         for (int i = 0; i < 9; ++i) outAddr[i] = sysexData[i];
         sysexData[8] = (uint8) wireValue;  outAddr[8] = wireValue;
-        sender.send (oscAddressPatern, (uint8) sysexData[0], sysexData[1], sysexData[2], sysexData[3], sysexData[4], sysexData[5], sysexData[6], sysexData[7], sysexData[8]);
+        sender.sendParam9 (oscAddressPatern, sysexData);
         return true;
     }
 
@@ -370,8 +370,8 @@ public:
     {
 
         sysexData[8] = button->getToggleState();
-        
-        sender.send(oscAddressPatern, (uint8) sysexData[0], sysexData[1], sysexData[2], sysexData[3], sysexData[4], sysexData[5], sysexData[6], sysexData[7], sysexData[8]);
+
+        sender.sendParam9 (oscAddressPatern, sysexData);
             if(getToggleState())
             {
                 setButtonText(strOn);
@@ -399,7 +399,7 @@ public:
         for (int i = 0; i < 9; ++i) outAddr[i] = sysexData[i];
         const int v = (wireValue != 0) ? 1 : 0;
         sysexData[8] = (uint8) v;  outAddr[8] = v;
-        sender.send (oscAddressPatern, (uint8) sysexData[0], sysexData[1], sysexData[2], sysexData[3], sysexData[4], sysexData[5], sysexData[6], sysexData[7], sysexData[8]);
+        sender.sendParam9 (oscAddressPatern, sysexData);
         return true;
     }
 
@@ -476,7 +476,7 @@ void buttonClicked (Button* button) override
         if (hasSysex)
         {
             sysexData[8] = (int) valueRadio.getValue();
-            sender.send(oscAddressPatern, (uint8) sysexData[0], sysexData[1], sysexData[2], sysexData[3], sysexData[4], sysexData[5], sysexData[6], sysexData[7], sysexData[8]);
+            sender.sendParam9 (oscAddressPatern, sysexData);
         }
     }
 
@@ -541,7 +541,7 @@ void resized() override
         if (! hasSysex) return false;
         for (int i = 0; i < 9; ++i) outAddr[i] = sysexData[i];
         sysexData[8] = (uint8) wireValue;  outAddr[8] = wireValue;
-        sender.send (oscAddressPatern, (uint8) sysexData[0], sysexData[1], sysexData[2], sysexData[3], sysexData[4], sysexData[5], sysexData[6], sysexData[7], sysexData[8]);
+        sender.sendParam9 (oscAddressPatern, sysexData);
         return true;
     }
 
@@ -608,9 +608,9 @@ public:
     {
              Logger::writeToLog("midiCombo  changed");
         sysexData[8] = getSelectedId() -1;
-        
-        sender.send(oscAddressPatern, (uint8) sysexData[0], sysexData[1], sysexData[2], sysexData[3], sysexData[4], sysexData[5], sysexData[6], sysexData[7], sysexData[8]);
-        
+
+        sender.sendParam9 (oscAddressPatern, sysexData);
+
     }
     void valueChanged(Value & value) override
     {
@@ -654,7 +654,7 @@ public:
         if (sysexData[0] != 0x43) return false;
         for (int i = 0; i < 9; ++i) outAddr[i] = sysexData[i];
         sysexData[8] = (uint8) wireValue;  outAddr[8] = wireValue;
-        sender.send (oscAddressPatern, (uint8) sysexData[0], sysexData[1], sysexData[2], sysexData[3], sysexData[4], sysexData[5], sysexData[6], sysexData[7], sysexData[8]);
+        sender.sendParam9 (oscAddressPatern, sysexData);
         return true;
     }
 

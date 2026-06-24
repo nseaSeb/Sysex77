@@ -163,19 +163,44 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
             File myFile {(appDirPath.getFullPathName() + "/UNNAMED.syx")};
             myFile.deleteFile();
             FileOutputStream fos (myFile);
-            
+
+            // Validation du checksum Yamaha À LA RÉCEPTION : on ne prétend PAS que la
+            // capture est saine sans l'avoir vérifiée. Chaque message F0…F7 reçu est un
+            // bulk dump -> on contrôle son checksum (cf. SyVoice::verifyYamahaBulkChecksum).
+            // Les blocs invalides sont quand même écrits (on n'altère pas la capture brute)
+            // mais signalés (log + retour visuel), pour ne pas masquer une transmission
+            // corrompue. « Fiabilité d'abord » : signaler plutôt que faire semblant.
+            int total = 0, bad = 0;
             for (auto& m : arraySysex)
             {
                 Logger::writeToLog(m.getDescription());
                 fos.write(m.getRawData(), m.getRawDataSize());
-                
+
+                ++total;
+                if (! SyVoice::verifyYamahaBulkChecksum ((const uint8*) m.getRawData(),
+                                                         m.getRawDataSize()))
+                {
+                    ++bad;
+                    Logger::writeToLog ("Checksum INVALIDE (bloc " + String (total) + ")");
+                }
             }
             fos.flush();
             arraySysex.clear();
+
+            labelInfoLine.setText (bad == 0
+                                     ? "Capture OK : " + String (total) + " blocs, checksum valide"
+                                     : "ATTENTION : " + String (bad) + "/" + String (total)
+                                         + " blocs au checksum INVALIDE",
+                                   dontSendNotification);
+            if (bad > 0)
+                labelInfoLine.setColour (Label::textColourId, Colours::red);
+            else
+                labelInfoLine.removeColour (Label::textColourId);
+
             loadBankRequest = true; //Make a better code later!
             sendChangeMessage();
             repaint();
-            
+
         }
     }
     void buttonClicked (Button* button) override
@@ -201,7 +226,13 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
             timeOut=0;
             startTimer(500);
             btStop.setVisible(true);
-            
+
+            // On ouvre d'abord la fenêtre de capture (requestSysex=true + timer ci-dessus),
+            // PUIS on émet le dump request : le synthé répond par son bulk dump, capté par
+            // le chemin de réception existant. User-triggered (jamais au démarrage) — c'est
+            // le seul effet « écriture vers le synthé » du bouton RECEIVE (il LIT la banque).
+            if (! sender.send (adresseOscRequestDump))
+                Logger::writeToLog ("OSC erreur (RequestDump)");
         }
         else if(button == &btStop)
         {

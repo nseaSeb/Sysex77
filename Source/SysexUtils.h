@@ -77,6 +77,42 @@ namespace SyVoice
     }
 
     //==============================================================================
+    /** Découpe un buffer .syx contenant PLUSIEURS messages sysex successifs en blocs
+        individuels (chacun de 0xF0 à son 0xF7 inclus). Réutilise la même logique de
+        bornage que `getVoiceBlock` (s'arrête au 0xF7 OU au 0xF0 suivant, ce qui protège
+        des buffers tronqués / non terminés).
+
+        Sert à envoyer une banque message-par-message (avec throttle entre chaque) au lieu
+        d'un seul gros MidiMessage qui saturerait le buffer d'entrée du SY77. Pure et
+        testable (cf. Tests.h). Les octets hors d'un bloc F0…F7 sont ignorés. */
+    inline juce::Array<juce::MemoryBlock> splitSysexMessages (const juce::uint8* data, size_t size)
+    {
+        juce::Array<juce::MemoryBlock> blocks;
+        if (data == nullptr)
+            return blocks;
+
+        for (size_t i = 0; i < size; ++i)
+        {
+            if (data[i] == 0xF0)
+            {
+                size_t end = i + 1;
+                while (end < size && data[end] != 0xF7 && data[end] != 0xF0)
+                    ++end;
+                const bool terminated = (end < size && data[end] == 0xF7);
+                if (terminated)
+                    ++end;                       // inclut le 0xF7 terminal
+
+                juce::MemoryBlock b;
+                b.append (data + i, end - i);
+                blocks.add (b);
+
+                i = end - 1;                     // le ++i de la boucle passe au prochain octet
+            }
+        }
+        return blocks;
+    }
+
+    //==============================================================================
     /** Libellé lisible du type de voix SY77, lu à l'octet @32 du bloc voix.
         Mêmes intitulés que le sélecteur comboMode (id = typeByte + 1). */
     inline juce::String voiceTypeLabel (int typeByte)
@@ -270,6 +306,44 @@ namespace SyVoice
     }
 
     //==============================================================================
+    /** Vérifie le checksum d'UN bloc bulk Yamaha SY77 complet (de 0xF0 à 0xF7 inclus).
+
+        Format bulk (cf. SY77_PARAMETERS.md §1.2, spec « SY77 MIDI Data Format », Table 2) :
+            F0 43 0n 7A <count MSB> <count LSB> <data...> <checksum> F7
+        Le checksum couvre les octets de DONNÉES (l'identifiant « LM  8101.. » + le corps),
+        c.-à-d. depuis l'octet d'index 6 (après les deux octets de count) jusqu'à l'octet
+        qui précède le checksum lui-même. La règle Yamaha : (somme des data + checksum) ≡ 0
+        (mod 128). On la vérifie via `yamahaChecksum(data) == checksumStocké`.
+
+        Renvoie false (= « ne pas prétendre que c'est sain ») si :
+          - le bloc est trop court / mal encadré (pas F0…F7),
+          - ce n'est pas un bulk Yamaha 0x43 (on n'invente pas de verdict),
+          - le format n'est pas un bulk dump connu (octet [3] != 0x7A / 0x7E).
+        Les messages paramétriques courts (0x34) n'ont PAS de checksum -> renvoie false
+        (ils ne sont pas concernés : c'est l'appelant qui ne doit vérifier que les bulks).
+
+        Pure et testable (cf. Tests.h) : aucune dépendance GUI. */
+    inline bool verifyYamahaBulkChecksum (const juce::uint8* block, int size)
+    {
+        // En-tête minimal : F0 43 0n fmt cMSB cLSB <>=1 data <checksum> F7  -> au moins 9 octets.
+        if (block == nullptr || size < 9)               return false;
+        if (block[0] != 0xF0 || block[size - 1] != 0xF7) return false;
+        if (block[1] != 0x43)                            return false;     // pas Yamaha
+        // Format bulk dump : 0x7A (voice/multi/pan/microtuning) ou 0x7E (system setup).
+        if (block[3] != 0x7A && block[3] != 0x7E)        return false;
+
+        // La zone « data » va de l'index 6 (après count MSB/LSB) jusqu'à l'octet juste
+        // avant le checksum. Le checksum est l'octet juste avant le F7 final.
+        const int checksumIndex = size - 2;
+        const int dataStart      = 6;
+        const int dataCount      = checksumIndex - dataStart;
+        if (dataCount <= 0)                              return false;
+
+        const juce::uint8 expected = yamahaChecksum (block + dataStart, dataCount);
+        return expected == block[checksumIndex];
+    }
+
+    //==============================================================================
     /** Message Sysex paramétrique court (9 octets) du SY77/TG77.
         Correspond au format { 0x43, ch, 0x34, group, addrHi, addrLo, param, dataHi, dataLo }.
     */
@@ -349,6 +423,42 @@ namespace SyVoice
         return (juce::uint8) (((juce::jlimit (0, 5, op) & 0x0F) << 4) | 0x06);
     }
 
+    //==============================================================================
+    // Group byte des ENVELOPPES (EG) — source unique de vérité pour les 4 éditeurs d'EG.
+    //
+    // Le bug historique « group-byte 0x00 » (cf. [[project-eg-sysex-bug]]) venait de ce que
+    // chaque éditeur d'EG laissait l'octet [3] (group) à 0x00 — un group jamais valide sur le
+    // SY77, donc le synthé ignorait silencieusement chaque slider d'EG. Le bug est corrigé
+    // (Filter=0x09, Pitch=0x05, Volume AFM = per-op (op<<4)|6, Volume AWM=0x07), mais centraliser
+    // ce mapping ici donne un POINT DE VÉRITÉ testable : les éditeurs CONSOMMENT cette fonction
+    // pour leur octet [3], et un test pur la verrouille (cf. Tests.h) — toute régression du group
+    // (retour à 0x00 ou valeur fausse) casse le test, même si les éditeurs GUI ne sont pas testés.
+
+    /** Type d'enveloppe édité (un éditeur GUI par type). */
+    enum class EgKind
+    {
+        filter,         // Filtre 1 & 2 (group 0x09 ; le n° de filtre va dans addrHi, pas le group)
+        pitch,          // AFM pitch-EG (élément commun, group 0x05)
+        afmAmplitude,   // AFM amp-EG = PAR OPÉRATEUR (group (op<<4)|6) ; op 0..5 = OP6..OP1
+        awmAmplitude    // AWM amp-EG (élément, group 0x07)
+    };
+
+    /** Group byte (octet [3] du message param-change) attendu pour un éditeur d'EG.
+        Spec SY77/TG77 (cf. [[project-sy77-addresses]] / [[project-eg-sysex-bug]] §RESOLUTION).
+        Pour `afmAmplitude`, l'EG est par opérateur -> passer op (0..5, OP6..OP1) ; ignoré
+        pour les autres types. Ne renvoie JAMAIS 0x00 (le group invalide à l'origine du bug). */
+    inline juce::uint8 egGroupFor (EgKind kind, int afmOp = 0)
+    {
+        switch (kind)
+        {
+            case EgKind::filter:        return 0x09;
+            case EgKind::pitch:         return 0x05;
+            case EgKind::afmAmplitude:  return afmOperatorGroup (afmOp);   // (op<<4)|6
+            case EgKind::awmAmplitude:  return 0x07;
+        }
+        return 0x09;   // défaut sûr (un group valide), jamais 0x00
+    }
+
     /** Message Sysex paramétrique SY77 prêt à émettre (ajoute F0/F7). */
     inline juce::MidiMessage paramMessage (int deviceNumber, juce::uint8 group,
                                            juce::uint8 addrHi, juce::uint8 addrLo,
@@ -356,5 +466,52 @@ namespace SyVoice
     {
         auto b = paramBytes (deviceNumber, group, addrHi, addrLo, param, value);
         return juce::MidiMessage::createSysExMessage (b.data(), (int) b.size());
+    }
+
+    //==============================================================================
+    // DUMP REQUEST (USER-TRIGGERED) — demande au SY77 d'émettre un bulk dump de voix.
+    //
+    // Format (spec « SY77 MIDI Data Format », docs/sy77midi_ocr.txt « (10) dump request »
+    // p.17 ; recoupé sur les tables de dump request Multi/Pan, plus lisibles, mêmes
+    // octets de cadrage) :
+    //     F0 43 2n 7A  'L' 'M' ' ' ' ' '8' '1' '0' '1' 'V' 'C'  <14 octets 0x00>
+    //                  Memory_type  Memory#  F7
+    //   - 2n   : sous-statut 2 = « dump request » (vs 0n = bulk dump émis par le synthé).
+    //            n = deviceNumber-1 (même encodage que deviceByte, mais nibble haut = 0x2).
+    //   - 7A   : format de l'objet demandé = Voice Bulk Dump (idem en-tête du dump reçu).
+    //   - "LM  8101VC" : identifiant du format VCED (voice) — octets 14/15 de l'en-tête
+    //            du bulk voix lus dans l'OCR (= 'V','C') et confirmé hors-repo (format VCED
+    //            « LM  8101VC », rétro-compatible SY99 hors effets).
+    //   - Memory_type : 0x00 = Internal, 0x02/0x03 = Preset 1/2, 0x7F = Edit Buffer.
+    //   - Memory#     : 0x00..0x0F=A1..16, 0x10..0x1F=B, 0x20..0x2F=C, 0x30..0x3F=D.
+    //
+    // FIABILITÉ : on N'ÉMET QUE des octets dont le cadrage est documenté (≤32 octets,
+    // cf. « $F0 system exclusive 32 bytes or less »). La réponse du synthé est captée par
+    // le chemin de réception bulk existant. Reste USER-TRIGGERED (jamais au démarrage).
+
+    /** Octet « device » d'un dump request : nibble haut 0x2 (vs 0x1 d'un param-change). */
+    inline juce::uint8 dumpRequestDeviceByte (int deviceNumber)
+    {
+        const int n = juce::jlimit (1, 16, deviceNumber) - 1;
+        return (juce::uint8) (0x20 | (n & 0x0F));
+    }
+
+    /** Dump request d'UNE voix interne (Memory_type/Memory# par défaut = Internal A1).
+        `memoryType` : 0x00 Internal, 0x02/0x03 Preset, 0x7F Edit Buffer.
+        `memoryNumber` : 0x00..0x3F (banque A1..D16) ; ignoré pour l'Edit Buffer côté synthé. */
+    inline juce::MidiMessage voiceDumpRequest (int deviceNumber,
+                                               juce::uint8 memoryType   = 0x00,
+                                               juce::uint8 memoryNumber = 0x00)
+    {
+        const juce::uint8 body[] = {
+            0x43, dumpRequestDeviceByte (deviceNumber), 0x7A,
+            'L', 'M', ' ', ' ', '8', '1', '0', '1', 'V', 'C',   // identifiant VCED (octets 4..13)
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,            // padding (octets 14..27)
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            (juce::uint8) (memoryType   & 0x7F),                 // octet 28
+            (juce::uint8) (memoryNumber & 0x7F)                  // octet 29
+        };
+        // createSysExMessage encadre par F0…F7 (octet 30 = F7) -> 31 octets, « 32 ou moins ».
+        return juce::MidiMessage::createSysExMessage (body, (int) sizeof (body));
     }
 }

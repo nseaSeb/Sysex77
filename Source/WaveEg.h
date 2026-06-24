@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include "SysexUtils.h"
 #include "EnvelopeDraw.h"
 
 class WaveEg    : public ElementComponent, public TextButton::Listener, Slider::Listener
@@ -125,8 +126,11 @@ public:
         Logger::writeToLog( "WaveEg setElement");
         // EG d'ampli AFM = EG PAR OPÉRATEUR ; le groupe [3] sera diffusé aux 6 opérateurs
         // (mode « All », cf. SY77 [F2] All). T2 [4] = (element-1)<<5 (réglé par bloc ci-dessous).
-        int sysexdata2[9] = { 0x43, 0X10, 0x34, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00 };
-        int sysexdata[9]  = { 0x43, 0X10, 0x34, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00 };
+        // Group byte centralisé (cf. SyVoice::egGroupFor) : AFM amp-EG = group du 1er opérateur
+        // (op 0 = OP6 -> 0x06) ; le mode « All » réécrit ensuite le group pour chaque opérateur.
+        const int afmAmpGroup = (int) SyVoice::egGroupFor (SyVoice::EgKind::afmAmplitude, 0);
+        int sysexdata2[9] = { 0x43, 0X10, 0x34, afmAmpGroup, 0x00, 0x00, 0x00, 0x00, 0x00 };
+        int sysexdata[9]  = { 0x43, 0X10, 0x34, afmAmpGroup, 0x00, 0x00, 0x00, 0x00, 0x00 };
         
         if(element == 1)
         {
@@ -217,7 +221,8 @@ public:
         // (RR2/L0/L1/L4/RL1/RL2) gardent leur referTo (render) mais n'émettent rien.
         if (isAwm)
         {
-            int awm[9] = { 0x43, 0X10, 0x34, 0x07, sysexdata[4], 0x00, 0x00, 0x00, 0x00 };
+            int awm[9] = { 0x43, 0X10, 0x34, (int) SyVoice::egGroupFor (SyVoice::EgKind::awmAmplitude),
+                           sysexdata[4], 0x00, 0x00, 0x00, 0x00 };
             auto wireAwm = [&] (MidiSlider& s, int n2, int maxVal)
             {
                 awm[6] = n2;
@@ -238,7 +243,9 @@ public:
         // --- EG d'ampli AFM = EG par OPÉRATEUR (Table 1-7). Mode « All » : chaque slider est
         // diffusé aux 6 opérateurs (groupes 0x06/0x16/0x26/0x36/0x46/0x56). Offsets opérateur :
         // R1-4=00-03, RR1=04, RR2=05, L1-4=06-09, RL1=0A, RL2=0B, L0=0E, RS(slope)=0F.
-        const Array<int> ops { 0x06, 0x16, 0x26, 0x36, 0x46, 0x56 };
+        Array<int> ops;
+        for (int op = 0; op < 6; ++op)
+            ops.add ((int) SyVoice::egGroupFor (SyVoice::EgKind::afmAmplitude, op));
 
         auto wire = [&] (MidiSlider& s, int n2, int maxVal)
         {

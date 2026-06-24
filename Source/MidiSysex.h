@@ -50,39 +50,44 @@ void oscMessageReceived (const OSCMessage& message)
         repaint();
     
     // Table OSC -> paramètre Sysex SY77 (remplace ~20 blocs copier-collés identiques).
-    // Chaque message paramétrique a la forme { 0x43, canal, 0x34, group, addrHi, addrLo, param, 0x00, valeur }.
-    // L'octet canal indiqué ici n'a pas d'importance : il est réécrit avec le device
-    // global dans sendSysex() (source de vérité unique pour le canal).
-    const struct { const String& osc; uint8 channel, group, addrHi, addrLo, param; } sysexMap[] =
+    // Chaque message paramétrique a la forme { 0x43, device, 0x34, group, addrHi, addrLo, param, 0x00, valeur },
+    // construite par SyVoice::paramBytes ci-dessous. L'octet device est posé par le builder
+    // (placeholder) puis réécrit avec le device global dans sendSysex() (source de vérité unique).
+    const struct { const String& osc; uint8 group, addrHi, addrLo, param; } sysexMap[] =
     {
-        { adresseOscFoot,      0x10, 0x0f, 0x00, 0x00, 0x2d },
-        { adresseOscMod,       0x10,        0x0f, 0x00, 0x00, 0x2c },
-        { oscTotalVoiceVolume, 0x10,        0x02, 0x00, 0x00, 0x3f },
-        { adresseOpMode,       0x10,        0x02, 0x00, 0x00, 0x00 },
-        { oscVoiceGrp1,        0x10,        0x03, 0x00, 0x00, 0x08 },
-        { oscVoiceGrp2,        0x10,        0x03, 0x20, 0x00, 0x08 },
-        { oscVoiceGrp3,        0x10,        0x03, 0x40, 0x00, 0x08 },
-        { oscVoiceGrp4,        0x10,        0x03, 0x60, 0x00, 0x08 },
-        { oscVoicePitch1,      0x10,        0x03, 0x00, 0x00, 0x02 },
-        { oscVoicePitch2,      0x10,        0x03, 0x20, 0x00, 0x02 },
-        { oscVoicePitch3,      0x10,        0x03, 0x40, 0x00, 0x02 },
-        { oscVoicePitch4,      0x10,        0x03, 0x60, 0x00, 0x02 },
-        { oscVoiceFine1,       0x10,        0x03, 0x00, 0x00, 0x01 },
-        { oscVoiceFine2,       0x10,        0x03, 0x20, 0x00, 0x01 },
-        { oscVoiceFine3,       0x10,        0x03, 0x40, 0x00, 0x01 },
-        { oscVoiceFine4,       0x10,        0x03, 0x60, 0x00, 0x01 },
-        { oscVoiceFixe1,       0x10,        0x07, 0x00, 0x00, 0x02 },
-        { oscVoiceFixe2,       0x10,        0x07, 0x20, 0x00, 0x02 },
-        { oscVoiceFixe3,       0x10,        0x07, 0x40, 0x00, 0x02 },
-        { oscVoiceFixe4,       0x10,        0x07, 0x60, 0x00, 0x02 },
+        { adresseOscFoot,      0x0f, 0x00, 0x00, 0x2d },
+        { adresseOscMod,       0x0f, 0x00, 0x00, 0x2c },
+        { oscTotalVoiceVolume, 0x02, 0x00, 0x00, 0x3f },
+        { adresseOpMode,       0x02, 0x00, 0x00, 0x00 },
+        { oscVoiceGrp1,        0x03, 0x00, 0x00, 0x08 },
+        { oscVoiceGrp2,        0x03, 0x20, 0x00, 0x08 },
+        { oscVoiceGrp3,        0x03, 0x40, 0x00, 0x08 },
+        { oscVoiceGrp4,        0x03, 0x60, 0x00, 0x08 },
+        { oscVoicePitch1,      0x03, 0x00, 0x00, 0x02 },
+        { oscVoicePitch2,      0x03, 0x20, 0x00, 0x02 },
+        { oscVoicePitch3,      0x03, 0x40, 0x00, 0x02 },
+        { oscVoicePitch4,      0x03, 0x60, 0x00, 0x02 },
+        { oscVoiceFine1,       0x03, 0x00, 0x00, 0x01 },
+        { oscVoiceFine2,       0x03, 0x20, 0x00, 0x01 },
+        { oscVoiceFine3,       0x03, 0x40, 0x00, 0x01 },
+        { oscVoiceFine4,       0x03, 0x60, 0x00, 0x01 },
+        { oscVoiceFixe1,       0x07, 0x00, 0x00, 0x02 },
+        { oscVoiceFixe2,       0x07, 0x20, 0x00, 0x02 },
+        { oscVoiceFixe3,       0x07, 0x40, 0x00, 0x02 },
+        { oscVoiceFixe4,       0x07, 0x60, 0x00, 0x02 },
     };
 
     for (auto& e : sysexMap)
     {
         if (address.matches (e.osc))
         {
-            uint8 sysexdata[9] = { 0x43, e.channel, 0x34, e.group, e.addrHi, e.addrLo, e.param, 0x00, 0x00 };
-            sendSysex (message, sysexdata);
+            // Format filaire construit par le builder unique (cf. SyVoice::paramBytes).
+            // L'octet device [1] est un placeholder ici : sendSysex() le réécrit avec le
+            // device global (source de vérité unique pour le canal). value = 0 (sendSysex
+            // pose [8] depuis le message).
+            auto sysexdata = SyVoice::paramBytes (sysexDeviceNumber, e.group, e.addrHi,
+                                                  e.addrLo, e.param, 0x00);
+            sendSysex (message, sysexdata.data());
             break; // les adresses sont mutuellement exclusives
         }
     }
@@ -107,9 +112,23 @@ void oscMessageReceived (const OSCMessage& message)
         if(file.loadFileAsData(mb))
         {
             const uint8* const data = (const uint8*) mb.getData();
-            sendRaw(data, mb.getSize());
+            sendBankThrottled (data, mb.getSize());
         }
 
+    }
+    if (address.matches (adresseOscRequestDump))
+    {
+        // Dump request USER-TRIGGERED (bouton RECEIVE) : demande au SY77 d'émettre son
+        // bulk dump de voix. On boucle sur les 64 mémoires internes (banques A..D, 16 voix)
+        // avec le même throttle ~10 ms que l'outil RE -> les réponses sont captées par le
+        // chemin de réception bulk existant (handleIncomingMidiMessage, requestSysex==true).
+        // FIABILITÉ : seul ce bouton déclenche un envoi vers le synthé (jamais au démarrage).
+        for (int mem = 0; mem < 64; ++mem)
+        {
+            sendToOutputs (SyVoice::voiceDumpRequest (sysexDeviceNumber, 0x00,
+                                                      (uint8) mem));
+            juce::Thread::sleep (10);
+        }
     }
     if (address.matches(adresseOscSendVoice))
     {
@@ -177,6 +196,32 @@ void sendSysex(const OSCMessage& message, uint8 sysexdata[0])
         sendToOutputs (m);
     }
     
+}
+// Envoi d'une banque DÉCOUPÉE en messages F0…F7 individuels, avec un petit délai
+// inter-message (~10 ms, calqué sur l'outil RE) pour ne pas saturer le buffer d'entrée
+// du SY77 (un seul gros MidiMessage risquait de le déborder). User-triggered (bouton SEND).
+void sendBankThrottled (const void* sysexData, const long dataSize)
+{
+    if (dataSize <= 1)
+    {
+        Logger::writeToLog ("Error Send BANK (empty)");
+        return;
+    }
+    const auto blocks = SyVoice::splitSysexMessages ((const uint8*) sysexData, (size_t) dataSize);
+    if (blocks.isEmpty())
+    {
+        // Pas de cadrage F0…F7 reconnu -> on retombe sur l'envoi brut (comportement d'avant).
+        sendRaw (sysexData, dataSize);
+        return;
+    }
+    Logger::writeToLog ("Send BANK : " + String (blocks.size()) + " messages");
+    for (auto& b : blocks)
+    {
+        MidiMessage m (b.getData(), (int) b.getSize());
+        m.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
+        sendToOutputs (m);
+        juce::Thread::sleep (10);   // throttle inter-message
+    }
 }
 void sendRaw(const void* sysexData, const long dataSize)
 {

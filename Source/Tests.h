@@ -78,6 +78,83 @@ struct SysexUtilsTests : public juce::UnitTest
             expect (ck <= 0x7F);
         }
 
+        beginTest ("verifyYamahaBulkChecksum accepts a well-formed bulk block");
+        {
+            // Construit un bulk minimal F0 43 0n 7A cMSB cLSB <data> <ck> F7 dont le checksum
+            // est calculé par yamahaChecksum sur la zone data (index 6..ck-1).
+            juce::uint8 blk[] = { 0xF0, 0x43, 0x10, 0x7A, 0x00, 0x04,
+                                  'L', 'M', ' ', ' ',          // 4 octets de data factices
+                                  0x00,                        // emplacement du checksum
+                                  0xF7 };
+            const int dataStart = 6, ckIndex = (int) sizeof (blk) - 2;
+            blk[ckIndex] = SyVoice::yamahaChecksum (blk + dataStart, ckIndex - dataStart);
+            expect (SyVoice::verifyYamahaBulkChecksum (blk, (int) sizeof (blk)));
+
+            // Un octet de data corrompu -> le checksum ne correspond plus -> rejet.
+            juce::uint8 bad[sizeof (blk)];
+            memcpy (bad, blk, sizeof (blk));
+            bad[dataStart] ^= 0x01;
+            expect (! SyVoice::verifyYamahaBulkChecksum (bad, (int) sizeof (bad)));
+        }
+
+        beginTest ("verifyYamahaBulkChecksum rejects non-bulk / malformed blocks");
+        {
+            // Pas F0…F7
+            const juce::uint8 noFrame[] = { 0x43, 0x10, 0x7A, 0x00, 0x04, 0x00, 0x00, 0x00 };
+            expect (! SyVoice::verifyYamahaBulkChecksum (noFrame, (int) sizeof (noFrame)));
+            // Pas Yamaha (octet [1] != 0x43)
+            const juce::uint8 notYam[] = { 0xF0, 0x7E, 0x10, 0x7A, 0x00, 0x04, 0x00, 0x00, 0xF7 };
+            expect (! SyVoice::verifyYamahaBulkChecksum (notYam, (int) sizeof (notYam)));
+            // Message paramétrique court (0x34) : pas un bulk -> false (non concerné)
+            const juce::uint8 paramMsg[] = { 0xF0, 0x43, 0x10, 0x34, 0x0f, 0x00, 0x00, 0x2d, 0x00, 0x05, 0xF7 };
+            expect (! SyVoice::verifyYamahaBulkChecksum (paramMsg, (int) sizeof (paramMsg)));
+            // Trop court / nullptr
+            expect (! SyVoice::verifyYamahaBulkChecksum (nullptr, 0));
+        }
+
+        beginTest ("splitSysexMessages splits successive F0..F7 blocks");
+        {
+            const juce::uint8 syx[] = {
+                0xF0, 0x43, 0x10, 0x01, 0xF7,        // bloc 0 (5 octets)
+                0xF0, 0x43, 0x10, 0x02, 0x03, 0xF7   // bloc 1 (6 octets)
+            };
+            auto blocks = SyVoice::splitSysexMessages (syx, sizeof (syx));
+            expectEquals (blocks.size(), 2);
+            expectEquals ((int) blocks[0].getSize(), 5);
+            expectEquals ((int) ((const juce::uint8*) blocks[0].getData())[0], 0xF0);
+            expectEquals ((int) ((const juce::uint8*) blocks[0].getData())[4], 0xF7);
+            expectEquals ((int) blocks[1].getSize(), 6);
+            expectEquals ((int) ((const juce::uint8*) blocks[1].getData())[5], 0xF7);
+
+            // Buffer non terminé (dernier bloc sans F7) : borné, pas de débordement.
+            const juce::uint8 trunc[] = { 0xF0, 0x43, 0x10, 0xF7, 0xF0, 0x43, 0x10 };
+            auto t = SyVoice::splitSysexMessages (trunc, sizeof (trunc));
+            expectEquals (t.size(), 2);
+            expectEquals ((int) t[0].getSize(), 4);     // F0 43 10 F7
+            expectEquals ((int) t[1].getSize(), 3);     // F0 43 10 (non terminé)
+            expect (SyVoice::splitSysexMessages (nullptr, 0).isEmpty());
+        }
+
+        beginTest ("voiceDumpRequest is a well-framed VCED request");
+        {
+            auto m = SyVoice::voiceDumpRequest (3, 0x00, 0x05);   // device 3, Internal, A6
+            const juce::uint8* d = m.getSysExData();
+            const int sz = m.getSysExDataSize();                  // sans F0/F7
+            expectEquals (sz, 29);                                // 31 octets - F0 - F7
+            expectEquals ((int) d[0], 0x43);                      // Yamaha
+            expectEquals ((int) d[1], 0x22);                      // 0x20 | (3-1) -> dump request, dev 3
+            expectEquals ((int) d[2], 0x7A);                      // format Voice Bulk Dump
+            // Identifiant VCED "LM  8101VC" (octets 3..12 du corps = 4..13 avec F0)
+            const char* id = "LM  8101VC";
+            for (int i = 0; i < 10; ++i)
+                expectEquals ((int) d[3 + i], (int) (juce::uint8) id[i]);
+            expectEquals ((int) d[sz - 2], 0x00);                 // Memory_type = Internal
+            expectEquals ((int) d[sz - 1], 0x05);                 // Memory# = A6
+            // dumpRequestDeviceByte : nibble haut 0x2, borné
+            expectEquals ((int) SyVoice::dumpRequestDeviceByte (1),  0x20);
+            expectEquals ((int) SyVoice::dumpRequestDeviceByte (16), 0x2F);
+        }
+
         beginTest ("diffVoiceBlocks reports differing byte offsets");
         {
             const juce::uint8 a[] = { 0xF0, 0x43, 0x10, 0x20, 0x30, 0x40, 0xF7 };
@@ -150,6 +227,42 @@ struct SysexUtilsTests : public juce::UnitTest
             expectEquals ((int) SyVoice::paramBytes (5, 0, 0, 0, 0, 0)[1], 0x14);
         }
 
+        beginTest ("paramBytes is byte-identical to the legacy inline format (anti-regression)");
+        {
+            // Preuve de non-régression pour la TÂCHE 1.3 : les ~205 widgets Midi* et les
+            // littéraux de MidiDemo/MidiSysex construisaient à la main le tableau
+            //   sysexData[9] = { 0x43, 0x10, 0x34, group, addrHi, addrLo, param, 0x00, value }
+            // (octet [1] = device placeholder 0x10). On les a unifiés sur SyVoice::paramBytes.
+            // Ce test reconstruit l'ANCIEN format inline EN DUR et le compare octet-pour-octet
+            // au builder, pour un échantillon de (group, addrHi, addrLo, param, value).
+            //
+            // Sur le fil, l'octet device [1] est de toute façon réécrit par le choke-point
+            // (MidiSysex.h : sysexdata[1] = deviceByte(sysexDeviceNumber)), donc placeholder
+            // sans effet ; ici on passe device=1 -> 0x10, ce qui reproduit l'ancien littéral
+            // 0x10 et permet une comparaison des 9 octets, [1] compris.
+            const struct { juce::uint8 group, addrHi, addrLo, param, value; } cases[] =
+            {
+                { 0x03, 0x00, 0x00, 0x08, 0x40 },   // voice group / élément 1
+                { 0x03, 0x60, 0x00, 0x02, 0x10 },   // pitch élément 4 (addrHi=0x60)
+                { 0x09, 0x20, 0x00, 0x01, 0x7F },   // cutoff filtre, élément 2
+                { 0x06, 0x00, 0x00, 0x00, 0x00 },   // op AFM (group 0x06)
+                { 0x56, 0x00, 0x00, 0x05, 0x2A },   // op AFM OP1 (group 0x56)
+                { 0x0f, 0x00, 0x00, 0x2d, 0x03 },   // System Setup (foot / bulk-protect)
+                { 0x02, 0x00, 0x00, 0x3f, 0x64 },   // total voice volume
+            };
+
+            for (auto& c : cases)
+            {
+                // ANCIEN format, écrit à la main (device placeholder 0x10 == deviceByte(1)).
+                const juce::uint8 legacy[9] =
+                    { 0x43, 0x10, 0x34, c.group, c.addrHi, c.addrLo, c.param, 0x00, c.value };
+
+                auto built = SyVoice::paramBytes (1, c.group, c.addrHi, c.addrLo, c.param, c.value);
+                for (int i = 0; i < 9; ++i)
+                    expectEquals ((int) built[(size_t) i], (int) legacy[i]);
+            }
+        }
+
         beginTest ("looksLikeYamahaSysex detects F0 43 header");
         {
             const juce::uint8 yam[] = { 0xF0, 0x43, 0x00, 0x12 };
@@ -169,6 +282,31 @@ struct SysexUtilsTests : public juce::UnitTest
             expectEquals ((int) SyVoice::afmOperatorGroup (0), 0x06);
             expectEquals ((int) SyVoice::afmOperatorGroup (4), 0x46);
             expectEquals ((int) SyVoice::afmOperatorGroup (5), 0x56);
+        }
+
+        beginTest ("egGroupFor locks EG send-side group bytes (anti-regression)");
+        {
+            // Filet anti-régression du bug « group-byte 0x00 » (cf. [[project-eg-sysex-bug]]).
+            // Les 4 éditeurs d'EG (WaveEg/PitchEG/Filter1/Filter2) CONSOMMENT egGroupFor pour
+            // l'octet [3] (group) de leur message param-change. Ce test verrouille la valeur
+            // attendue : si quelqu'un repasse un group à 0x00 (ou une valeur fausse), il casse.
+            using EG = SyVoice::EgKind;
+            expectEquals ((int) SyVoice::egGroupFor (EG::filter),       0x09);  // Filtre 1 & 2
+            expectEquals ((int) SyVoice::egGroupFor (EG::pitch),        0x05);  // AFM pitch-EG
+            expectEquals ((int) SyVoice::egGroupFor (EG::awmAmplitude), 0x07);  // AWM amp-EG
+
+            // AFM amp-EG = PAR OPÉRATEUR : group = (op<<4)|6, op 0..5 = OP6..OP1.
+            const int expectedOp[6] = { 0x06, 0x16, 0x26, 0x36, 0x46, 0x56 };
+            for (int op = 0; op < 6; ++op)
+                expectEquals ((int) SyVoice::egGroupFor (EG::afmAmplitude, op), expectedOp[op]);
+            // cohérent avec afmOperatorGroup (même source).
+            for (int op = 0; op < 6; ++op)
+                expectEquals ((int) SyVoice::egGroupFor (EG::afmAmplitude, op),
+                              (int) SyVoice::afmOperatorGroup (op));
+
+            // INVARIANT CLÉ : aucun type d'EG ne doit JAMAIS renvoyer 0x00 (le group du bug).
+            for (auto k : { EG::filter, EG::pitch, EG::afmAmplitude, EG::awmAmplitude })
+                expect (SyVoice::egGroupFor (k, 0) != 0x00);
         }
 
         beginTest ("voiceBlobToParams decodes confirmed AFM operator params (SteelStrng)");

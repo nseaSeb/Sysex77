@@ -68,6 +68,7 @@ static const String adresseOscFoot = "/77Foot";
 static const String adresseOscMod = "/77Mod";
 static const String adresseOpMode = "/77OpMode";
 static const String adresseOscSendBank ="/77SendBank";
+static const String adresseOscRequestDump ="/77RequestDump";
 static const String adresseOscRepaint = "/77Repaint";
 static const String adresseOscParseVoices = "/77ParseVoices";
 static const String adresseOscSendVoice = "/77SendVoice";
@@ -120,7 +121,6 @@ static     int timeOut;
 static String bankSelected;
 
 static Value valueSysexIn; //values from sysex midi in
-static bool boolStopReceive; //to shunt the midi in when sending
 
 static int sysexModel;
 // Device number sysex SY77 (canal) : un seul réglage global, piloté par ConfigPage.
@@ -640,9 +640,11 @@ public:
         if(button == &btBulk)
         {
             Logger::writeToLog("Bulk Protect");
-            uint8 sysexdata[9] = { 0x43, SyVoice::deviceByte (sysexDeviceNumber), 0x34, 0x0f, 0x00, 0x00, 0x34, 0x00, 0x00 };
-            sysexdata[8] = btBulk.getToggleState();
-            MidiMessage m = MidiMessage::createSysExMessage(sysexdata, 9);
+            // Bulk Protect ON/OFF : param-change standard 0x34, group 0x0F (System Setup),
+            // param 0x34. Construit par le builder unique (octets identiques à l'ancien inline).
+            auto sysexdata = SyVoice::paramBytes (sysexDeviceNumber, 0x0f, 0x00, 0x00, 0x34,
+                                                  (uint8) btBulk.getToggleState());
+            MidiMessage m = MidiMessage::createSysExMessage (sysexdata.data(), 9);
             m.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
             sendToOutputs (m);
         }
@@ -925,7 +927,6 @@ private:
     {
         // This is called on the MIDI thread
         const ScopedLock sl (midiMonitorLock);
-        if(!boolStopReceive)
         if(!message.isActiveSense())
         {
             incomingMessages.add (message);
@@ -1029,17 +1030,16 @@ private:
 public:
     void sendToOutputs (const MidiMessage& msg)
     {
-        boolStopReceive = true; //shunt the midi in
-        
+        // Anti-écho assuré à la RÉCEPTION par dontSendNotification dans chaque widget Midi*
+        // (et par setValue() sans renvoi pour Segment) ; pas de flag global non thread-safe.
         for (auto midiOutput : midiOutputs)
             if (midiOutput->outDevice.get() != nullptr)
             {
-                
+
                 midiOutput->outDevice->sendMessageNow (msg);
                 Logger::writeToLog("Envoi msg midi");
                 Logger::writeToLog(String(msg.getDescription()) );
             }
-        boolStopReceive = false; //receive unShunt
     }
     
     //==============================================================================
@@ -1172,17 +1172,17 @@ public:
     {
         if(comboBoxThatHasChanged == &comboFoot)
         {
-        uint8 sysexdata[9] = { 0x43, SyVoice::deviceByte (sysexDeviceNumber), 0x34, 0x0f, 0x00, 0x00, 0x2d, 0x00, 0x00 };
-        sysexdata[8] = comboFoot.getSelectedItemIndex()+1;
-        MidiMessage m = MidiMessage::createSysExMessage(sysexdata, 9);
+        auto sysexdata = SyVoice::paramBytes (sysexDeviceNumber, 0x0f, 0x00, 0x00, 0x2d,
+                                              (uint8) (comboFoot.getSelectedItemIndex()+1));
+        MidiMessage m = MidiMessage::createSysExMessage (sysexdata.data(), 9);
         m.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
         sendToOutputs (m);
         }
         if(comboBoxThatHasChanged == &comboMod)
         {
-            uint8 sysexdata[9] = { 0x43, SyVoice::deviceByte (sysexDeviceNumber), 0x34, 0x0f, 0x00, 0x00, 0x2c, 0x00, 0x00 };
-            sysexdata[8] = comboMod.getSelectedItemIndex()+1;
-            MidiMessage m = MidiMessage::createSysExMessage(sysexdata, 9);
+            auto sysexdata = SyVoice::paramBytes (sysexDeviceNumber, 0x0f, 0x00, 0x00, 0x2c,
+                                                  (uint8) (comboMod.getSelectedItemIndex()+1));
+            MidiMessage m = MidiMessage::createSysExMessage (sysexdata.data(), 9);
             m.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
             sendToOutputs (m);
         }

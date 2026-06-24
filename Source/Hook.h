@@ -78,7 +78,8 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Hook)
 };
 
-class Segment    : public Component, public ChangeBroadcaster, public ChangeListener
+class Segment    : public Component, public ChangeBroadcaster, public ChangeListener,
+                   public Value::Listener
 {
 public:
     Segment()
@@ -89,13 +90,15 @@ public:
         hook.addChangeListener(this);
      //   hook.setBounds(20, 80, 16, 16);
         // specify here where to send OSC messages to: host URL and UDP port number
-        
-        
+        valueSysexIn.addListener(this); // réception sysex (resync rate ET level depuis le synthé)
+
+
     }
-    
+
     ~Segment()
     {
         hook.removeChangeListener(this);
+        valueSysexIn.removeListener(this);
     }
     void changeListenerCallback (ChangeBroadcaster* source) override
     {
@@ -108,7 +111,35 @@ public:
         sendOsc();
         repaint(); //force the redraw when hook dragg
     }
-    
+
+    // Réception sysex entrant (valueSysexIn). Le Segment ÉMET deux adresses distinctes
+    // (rate via sysexRate, level via sysexLevel) ; on écoute les deux et on route la valeur
+    // reçue vers le bon axe. On applique via setValue() qui repositionne le hook SANS
+    // ré-émettre (pas de sendOsc) -> même anti-écho que dontSendNotification des Midi*.
+    void valueChanged (Value& value) override
+    {
+        if (! value.refersToSameSourceAs (valueSysexIn))
+            return;
+
+        const int g  = (int) value.getValue()[0];
+        const int ah = (int) value.getValue()[1];
+        const int al = (int) value.getValue()[2];
+        const int p  = (int) value.getValue()[3];
+        const int wire = (int) value.getValue()[5];
+
+        // Inverse exact du mappage de sendOsc() : wire = range*100/ui  ->  ui = range*100/wire.
+        if (sysexRate[3] == g && sysexRate[4] == ah && sysexRate[5] == al && sysexRate[6] == p)
+        {
+            const int newRate = (wire == 0) ? 0 : (intRangeRate * 100 / wire);
+            setValue (newRate, intLevel);          // ne renvoie pas -> pas de boucle
+        }
+        else if (sysexLevel[3] == g && sysexLevel[4] == ah && sysexLevel[5] == al && sysexLevel[6] == p)
+        {
+            const int newLevel = (wire == 0) ? 0 : (intRangeLevel * 100 / wire);
+            setValue (intRate, newLevel);          // ne renvoie pas -> pas de boucle
+        }
+    }
+
     void paint (Graphics& g) override
     {
     //    auto area = getLocalBounds();
@@ -167,8 +198,8 @@ public:
         }
         sysexRate[8] = rate;
         sysexLevel[8] = level;
-        sender.send(oscAddressPatern, (uint8) sysexRate[0], sysexRate[1], sysexRate[2], sysexRate[3], sysexRate[4], sysexRate[5], sysexRate[6], sysexRate[7], sysexRate[8]);
-        sender.send(oscAddressPatern, (uint8) sysexLevel[0], sysexLevel[1], sysexLevel[2], sysexLevel[3], sysexLevel[4], sysexLevel[5], sysexLevel[6], sysexLevel[7], sysexLevel[8]);
+        sender.sendParam9 (oscAddressPatern, sysexRate);
+        sender.sendParam9 (oscAddressPatern, sysexLevel);
         
     }
     void setOscSender (String oscRate, String oscLevel)
@@ -262,7 +293,7 @@ private:
     ComponentBoundsConstrainer constrainer;
     ComponentDragger dragger;
     Colour myColor {0x40ffffff};
-      uint8 sysexRate[9];
-      uint8 sysexLevel[9];
+      uint8 sysexRate[9] {};
+      uint8 sysexLevel[9] {};
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Segment)
 };

@@ -20,23 +20,30 @@
 | ⬜ | **Non implémenté / non chargé** |
 
 Couverture du chargement : **AFM 1/2/4** (profond) **+ AWM 1/2/4** (waveform + niveau + amp-EG),
-mono+poly, tous les éléments. Pattern Table 2 : base élément 1 = 107 + 9×(N−1) ; bloc = 357 o.
-(AFM) / 112 o. (AWM) ; addrHi = élément<<5. AFM diff-vérifié ; AWM waveform + amp-EG confirmés
-(TARKUSCYMB). L'amp-EG AWM est désormais câblé dans l'éditeur (WaveEg mode AWM → group 0x07 @50-56).
+mono+poly, tous les éléments **+ voix mixtes AFM+AWM** (type 8 & 9). Pattern Table 2 : base
+élément 1 = 107 + 9×(N−1) ; bloc = 357 o. (AFM) / 112 o. (AWM) ; addrHi = élément<<5.
+Couvert par dump (`SysexUtils.h:139-252`) : par opérateur AFM — EG (R/L/RR/RL/L0), TL, **Coarse,
+Waveform, Detune, Fine**, **SENSIT (VEL/AM)**, **SCALING (BP1-4 + offset-levels) + VEL SW** ;
+par élément — niveau, algo, pitch-EG rates + PEG-switch, filtres (mode/cutoff/réso/rates) ;
+**AWM — waveform + amp-EG (group 0x07 @50-56)** ; volume de voix commun.
+
+Preuve par symbole (politique « fiabilité d'abord ») : 🟢 = oracle de test sur vrai dump
+(`Tests.h` : **SteelStrng** 1AFM, **TARKUSCYMB** 1AWM) ou diff single-param documenté ; 🟡 =
+décodeur le lit mais sans oracle/diff ; ❓ = encodage encore douteux ; ⬜ = non chargé.
 
 Le **filtre AWM** est désormais **câblé** (édition) : les éditeurs de filtre basculent en fN 3/4/5
 quand l'élément est AWM (à spot-checker hardware). Son **chargement** depuis dump n'est pas encore
 ajouté (offsets AWM filtre non vérifiés).
 
-Les **voix mixtes AFM+AWM** (1AFM_1AWM type 8, 2AFM_2AWM type 9) sont gérées : moteur par élément,
-blocs cumulatifs (AFM 357 o. / AWM 112 o.).
+Les **voix mixtes AFM+AWM** (1AFM_1AWM type 8, 2AFM_2AWM type 9) sont gérées (chargement) : moteur
+par élément, blocs cumulatifs (AFM 357 o. / AWM 112 o.) — testé sur type 8 (`Tests.h`).
 
 > **Validation offline (2026-06-24)** : décodeur rejoué sur **811 voix réelles** (14 banques, types
 > 0-9 dont 171 mixtes type-8 + 74 type-9) — **0 valeur hors plage**. Forte confiance.
 > Sur 1224 voix, ~413 restantes = surtout **drum (type 10)**.
 
 Restant : **drum** (type 10) ; AWM filtre (chargement) + fine/fixed (encodage à lever) ;
-niveaux EG en o/b ; effets ; LFO.
+niveaux EG en o/b ; PHASE/SYNC packé ; coarse/detune AFM négatif/packé (s/m) ; effets ; LFO.
 
 ---
 
@@ -46,18 +53,19 @@ niveaux EG en o/b ; effets ; LFO.
 |---|:---:|:---:|---|
 | Nom de voix | 🟡 | 🟢 | offsets 33-42 ; envoi spec-correct, hardware à confirmer |
 | Type / mode de voix | 🟡 | 🟢 | offset 32 |
-| **Volume voix** | 🟡 | 🟢 | dump @95 (Table 2) ; group 0x02 / param 0x3F — à spot-checker |
-| Niveau élément 1 (ELVL) | 🟡 | 🟢 | dump @98 (Table 2) ; group 0x03 / param 0x00 — à spot-checker |
+| **Volume voix** | 🟡 | 🟢 | dump @95 ; group 0x02 / param 0x3F ; oracle SteelStrng `val(0x02,0x3F)==60` (Tests.h:238) |
+| **Niveau élément (ELVL)** | 🟡 | 🟢 | dump @98+9·e ; group 0x03 / param 0x00 ; oracle SteelStrng `val(0x03,0x00)==1` (Tests.h:239) |
 | Pan, niveaux d'envoi (rev/cho/var) | 🟡 | ⬜ | — |
 
 ## AFM — Élément commun (élément 1)
 
 | Paramètre | Envoi → synthé | Ouverture dump | Notes |
 |---|:---:|:---:|---|
-| **Algorithme (ALGNUM)** | 🟡 | 🟢 | dump **@377 confirmé** (diff single-param 16→1) ; envoi via l'app pas encore testé |
-| Pitch EG rates (FPR1-3, FPRR1) | 🟡 | 🟢 | bloc N2-ordonné @base+270+N2 ; validé 566 voix |
-| Pitch EG levels (o/b) | 🟡 | ⬜ | repr. éditeur 0..64 à aligner sur o/b |
-| LFO 1 / LFO 2 | 🟡 | ⬜ | — |
+| **Algorithme (ALGNUM)** | 🟡 | 🟢 | dump **@377 confirmé** (diff single-param 16→1) ; oracle `val(0x05,0x00)==23` (Tests.h:234) |
+| **Pitch EG rates (FPR1-3, FPRR1)** | 🟡 | 🟢 | bloc N2-ordonné @base+271+ ; oracle SteelStrng `val(0x05,0x02)==16`, `val(0x05,0x03)==13` (Tests.h:249-250) |
+| **PEG switch (FYPSW)** | 🟡 | 🟡 | chargé param 0x0C (SysexUtils:213) ; pas d'oracle |
+| Pitch EG levels (o/b) | 🟡 | ⬜ | repr. éditeur 0..64 à aligner sur o/b ; NON chargé |
+| LFO 1 / LFO 2 | ⬜ | ⬜ | ni chargé ni câblé éditeur |
 
 ## AFM — Opérateurs (élément 1, OP1→OP6)
 
@@ -68,26 +76,29 @@ niveaux EG en o/b ; effets ; LFO.
 | EG levels L0-L4 | ✅ | 🟢 | |
 | EG levels RL1, RL2 | ✅ | 🟢 | |
 | **Niveau de sortie (TL)** | ✅ | 🟢 | Track A + aller-retour (6/6) |
-| Fine | ✅ | 🟢 | aller-retour @interne 44 (6/6) |
-| Coarse | ❓ | ⬜ | n'a pas matché à l'aller-retour (packé ?) |
-| Detune | ❓ | ⬜ | encodage négatif non résolu |
+| Fine | ✅ | 🟢 | aller-retour @interne 44 (6/6) ; oracle `val(0x56,0x26)==46` (Tests.h) |
+| **Coarse (FPC)** | 🟡 | 🟢 | chargé interne 43 / param 0x25 (SysexUtils:179) ; **oracle SteelStrng** `val(0x56,0x25)==1` (Tests.h:228) |
+| **Waveform (PWAVE)** | 🟡 | 🟢 | chargé interne 24 / param 0x17 (SysexUtils:180) ; **oracle SteelStrng** `val(0x56,0x17)==15` (Tests.h:229) |
+| **Detune (FPD)** | 🟡 | 🟡 | chargé interne 28 / param 0x1A (SysexUtils:181) ; **pas d'oracle** (encodage négatif s/m non levé) |
+| **SENSIT (VEL/AM)** | 🟡 | 🟡 | chargé param 0x11/0x10 (SysexUtils:184), offsets bulk ESTIMÉS ; pas d'oracle |
+| **SCALING (BP1-4 + offset-levels)** | 🟡 | 🟡 | chargé param 0x1C-1F / 0x20-23 (SysexUtils:186-187) ; pas d'oracle |
+| **VEL SW (RVSW)** | 🟡 | 🟡 | chargé param 0x24 (SysexUtils:188) ; pas d'oracle |
 | RS / Slope / HT | ❓ | ⬜ | interne 15 = constante dans le dump → offset à revoir |
-| Break points / scaling | ⬜ | ⬜ | — |
-| Waveform | ⬜ | ⬜ | pas de sélecteur dans l'éditeur |
+| Freq MODE (Fixed/Ratio, PM 0x18) | ⬜ | ⬜ | NON chargé : packé avec SENSIT → bit-split à faire (SysexUtils:184) |
+| PHASE / SYNC (0x19) | ⬜ | ⬜ | NON chargé : octet packé phase+sync → extraction de bits à faire (SysexUtils:189) |
 
 ## Filtres (filtre 1 & 2, élément AFM)
 
 | Paramètre | Envoi → synthé | Ouverture dump | Notes |
 |---|:---:|:---:|---|
-| Type filtre 1 (FTYPE : LPF/HPF/Thru) | ✅ | ❓ | envoi Track A ; dump @403 (offset OK) mais encodage bulk ambigu (Thru→LPF = 0→1, ≠ enum) — besoin d'un point HPF |
-| Mode de contrôle (FMODE) f1 & f2 | ✅ | 🟢 | dump @base+298/+327 ; validé 566 voix |
-| EG filtre 1 & 2 : rates (FR1-4, FRR1-2) | 🟡 | 🟢 | dump @base+296/+325+N2 ; validé 566 voix |
-| EG filtre : niveaux (FL0-4, FRL1-2, o/b) | 🟡 | ⬜ | repr. éditeur à aligner sur o/b |
-| **Cutoff filtre 1** | 🟡 | 🟢 | dump **@404 confirmé** (diff single-param 127→0) ; group 0x09/param 0x01 |
-| Cutoff filtre 2 | 🟡 | 🟢 | dump @433 (Table 2) ; group 0x09 addrHi 1 / param 0x01 — à spot-checker |
-| Résonance | 🟡 | 🟢 | dump @461 (Table 2) ; group 0x09 addrHi 2 / param 0x32 — à spot-checker |
-| Filter EG : RR2, RL1, RL2 | ✅ | ⬜ | Track A |
-| Filter EG : R1-4, RR1, L0-4, slope | 🟡 | ⬜ | câblé group 0x09 |
+| Type filtre 1 (FTYPE : LPF/HPF/Thru) | 🟡 | ❓ | envoi câblé ; dump @403 (offset OK) mais encodage bulk ambigu (Thru→LPF = 0→1, ≠ enum) — besoin d'un point HPF. NON chargé |
+| **Mode de contrôle (FMODE) f1 & f2** | 🟡 | 🟢 | dump @base+298/+327 ; oracle SteelStrng `val(0x09,0x02)==2` (Tests.h:251) |
+| **EG filtre 1 & 2 : rates (FR1-4, FRR1-2)** | 🟡 | 🟢 | dump @base+296/+325+N2 ; oracle SteelStrng `val(0x09,0x03)==11` (Tests.h:252) |
+| EG filtre : niveaux (FL0-4, FRL1-2, o/b) | 🟡 | ⬜ | repr. éditeur à aligner sur o/b ; NON chargé |
+| **Cutoff filtre 1** | 🟡 | 🟢 | dump **@404 confirmé** (diff single-param 127→0) ; oracle `val(0x09,0x01)==27` (Tests.h:236) |
+| **Cutoff filtre 2** | 🟡 | 🟢 | dump @433 ; oracle SteelStrng `valH(0x09,1,0x01)==50` (Tests.h:246) |
+| **Résonance** | 🟡 | 🟢 | dump @461 ; oracle SteelStrng `valH(0x09,2,0x32)==59` (Tests.h:247) |
+| Filter EG : niveaux/slope (R1-4, RR1, L0-4, RL1-2) | 🟡 | ⬜ | EG câblé group 0x09 (Filter1/2.h) ; niveaux NON chargés (o/b) |
 
 ## Effets
 
@@ -95,11 +106,21 @@ niveaux EG en o/b ; effets ; LFO.
 |---|:---:|:---:|---|
 | Effect mode, Chorus 1/2, Reverb 1/2 | ❓ | ⬜ | adresses « plausibles » (group 0x08), non vérifiées |
 
-## Éléments 2-4 / AWM
+## Éléments 2-4 (AFM) — adressage par élément
+
+Le loader traite **tous** les éléments (1-4), AFM **et** AWM, addrHi = élément<<5 (SysexUtils:195-244).
+Les paramètres par élément ont donc le même statut que pour l'élément 1 (cf. tableaux ci-dessus) ;
+seul l'addrHi change. Vérifié par oracle sur 2/4 AFM (`Tests.h` : addrHi 0x20 & 0x60 produits) et
+sur le type mixte 8.
+
+## AWM (éléments AWM, group 0x07)
 
 | Paramètre | Envoi → synthé | Ouverture dump | Notes |
 |---|:---:|:---:|---|
-| Tous | 🟡 | ⬜ | le loader ne traite que l'élément 1 AFM ; AWM non géré |
+| **Waveform (AWMWAVE)** | 🟡 | 🟢 | dump @base+2 (low7) ; **oracle TARKUSCYMB** `val(0x07,0,0x01)==105` (Tests.h:313) |
+| **Amp-EG (PAR1-4, PARR1, PAL2-3)** | 🟡 | 🟢 | dump @base+89.. param 0x50-0x56 ; **oracle TARKUSCYMB** (Tests.h:317-323) ; câblé WaveEg mode AWM |
+| Niveau élément (ELVL) | 🟡 | 🟢 | commun, cf. Voice Common ; oracle TARKUSCYMB `val(0x03,0,0x00)==127` (Tests.h:314) |
+| Fine / Fixed / PARS (s/m) / filtre AWM | 🟡 | ⬜ | encodage à lever → NON chargé (filtre AWM câblé édition seulement) |
 
 ---
 

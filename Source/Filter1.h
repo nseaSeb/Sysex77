@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include "SysexUtils.h"
 #include "EnvelopeDraw.h"
 
 class Filter1    : public ElementComponent, public TextButton::Listener, Slider::Listener
@@ -131,8 +132,9 @@ public:
         // Groupe 0x09 = Filtre (SY77/TG77 Table 1-10). T2 = ((elem-1)<<5)|fN ; fN=0 (filtre AFM 1).
         // Offsets EG conformes à la spec : rates FR1-4=03-06 FRR1=07, levels FL0-4=09-0D, FRS(slope)=10.
         // (Avant : groupe 0x00 jamais valide -> les EG n'atteignaient pas le synthé.)
-        int sysexdata2[9] = { 0x43, 0X10, 0x34, 0x09, 0x00, 0x00, 0x09, 0x00, 0x00 };
-        int sysexdata[9] = { 0x43, 0X10, 0x34, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00 };
+        const int filterGroup = (int) SyVoice::egGroupFor (SyVoice::EgKind::filter);   // 0x09
+        int sysexdata2[9] = { 0x43, 0X10, 0x34, filterGroup, 0x00, 0x00, 0x09, 0x00, 0x00 };
+        int sysexdata[9] = { 0x43, 0X10, 0x34, filterGroup, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
         if(element == 1)
         {

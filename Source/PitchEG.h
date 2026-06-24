@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include "SysexUtils.h"
 #include "EnvelopeDraw.h"
 
 class PitchEg    : public ElementComponent, public TextButton::Listener, Slider::Listener
@@ -119,8 +120,9 @@ public:
         Logger::writeToLog( "PitchEg setElement");
         // Pitch EG = AFM Element Common (groupe 0x05). T2 = (element-1)<<5 (réglé par bloc ci-dessous).
         // Offsets spec Table 1-6 : FPR1-3=01-03, FPRR1=04, FPL0-3=05-08, FPRL1=09, FPRS(slope)=0B.
-        int sysexdata2[9] = { 0x43, 0X10, 0x34, 0x05, 0x00, 0x00, 0x01, 0x00, 0x00 }; // rates
-        int sysexdata[9]  = { 0x43, 0X10, 0x34, 0x05, 0x00, 0x00, 0x05, 0x00, 0x00 }; // levels
+        const int pitchGroup = (int) SyVoice::egGroupFor (SyVoice::EgKind::pitch);   // 0x05
+        int sysexdata2[9] = { 0x43, 0X10, 0x34, pitchGroup, 0x00, 0x00, 0x01, 0x00, 0x00 }; // rates
+        int sysexdata[9]  = { 0x43, 0X10, 0x34, pitchGroup, 0x00, 0x00, 0x05, 0x00, 0x00 }; // levels
         
         if(element == 1)
         {

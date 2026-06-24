@@ -59,4 +59,19 @@ struct SysexBusSender
                                                    std::forward<Args> (args)...));
         return true;
     }
+
+    /** Publie un message param-change SY77 (9 octets) sur le bus /SYSEX.
+        POINT UNIQUE de construction du format filaire côté widgets : au lieu de
+        recopier `send(addr, b[0], b[1], ... b[8])` (9 arguments explicites) dans
+        chaque widget Midi*, ceux-ci appellent ce helper. La sortie est OCTET-POUR-
+        OCTET identique à l'ancien code : on émet exactement les 9 octets du tableau.
+        NOTE device : l'octet [1] transporté ici est un PLACEHOLDER (0x10) — il est
+        réécrit avec le device global au choke-point (MidiSysex.h::oscMessageReceived),
+        seule autorité sur l'octet device. Sa valeur ici est donc sans effet sur le fil. */
+    bool sendParam9 (const juce::String& address, const juce::uint8 b[9])
+    {
+        return send (address, (uint8) b[0], (uint8) b[1], (uint8) b[2],
+                              (uint8) b[3], (uint8) b[4], (uint8) b[5],
+                              (uint8) b[6], (uint8) b[7], (uint8) b[8]);
+    }
 };
