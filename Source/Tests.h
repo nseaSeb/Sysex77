@@ -243,8 +243,14 @@ struct SysexUtilsTests : public juce::UnitTest
             expectEquals (valH (0x09, 1, 0x01), 50);   // FCTOF2 @433 (cutoff filtre 2)
             expectEquals (valH (0x09, 2, 0x32), 59);   // FFRES  @461 (résonance)
 
+            // 1 AFM MONO (type $00) partage la structure 1AFM -> doit charger aussi (Table 2).
+            juce::MemoryBlock mono (steel, sizeof (steel));
+            ((juce::uint8*) mono.getData())[32] = 0x00;
+            expectEquals (SyVoice::voiceBlobToParams ((const juce::uint8*) mono.getData(),
+                                                      (int) mono.getSize()).size(), 6 * 15 + 6);
+
             // Garde-fous « fiabilité d'abord » : pas de bloc -> rien ; type non-1AFM -> rien.
-            juce::uint8 notAfm[466] = { 0 }; notAfm[32] = 0x01;
+            juce::uint8 notAfm[466] = { 0 }; notAfm[32] = 0x01;   // 2 AFM (autre structure)
             expect (SyVoice::voiceBlobToParams (notAfm, 466).isEmpty());
             expect (SyVoice::voiceBlobToParams (steel, 100).isEmpty());   // tronqué
             expect (SyVoice::voiceBlobToParams (nullptr, 466).isEmpty());

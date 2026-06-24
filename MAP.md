@@ -19,7 +19,12 @@
 | ❓ | **Douteux** (adresse ou offset incertain — à revérifier) |
 | ⬜ | **Non implémenté / non chargé** |
 
-Couverture actuelle du chargement = **voix 1 AFM POLY (type 3), élément 1 uniquement**.
+Couverture actuelle du chargement = **voix 1 AFM (MONO type 0 / POLY type 3), élément 1**.
+
+Pour aller plus loin (cf. Table 2 « Voice Bulk Dump » de la spec) :
+- **2 AFM** (type 1/4) : OP6@116, ALGNUM@386, **2 éléments** — offsets décalés, à mapper + dump à spot-checker.
+- **4 AFM** (type 2) : OP6@134, ALGNUM@404, **4 éléments**.
+- **AWM / mixtes AFM+AWM** (type 5-9) : structure différente (samples), section Table 2 distincte.
 
 ---
 

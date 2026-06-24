@@ -74,8 +74,9 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
             {
                 const int type = ((const uint8*) block.getData())[32];
                 const String name = arrayListVoices[idx].trim();
+                const bool loadable = (type == 0 || type == 3);   // 1 AFM MONO / POLY
                 labelInfoLine.setText (name + "  —  " + SyVoice::voiceTypeLabel (type)
-                                       + (type == 3 ? "   · chargeable dans l'editeur" : ""),
+                                       + (loadable ? "   · chargeable dans l'editeur" : ""),
                                        dontSendNotification);
             }
         };

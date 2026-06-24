@@ -138,8 +138,11 @@ namespace SyVoice
     inline juce::Array<VoiceParam> voiceBlobToParams (const juce::uint8* d, int sz)
     {
         juce::Array<VoiceParam> out;
-        if (d == nullptr || sz < 466) return out;   // bloc 1AFM complet F0..F7
-        if (d[32] != 0x03)            return out;    // type 1AFM uniquement (layout vérifié)
+        if (d == nullptr || sz < 466) return out;        // bloc 1AFM complet F0..F7
+        // Type @32 : la Table 2 de la spec range MONO ($00) et POLY ($03) sous la MÊME
+        // structure « (1) 1AFM » -> mêmes offsets. Les 2AFM/4AFM/AWM ont d'autres dispositions
+        // (non encore mappées) -> on les laisse intacts (« fiabilité d'abord »).
+        if (d[32] != 0x00 && d[32] != 0x03) return out;
 
         // 6 opérateurs : ordre de stockage OP6->OP1, 45 octets/record, OP6 @107.
         // group param-change : OP6=0x06 … OP1=0x56 (cf. afmOperatorGroup), addrHi=0.
