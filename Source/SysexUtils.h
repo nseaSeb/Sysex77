@@ -178,8 +178,10 @@ namespace SyVoice
             { 0x1B, 29 },                                         // TL (niveau de sortie)
             { 0x25, 43 },                                         // FPC (Coarse) -> colonne COARSE
             { 0x17, 24 },                                         // PWAVE (waveform 0..15) -> colonne WAVE
-            { 0x19, 27 },                                         // PHASE (init phase) -> colonne PHASE
             { 0x1A, 28 }                                          // FPD (Detune ±15 s/m) -> colonne DET
+            // PHASE (0x19) NON chargé ici : l'octet 0x19 packe phase + enable-sync, et le bouton
+            // SYNC lit l'octet brut -> le charger corrompt le SYNC. À traiter par extraction de
+            // bits dans le panel opérateur (phase value vs sync enable séparés).
         };
         const int opGroup[6] = { 0x06, 0x16, 0x26, 0x36, 0x46, 0x56 };   // OP6 … OP1
 
