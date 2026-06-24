@@ -186,6 +186,10 @@ public:
         slider.setPopupDisplayEnabled(true, true, this);
         slider.setRange(0, 15);
         slider.setNumDecimalPlacesToDisplay(0);
+        // Waveform affiché 1-indexé (le SY77 montre 1..16), MAIS la valeur reste brute (0..15)
+        // pour que la forme dessinée (waveLook) corresponde au bon waveform. Affichage seul.
+        slider.textFromValueFunction = [] (double v) { return juce::String ((int) v + 1); };
+        slider.valueFromTextFunction = [] (const juce::String& t) { return (double) (t.getIntValue() - 1); };
         slider.setLookAndFeel(&waveLook);   // rendu de la vraie forme SY77, teintée au thème actif
         slider.setSliderStyle(Slider::SliderStyle::RotaryHorizontalVerticalDrag);
        // slider.setTextBoxStyle(Slider::TextBoxBelow, false, 40, 18);
