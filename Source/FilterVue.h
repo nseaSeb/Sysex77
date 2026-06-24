@@ -87,6 +87,14 @@ public:
         }
     }
 
+    // Bascule AFM/AWM (fN 0-2 / 3-5) propagée aux sous-éditeurs (Common/Filter1/Filter2).
+    void setAwmMode (bool awm)
+    {
+        for(auto i =0; i<tabs.getNumTabs();i++)
+            if (auto* filterTab = dynamic_cast<ElementComponent*> (tabs.getTabContentComponent(i)))
+                filterTab->setAwmMode (awm);
+    }
+
 
     void resized() override
     {

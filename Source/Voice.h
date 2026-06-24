@@ -311,7 +311,10 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         if(element1.elementValue == Element::commande::AfmEdit)
                 editAfm1.setVisible(true);
         if(element1.elementValue == Element::commande::FilterEdit)
+        {
+                editFilter1.setAwmMode (element1.getOpMode() == Element::mode::AWM);
                 editFilter1.setVisible(true);
+        }
         if(element1.elementValue == Element::commande::VolumeEdit)
         {
             //editVolume1.setVisible(true);
@@ -339,7 +342,10 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
             if(element2.elementValue == Element::commande::AfmEdit)
                 editAfm2.setVisible(true);
             if(element2.elementValue == Element::commande::FilterEdit)
+            {
+                editFilter2.setAwmMode (element2.getOpMode() == Element::mode::AWM);
                 editFilter2.setVisible(true);
+            }
             if(element2.elementValue == Element::commande::VolumeEdit)
             {
                 editWave2.setVisible(true);
@@ -362,7 +368,10 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
             if(element3.elementValue == Element::commande::AfmEdit)
                 editAfm3.setVisible(true);
             if(element3.elementValue == Element::commande::FilterEdit)
+            {
+                editFilter3.setAwmMode (element3.getOpMode() == Element::mode::AWM);
                 editFilter3.setVisible(true);
+            }
             if(element3.elementValue == Element::commande::VolumeEdit)
             {
                 editWave3.setVisible(true);
@@ -385,7 +394,10 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
             if(element4.elementValue == Element::commande::AfmEdit)
                 editAfm4.setVisible(true);
             if(element4.elementValue == Element::commande::FilterEdit)
+            {
+                editFilter4.setAwmMode (element4.getOpMode() == Element::mode::AWM);
                 editFilter4.setVisible(true);
+            }
             if(element4.elementValue == Element::commande::VolumeEdit)
             {
                 editWave4.setVisible(true);

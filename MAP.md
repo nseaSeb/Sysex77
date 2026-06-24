@@ -24,8 +24,10 @@ mono+poly, tous les éléments. Pattern Table 2 : base élément 1 = 107 + 9×(N
 (AFM) / 112 o. (AWM) ; addrHi = élément<<5. AFM diff-vérifié ; AWM waveform + amp-EG confirmés
 (TARKUSCYMB). L'amp-EG AWM est désormais câblé dans l'éditeur (WaveEg mode AWM → group 0x07 @50-56).
 
-Restant : **mixtes AFM+AWM** (type 8-9) + **drum** (10) ; côté AWM, fine/fixed (encodage à lever)
-et le **filtre AWM** (fN 3/4/5, à câbler) ne sont pas encore gérés.
+Le **filtre AWM** est désormais **câblé** (édition) : les éditeurs de filtre basculent en fN 3/4/5
+quand l'élément est AWM (à spot-checker hardware). Son **chargement** depuis dump n'est pas encore
+ajouté (offsets AWM filtre non vérifiés). Restant : **mixtes AFM+AWM** (type 8-9) + **drum** (10) ;
+AWM fine/fixed (encodage à lever).
 
 ---
 

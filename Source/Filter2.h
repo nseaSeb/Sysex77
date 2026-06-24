@@ -114,9 +114,20 @@ public:
             resized();
         repaint();
     }
+    // AFM (fN 1) / AWM (fN 4) pour le filtre 2 (EG). Ré-applique l'adressage courant.
+    void setAwmMode (bool awm) override
+    {
+        fnBase = awm ? 3 : 0;
+        if (lastUm != nullptr) setElementNumber (storedElement, *lastUm);
+    }
+    int fnBase = 0;
+    int storedElement = 1;
+    UndoManager* lastUm = nullptr;
+
     void setElementNumber ( int element, UndoManager& um) override
     {
         Logger::writeToLog( "Filter1 setElement");
+        storedElement = element; lastUm = &um;
         // Groupe 0x09 = Filtre (SY77/TG77 Table 1-10). T2 = ((elem-1)<<5)|fN ; fN=1 (filtre AFM 2,
         // ajouté plus bas sur les DEUX tableaux). Offsets EG conformes spec (FR1-4=03-06,FRR1=07,FL0-4=09-0D,FRS=10).
         // (Avant : groupe 0x00 jamais valide -> les EG n'atteignaient pas le synthé.)
@@ -202,10 +213,10 @@ public:
             sliderRR1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGFILTRE2RR1 , &um));
             sliderRR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGFILTRE2RR2 , &um));
         }
-        // Bit filtre 2 (fN=1) sur les DEUX tableaux, AVANT tout envoi (slope/FRS inclus) :
-        // sinon le slope et les rates partaient vers le filtre 1.
-        sysexdata[4]  += 0x01;
-        sysexdata2[4] += 0x01;
+        // fN du filtre 2 : 1 (AFM) / 4 (AWM) sur les DEUX tableaux, AVANT tout envoi
+        // (slope/FRS inclus) : sinon le slope et les rates partaient vers le filtre 1.
+        sysexdata[4]  += 0x01 + fnBase;
+        sysexdata2[4] += 0x01 + fnBase;
 
         sysexdata[6] = 0x10;
         sliderSlope.setMidiSysex(sysexdata);

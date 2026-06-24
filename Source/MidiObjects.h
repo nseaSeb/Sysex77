@@ -30,6 +30,9 @@ public:
     {
         Logger::writeToLog( "ElementComponent setElement");
     }
+    // Bascule moteur AFM (false) / AWM (true) : pour les éditeurs dont l'adressage filtre
+    // dépend du fN (0-2 AFM / 3-5 AWM). No-op par défaut.
+    virtual void setAwmMode (bool /*awm*/) {}
     void paint (Graphics& g) override
     {
         /* This demo code just fills the component's background and

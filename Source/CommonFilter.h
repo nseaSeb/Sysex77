@@ -119,9 +119,17 @@ public:
     }
     void sliderValueChanged (Slider*) override { repaint(); }
     void valueChanged (Value&) override        { repaint(); }
+    // Bascule AFM (fN 0-2) / AWM (fN 3-5). Ré-applique l'adressage filtre courant.
+    void setAwmMode (bool awm) override
+    {
+        fnBase = awm ? 3 : 0;
+        if (lastUm != nullptr) setElementNumber (storedElement, *lastUm);
+    }
+
     void setElementNumber ( int element, UndoManager& um) override
     {
         Logger::writeToLog("Common Filter set element number");
+        storedElement = element; lastUm = &um;
         int sysexdata2[9] = { 0x43, 0X10, 0x34, 0x09, 0x03, 0x00, 0x09, 0x00, 0x00 };
         int sysexdata[9] = { 0x43, 0X10, 0x34, 0x09, 0x03, 0x00, 0x00, 0x00, 0x00 };
         
@@ -188,20 +196,24 @@ public:
         // Adresse filtre SY77 (CONFIRMÉE sur le synthé) : groupe 0x09,
         // addrHi = (élément-1)<<5 | (n°filtre-1) ; param 0x00 = mode, 0x01 = cutoff.
         const int elemBase = (element - 1) << 5;   // 0x00 / 0x20 / 0x40 / 0x60
+        // fN : filtre 1 / 2 / common = fnBase + 0/1/2. AFM fnBase=0 (fN 0-2), AWM fnBase=3 (fN 3-5).
+        const int f1 = elemBase | (fnBase);
+        const int f2 = elemBase | (fnBase + 1);
+        const int fc = elemBase | (fnBase + 2);
 
-        sysexdata[4] = elemBase;            // Filtre 1
+        sysexdata[4] = f1;                  // Filtre 1
         sysexdata[6] = 0x01;                // cutoff
         sliderFq1.setMidiSysex(sysexdata);
-        // (Mode/type filtre 1 = AH elemBase, param 0x00 ; câblé plus bas via radioFilter1Mode.)
+        // (Mode/type filtre 1 = AH f1, param 0x00 ; câblé plus bas via radioFilter1Mode.)
 
-        sysexdata[4] = elemBase | 0x01;     // Filtre 2
+        sysexdata[4] = f2;                  // Filtre 2
         sysexdata[6] = 0x00;                // mode (Thru/LPF/HPF)
         btFilter2.setMidiSysex(sysexdata);
         sysexdata[6] = 0x01;                // cutoff
         sliderFq2.setMidiSysex(sysexdata);
-        
-        // Sous-bloc "common" de l'élément : addrHi = elemBase | 0x02 (confirmé synthé via résonance).
-        sysexdata[4] = elemBase | 0x02;
+
+        // Sous-bloc "common" de l'élément : addrHi = fc (confirmé synthé via résonance).
+        sysexdata[4] = fc;
         sysexdata[6] = 0x32;                // résonance (CONFIRMÉ)
         sliderResonnance.setMidiSysex(sysexdata);
         sysexdata[6] = 0x33;                // vélocité (param supposé, addrHi confirmé)
@@ -209,19 +221,23 @@ public:
         sysexdata[6] = 0x34;                // LFO (param supposé, addrHi confirmé)
         sliderLfoSens.setMidiSysex(sysexdata);
 
-        // Type de filtre 1 (FTYPE, param 0x00) + mode de contrôle filtre 1 (FMODE, param 0x02),
-        // fN=0 (= elemBase). FTYPE: 0=LPF/1=HPF/2=Thru ; FMODE: 0=EG/1=LFO/2=EG-VA (carte TG77).
-        sysexdata[4] = elemBase;
+        // Type de filtre 1 (FTYPE, param 0x00) + mode de contrôle filtre 1 (FMODE, param 0x02).
+        // FTYPE: 0=LPF/1=HPF/2=Thru ; FMODE: 0=EG/1=LFO/2=EG-VA (carte TG77).
+        sysexdata[4] = f1;
         sysexdata[6] = 0x00;
         radioFilter1Mode.setMidiSysex(sysexdata);
         sysexdata[6] = 0x02;
         radioControlFiltre1.setMidiSysex(sysexdata);
 
-        // Mode de contrôle filtre 2 (FMODE, param 0x02), fN=1.
-        sysexdata[4] = elemBase | 0x01;
+        // Mode de contrôle filtre 2 (FMODE, param 0x02).
+        sysexdata[4] = f2;
         sysexdata[6] = 0x02;
         radioControlFiltre2.setMidiSysex(sysexdata);
     }
+
+    int fnBase = 0;            // 0 = AFM (fN 0-2), 3 = AWM (fN 3-5)
+    int storedElement = 1;
+    UndoManager* lastUm = nullptr;
     void paint (Graphics& g) override
     {
         /* This demo code just fills the component's background and

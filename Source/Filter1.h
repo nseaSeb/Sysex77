@@ -114,9 +114,20 @@ public:
             resized();
         repaint();
     }
+    // AFM (fN 0) / AWM (fN 3) pour le filtre 1 (EG). Ré-applique l'adressage courant.
+    void setAwmMode (bool awm) override
+    {
+        fnBase = awm ? 3 : 0;
+        if (lastUm != nullptr) setElementNumber (storedElement, *lastUm);
+    }
+    int fnBase = 0;
+    int storedElement = 1;
+    UndoManager* lastUm = nullptr;
+
     void setElementNumber ( int element, UndoManager& um) override
     {
                    Logger::writeToLog( "Filter1 setElement");
+        storedElement = element; lastUm = &um;
         // Groupe 0x09 = Filtre (SY77/TG77 Table 1-10). T2 = ((elem-1)<<5)|fN ; fN=0 (filtre AFM 1).
         // Offsets EG conformes à la spec : rates FR1-4=03-06 FRR1=07, levels FL0-4=09-0D, FRS(slope)=10.
         // (Avant : groupe 0x00 jamais valide -> les EG n'atteignaient pas le synthé.)
@@ -206,10 +217,14 @@ public:
             sliderRR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGFILTRERR2 , &um));
             
         }
+        // fN du filtre 1 : 0 (AFM) / 3 (AWM). addrHi = elemBase | fnBase.
+        sysexdata[4]  |= fnBase;
+        sysexdata2[4] |= fnBase;
+
         sysexdata[6] = 0x10;
         sliderSlope.setMidiSysex(sysexdata);
-        
-        
+
+
         sysexdata[6] = 0x09;
         sysexdata2[6] = 0x03;
  //       EgFilter.addSegment(10, 10, "L0R1", 64, sysexdata, 64, sysexdata2);
