@@ -35,7 +35,7 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
 ### Sysex (décodeur / offsets)
 - Solide : AFM ops (19 params/op), ALGNUM, pitch-EG rates, filtres FCTOF/FMODE/rates. Validé
   offline sur 811 voix (0 hors plage). Tests sur 2 vrais dumps oracles (SteelStrng, TARKUSCYMB).
-- Trous : pitch-EG **levels** (o/b), Main/Sub-LFO, FTYPE (bulk≠enum), PHASE/SYNC packés,
+- Trous : ~~pitch-EG **levels** (o/b)~~ **RÉSOLU (2.2, recoupé lua)**, Main/Sub-LFO, FTYPE (bulk≠enum), PHASE/SYNC packés,
   AWM fine/fixed/filtre, effets (chargement), **drum type 10** (~413 voix non couvertes).
 - Tests : aucun test d'**encodage d'envoi** (le côté TX des widgets) ; 2/4 AFM testés sur blobs
   zéro-remplis seulement.
@@ -79,7 +79,7 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
 | # | Tâche | Agent | Preuve |
 |---|---|---|---|
 | 2.1 | FTYPE (lever bulk↔enum) | sysex | aller-retour hardware (un point HPF) |
-| 2.2 | Niveaux EG en offset-binary (pitch-EG levels, filtre FL0-4, FOS) | sysex | validation offline sur 811 banques |
+| 2.2 | ~~Niveaux EG en offset-binary (pitch-EG levels, filtre FL0-4/FRL1-2)~~ **FAIT (recoupé lua)** | sysex | `egLevelToDisplay`/`egLevelToWire` (SysexUtils.h, o/b offset 64) recoupés au codec lua INDÉPENDANT (main.lua l.22 + TG77_Voice.json PEG/FEG L : display{-64,63} message{0,127} default 64). Chargés dans `voiceBlobToParams` (FPL0-3+FPRL1 group 0x05 ; FL0-4+FRL1-2 group 0x09 des 2 filtres). Éditeurs alignés sur la plage filaire réelle 0..127 (centre 64) — PitchEG/Filter1/Filter2 : était 0..64 (atteignait ½ plage) → corrige aussi l'ENVOI ; affichage signé -64..+63 via `applyEgLevelDisplay`. Tests : inversibilité full-range + valeurs-ancres lua + oracle SteelStrng (FL0==64=centre) (635/635). **FOS (2 octets) NON traité** (layout bulk non confirmé). NB validation 811-voix NON reproductible (corpus hors-repo) — preuve = lua + oracles. |
 | 2.3 | PHASE/SYNC bit-split | sysex | diff single-param |
 | 2.4 | Drum (type 10) | sysex | Table 2 + validation offline + spot-check |
 
@@ -95,3 +95,8 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
 
 ## Journal
 - **2026-06-24** — Mise en place des 4 agents + audit initial des 3 domaines. Roadmap créée.
+- **2026-06-24** — 2.2 niveaux EG (o/b) résolus. Formule offset-binary `display = wire - 64`
+  (offset 64) trouvée dans le codec lua INDÉPENDANT (`docs/TG-77 Voice lua and json/main.lua`
+  l.22 + `TG77_Voice.json` PEG/FEG L). Fonctions pures `egLevelToDisplay`/`egLevelToWire`
+  + chargement pitch-EG/filtre levels + alignement éditeurs (0..64 → 0..127, corrige l'envoi).
+  FOS (o/b 2 octets) laissé en suspens (layout bulk non confirmé). 635/635 tests.

@@ -82,7 +82,7 @@ public:
 
         // Édition à la souris sur le grand graphe d'EG (gauche) : niveau (Y) + rate (X).
         addAndMakeVisible (egGraph);
-        egGraph.maxLevel = 64.0f;
+        egGraph.maxLevel = 127.0f;   // niveaux EG en octet filaire o/b 0..127 (centre 64)
         egGraph.getData = [this] (juce::Array<float>& levels, juce::Array<float>& weights)
         {
             levels = { (float) sliderL0.getValue(), (float) sliderL1.getValue(), (float) sliderL2.getValue(),
@@ -97,7 +97,7 @@ public:
             MidiSlider* L[7] = { &sliderL0, &sliderL1, &sliderL2, &sliderL3, &sliderL4, &sliderRL1, &sliderRL2 };
             MidiSlider* R[6] = { &sliderR1, &sliderR2, &sliderR3, &sliderR4, &sliderRR1, &sliderRR2 };
             if (node < 0 || node > 6) return;
-            L[node]->setValue (jlimit (0, 64, roundToInt (levelF)));
+            L[node]->setValue (jlimit (0, 127, roundToInt (levelF)));
             if (node >= 1 && segWeightF >= 0.0f)
                 R[node - 1]->setValue (jlimit (0, 64, roundToInt (66.0f - segWeightF)));
         };
@@ -211,12 +211,18 @@ public:
         sysexdata[6] = 0x0B;                        // FPRS (rate scaling) -> slider "slope"
         sliderSlope.setMidiSysex(sysexdata);
 
-        // Levels FPL0-3 (05-08) + release level FPRL1 (09)
-        sysexdata[6] = 0x05; sliderL0.setMidiSysex(sysexdata);  sliderL0.setRangeAndRound(0, 64, 0);
-        sysexdata[6] = 0x06; sliderL1.setMidiSysex(sysexdata);  sliderL1.setRangeAndRound(0, 64, 0);
-        sysexdata[6] = 0x07; sliderL2.setMidiSysex(sysexdata);  sliderL2.setRangeAndRound(0, 64, 0);
-        sysexdata[6] = 0x08; sliderL3.setMidiSysex(sysexdata);  sliderL3.setRangeAndRound(0, 64, 0);
-        sysexdata[6] = 0x09; sliderRL1.setMidiSysex(sysexdata); sliderRL1.setRangeAndRound(0, 64, 0);
+        // Levels FPL0-3 (05-08) + release level FPRL1 (09). Encodage offset-binary (o/b) :
+        // l'octet filaire est 0..127 (centre 64) ; la valeur STOCKÉE par le slider EST cet octet
+        // filaire (midiTxOffset 0 -> passthrough TX/RX), et l'AFFICHAGE montre le signé -64..+63
+        // via egLevelToDisplay (provenance main.lua l.22 + TG77_Voice.json pNum 7005-7008).
+        // Centre par défaut = 64. Plage 0..127 -> le slider atteint enfin TOUTE la plage du synthé.
+        for (auto* s : { &sliderL0, &sliderL1, &sliderL2, &sliderL3, &sliderL4, &sliderRL1, &sliderRL2 })
+            SyVoice::applyEgLevelDisplay (*s);
+        sysexdata[6] = 0x05; sliderL0.setMidiSysex(sysexdata);  sliderL0.setRangeAndRound(0, 127, 64);
+        sysexdata[6] = 0x06; sliderL1.setMidiSysex(sysexdata);  sliderL1.setRangeAndRound(0, 127, 64);
+        sysexdata[6] = 0x07; sliderL2.setMidiSysex(sysexdata);  sliderL2.setRangeAndRound(0, 127, 64);
+        sysexdata[6] = 0x08; sliderL3.setMidiSysex(sysexdata);  sliderL3.setRangeAndRound(0, 127, 64);
+        sysexdata[6] = 0x09; sliderRL1.setMidiSysex(sysexdata); sliderRL1.setRangeAndRound(0, 127, 64);
 
         // Rates FPR1-3 (01-03) + release rate FPRR1 (04)
         sysexdata2[6] = 0x01; sliderR1.setMidiSysex(sysexdata2);  sliderR1.setRangeAndRound(0, 63, 0);
@@ -226,9 +232,9 @@ public:
 
         // Sliders sans équivalent dans le Pitch EG SY77 (pas de L4 ; pas de 4e on-rate ;
         // pas de 2e release) : affichés et persistés mais NON émis vers le synthé.
-        sliderL4.setRangeAndRound(0, 64, 0);
+        sliderL4.setRangeAndRound(0, 127, 64);   // niveau o/b (centre 64)
         sliderR4.setRangeAndRound(0, 63, 0);
-        sliderRL2.setRangeAndRound(0, 64, 0);
+        sliderRL2.setRangeAndRound(0, 127, 64);  // niveau o/b (centre 64)
         sliderRR2.setRangeAndRound(0, 63, 0);
     }
     void paint (Graphics& g) override
@@ -255,7 +261,7 @@ public:
                                        rateWeight (sliderR3.getValue()), rateWeight (sliderR4.getValue()),
                                        rateWeight (sliderRR1.getValue()), rateWeight (sliderRR2.getValue()) };
 
-        SyDraw::drawEnvelope (g, egArea, egLevels, egWeights, 64.0f, SYColSelected, "Pitch EG");
+        SyDraw::drawEnvelope (g, egArea, egLevels, egWeights, 127.0f, SYColSelected, "Pitch EG");
         
     }
     void buttonClicked (Button* button) override

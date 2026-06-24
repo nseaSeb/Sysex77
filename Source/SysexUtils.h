@@ -246,6 +246,14 @@ namespace SyVoice
                 out.add ({ 0x05, aH, 0, 0x02, (int) d[base + 272] }); // FPR2
                 out.add ({ 0x05, aH, 0, 0x03, (int) d[base + 273] }); // FPR3
                 out.add ({ 0x05, aH, 0, 0x04, (int) d[base + 274] }); // FPRR1
+                // Pitch-EG LEVELS FPL0-3 (N2 0x05-0x08). Octet filaire o/b 0..127 (centre 64) ;
+                // l'éditeur stocke l'octet filaire (display signé = egLevelToDisplay au moment de
+                // l'affichage). Provenance offset : main.lua l.22 + TG77_Voice.json pNum 7005-7008.
+                out.add ({ 0x05, aH, 0, 0x05, (int) d[base + 275] }); // FPL0
+                out.add ({ 0x05, aH, 0, 0x06, (int) d[base + 276] }); // FPL1
+                out.add ({ 0x05, aH, 0, 0x07, (int) d[base + 277] }); // FPL2
+                out.add ({ 0x05, aH, 0, 0x08, (int) d[base + 278] }); // FPL3
+                out.add ({ 0x05, aH, 0, 0x09, (int) d[base + 279] }); // FPRL1 (release level, o/b)
                 out.add ({ 0x05, aH, 0, 0x0C, (int) d[base + 282] }); // FYPSW (PEG switch, élément)
                 // Filtres (group 0x09). Blocs N2-ordonnés (bornes vérifiées FTYPE@+296,
                 // FCTOF@+297, FFTYPE2@+325, BP4@+316) : filtre 1 = base+296+N2, filtre 2 = base+325+N2.
@@ -258,8 +266,17 @@ namespace SyVoice
                     out.add ({ 0x09, aH,        0, n2, (int) d[base + 296 + n2] }); // filtre 1
                     out.add ({ 0x09, aH | 0x01, 0, n2, (int) d[base + 325 + n2] }); // filtre 2
                 }
-                // OMIS : type filtre @296/+325 (encodage bulk ambigu), niveaux EG (o/b — repr.
-                // éditeur 0..64 à aligner), FRS/FPRS/FYPSW (s/m), pitch-EG levels (o/b).
+                // Filter-EG LEVELS FL0-4 (N2 0x09-0x0D) + FRL1-2 (0x0E-0x0F) des 2 filtres.
+                // Octet filaire o/b 0..127 (centre 64). Bloc N2-ordonné : filtre 1 = base+296+N2,
+                // filtre 2 = base+325+N2. Provenance : main.lua l.22 + TG77_Voice.json pNum 7309-7315.
+                // Oracle : SteelStrng filtre-1 FL0 = octet 64 (== centre par défaut de l'o/b).
+                for (int n2 = 0x09; n2 <= 0x0F; ++n2)
+                {
+                    out.add ({ 0x09, aH,        0, n2, (int) d[base + 296 + n2] }); // filtre 1
+                    out.add ({ 0x09, aH | 0x01, 0, n2, (int) d[base + 325 + n2] }); // filtre 2
+                }
+                // OMIS : type filtre @296/+325 (encodage bulk ambigu), FRS/FPRS/FYPSW (s/m),
+                // FOS (filter break-point offsets, o/b SUR 2 OCTETS, layout bulk non confirmé).
                 base += 357;   // bloc AFM
             }
             else
@@ -457,6 +474,57 @@ namespace SyVoice
             case EgKind::awmAmplitude:  return 0x07;
         }
         return 0x09;   // défaut sûr (un group valide), jamais 0x00
+    }
+
+    //==============================================================================
+    // EG LEVELS — encodage offset-binary (o/b) pour les NIVEAUX d'EG bipolaires.
+    //
+    // Concerne : pitch-EG levels (FPL0-3, group 0x05) et filter-EG levels
+    // (FL0-4 / FRL1-2, group 0x09). Ce sont des niveaux SIGNÉS (l'EG peut monter
+    // OU descendre depuis le centre), encodés en offset-binary sur l'octet filaire.
+    //
+    // FORMULE (offset 64) :   display = wire - 64       (plage display -64..+63)
+    //                         wire    = display + 64     (plage filaire 0..127)
+    //   => centre (display 0) = octet filaire 64.
+    //
+    // PROVENANCE (codec lua INDÉPENDANT, fait autorité) :
+    //   docs/TG-77 Voice lua and json/main.lua l.22 :
+    //     « (o/b) offset binary -64..+63 -> E1 msg 0..127 passes through. »
+    //   docs/TG-77 Voice lua and json/TG77_Voice.json : les contrôles « PEG L0-3 »
+    //     (pNum 7005-7008) et « FEG L0-4 / RL1-2 » (pNum 7309-7315) déclarent
+    //     display {min:-64, max:63}, message {min:0, max:127}, defaultValue 64.
+    //     => offset 64 confirmé mot pour mot ; le centre par défaut EST 64.
+    //   Recoupement oracle : SteelStrng filtre-1 FL0 = octet 64 (== centre par défaut).
+    //
+    // NB encodages VOISINS, hors de ces deux fonctions :
+    //   - Les niveaux d'EG d'OPÉRATEUR AFM (L0-L4, pNum 100x) sont PLAIN 0..63
+    //     (json display==message 0..63, PAS d'offset) — ne PAS leur appliquer l'o/b.
+    //   - Les FOS (filter break-point offsets) sont un o/b SUR 2 OCTETS
+    //     (json display -127..+127, message 0..254 ; lua OB2 combined=msg+1,
+    //     V1=bit7, V2=low7) — encodage distinct, non couvert ici.
+
+    /** Octet filaire o/b (0..127) -> valeur d'affichage signée (-64..+63).
+        Inverse exact de egLevelToWire. Source : main.lua l.22 + TG77_Voice.json. */
+    inline int egLevelToDisplay (juce::uint8 wire) noexcept
+    {
+        return (int) (wire & 0x7F) - 64;
+    }
+
+    /** Valeur d'affichage signée (-64..+63) -> octet filaire o/b (0..127).
+        Inverse exact de egLevelToDisplay ; borne le résultat dans 0..127. */
+    inline juce::uint8 egLevelToWire (int display) noexcept
+    {
+        return (juce::uint8) juce::jlimit (0, 127, display + 64);
+    }
+
+    /** Configure un slider de NIVEAU d'EG pour afficher le signé o/b (-64..+63) tout en
+        stockant l'octet filaire 0..127 (centre 64). À appeler une fois sur chaque slider de
+        niveau pitch-EG / filter-EG. La VALEUR du slider reste l'octet filaire (passthrough
+        TX/RX, midiTxOffset 0) ; seul le TEXTE affiché est converti via egLevelToDisplay. */
+    inline void applyEgLevelDisplay (juce::Slider& s)
+    {
+        s.textFromValueFunction = [] (double v) { return juce::String (egLevelToDisplay ((juce::uint8) juce::roundToInt (v))); };
+        s.valueFromTextFunction = [] (const juce::String& t) { return (double) egLevelToWire (t.getIntValue()); };
     }
 
     /** Message Sysex paramétrique SY77 prêt à émettre (ajoute F0/F7). */

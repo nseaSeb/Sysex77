@@ -82,7 +82,7 @@ public:
 
         // Édition à la souris sur le grand graphe d'EG (gauche) : niveau (Y) + rate (X).
         addAndMakeVisible (egGraph);
-        egGraph.maxLevel = 64.0f;
+        egGraph.maxLevel = 127.0f;   // niveaux EG filtre en octet filaire o/b 0..127 (centre 64)
         egGraph.getData = [this] (juce::Array<float>& levels, juce::Array<float>& weights)
         {
             levels = { (float) sliderL0.getValue(), (float) sliderL1.getValue(), (float) sliderL2.getValue(),
@@ -97,7 +97,7 @@ public:
             MidiSlider* L[7] = { &sliderL0, &sliderL1, &sliderL2, &sliderL3, &sliderL4, &sliderRL1, &sliderRL2 };
             MidiSlider* R[6] = { &sliderR1, &sliderR2, &sliderR3, &sliderR4, &sliderRR1, &sliderRR2 };
             if (node < 0 || node > 6) return;
-            L[node]->setValue (jlimit (0, 64, roundToInt (levelF)));
+            L[node]->setValue (jlimit (0, 127, roundToInt (levelF)));
             if (node >= 1 && segWeightF >= 0.0f)
                 R[node - 1]->setValue (jlimit (0, 64, roundToInt (66.0f - segWeightF)));
         };
@@ -227,58 +227,59 @@ public:
         sliderSlope.setMidiSysex(sysexdata);
 
 
+        // Niveaux d'EG filtre FL0-4 / FRL1-2 : encodage offset-binary (o/b). L'octet filaire
+        // est 0..127 (centre 64) ; le slider STOCKE l'octet filaire (passthrough, midiTxOffset 0)
+        // et AFFICHE le signé -64..+63 via egLevelToDisplay. Provenance : main.lua l.22 +
+        // TG77_Voice.json pNum 7309-7315. Plage 0..127 -> atteint enfin toute la plage du synthé.
+        for (auto* s : { &sliderL0, &sliderL1, &sliderL2, &sliderL3, &sliderL4, &sliderRL1, &sliderRL2 })
+            SyVoice::applyEgLevelDisplay (*s);
+
         sysexdata[6] = 0x09;
         sysexdata2[6] = 0x03;
- //       EgFilter.addSegment(10, 10, "L0R1", 64, sysexdata, 64, sysexdata2);
         sliderL0.setMidiSysex(sysexdata);
-        sliderL0.setRangeAndRound(0, 64, 0);
+        sliderL0.setRangeAndRound(0, 127, 64);
         sliderR1.setMidiSysex(sysexdata2);
         sliderR1.setRangeAndRound(0, 64, 0);
-        
+
         sysexdata[6] = 0x0a;
         sysexdata2[6] = 0x04;
-//        EgFilter.addSegment(10, 10, "L1R2", 64, sysexdata, 64, sysexdata2);
         sliderL1.setMidiSysex(sysexdata);
-        sliderL1.setRangeAndRound(0, 64, 0);
+        sliderL1.setRangeAndRound(0, 127, 64);
         sliderR2.setMidiSysex(sysexdata2);
         sliderR2.setRangeAndRound(0, 64, 0);
-        
+
         sysexdata[6] = 0x0b;
         sysexdata2[6] = 0x05;
-//        EgFilter.addSegment(10, 10, "L2R3", 64, sysexdata, 64, sysexdata2);
         sliderL2.setMidiSysex(sysexdata);
-        sliderL2.setRangeAndRound(0, 64, 0);
+        sliderL2.setRangeAndRound(0, 127, 64);
         sliderR3.setMidiSysex(sysexdata2);
         sliderR3.setRangeAndRound(0, 64, 0);
-        
+
         sysexdata[6] = 0x0c;
         sysexdata2[6] = 0x06;
- //       EgFilter.addSegment(10, 10, "L3R4", 64, sysexdata, 64, sysexdata2);
         sliderL3.setMidiSysex(sysexdata);
-        sliderL3.setRangeAndRound(0, 64, 0);
+        sliderL3.setRangeAndRound(0, 127, 64);
         sliderR4.setMidiSysex(sysexdata2);
         sliderR4.setRangeAndRound(0, 64, 0);
-        
+
         sysexdata[6] = 0x0d;
         sysexdata2[6] = 0x07;
- //       EgFilter.addSegment(10, 10, "L4RR1", 64, sysexdata, 64, sysexdata2);
         sliderL4.setMidiSysex(sysexdata);
-        sliderL4.setRangeAndRound(0, 64, 0);
+        sliderL4.setRangeAndRound(0, 127, 64);
         sliderRR1.setMidiSysex(sysexdata2);
         sliderRR1.setRangeAndRound(0, 64, 0);
 
         // Compléments EG filtre (spec table 1-10 / sy77midi_ocr.txt l.607-615) :
-        // FRR2 (rate, 0x08), FRL1 (level, 0x0E), FRL2 (level, 0x0F). Niveaux laissés en
-        // 0..64 comme L0-L4 (encodage offset-binary -64..+63 différé pour TOUS les niveaux).
+        // FRR2 (rate, 0x08), FRL1 (level, 0x0E, o/b), FRL2 (level, 0x0F, o/b).
         sysexdata2[6] = 0x08;               // FRR2 (key_off Rate 2)
         sliderRR2.setMidiSysex(sysexdata2);
         sliderRR2.setRangeAndRound(0, 64, 0);
-        sysexdata[6] = 0x0e;                // FRL1 (key_off cut_off Level 1)
+        sysexdata[6] = 0x0e;                // FRL1 (key_off cut_off Level 1, o/b)
         sliderRL1.setMidiSysex(sysexdata);
-        sliderRL1.setRangeAndRound(0, 64, 0);
-        sysexdata[6] = 0x0f;                // FRL2 (key_off cut_off Level 2)
+        sliderRL1.setRangeAndRound(0, 127, 64);
+        sysexdata[6] = 0x0f;                // FRL2 (key_off cut_off Level 2, o/b)
         sliderRL2.setMidiSysex(sysexdata);
-        sliderRL2.setRangeAndRound(0, 64, 0);
+        sliderRL2.setRangeAndRound(0, 127, 64);
     }
     void paint (Graphics& g) override
     {
@@ -304,7 +305,7 @@ public:
                                        rateWeight (sliderR3.getValue()), rateWeight (sliderR4.getValue()),
                                        rateWeight (sliderRR1.getValue()), rateWeight (sliderRR2.getValue()) };
 
-        SyDraw::drawEnvelope (g, egArea, egLevels, egWeights, 64.0f, SYColSelected, "Filter 1 EG");
+        SyDraw::drawEnvelope (g, egArea, egLevels, egWeights, 127.0f, SYColSelected, "Filter 1 EG");
 
     }
     void buttonClicked (Button* button) override

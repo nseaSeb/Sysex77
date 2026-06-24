@@ -43,7 +43,8 @@ par élément, blocs cumulatifs (AFM 357 o. / AWM 112 o.) — testé sur type 8 
 > Sur 1224 voix, ~413 restantes = surtout **drum (type 10)**.
 
 Restant : **drum** (type 10) ; AWM filtre (chargement) + fine/fixed (encodage à lever) ;
-niveaux EG en o/b ; PHASE/SYNC packé ; coarse/detune AFM négatif/packé (s/m) ; effets ; LFO.
+**FOS filtre (o/b 2 octets, layout bulk à confirmer)** ; PHASE/SYNC packé ; coarse/detune AFM
+négatif/packé (s/m) ; effets ; LFO. (Niveaux EG pitch/filtre o/b : **résolus**, recoupés lua.)
 
 ---
 
@@ -64,7 +65,7 @@ niveaux EG en o/b ; PHASE/SYNC packé ; coarse/detune AFM négatif/packé (s/m) 
 | **Algorithme (ALGNUM)** | 🟡 | 🟢 | dump **@377 confirmé** (diff single-param 16→1) ; oracle `val(0x05,0x00)==23` (Tests.h:234) |
 | **Pitch EG rates (FPR1-3, FPRR1)** | 🟡 | 🟢 | bloc N2-ordonné @base+271+ ; oracle SteelStrng `val(0x05,0x02)==16`, `val(0x05,0x03)==13` (Tests.h:249-250) |
 | **PEG switch (FYPSW)** | 🟡 | 🟡 | chargé param 0x0C (SysexUtils:213) ; pas d'oracle |
-| Pitch EG levels (o/b) | 🟡 | ⬜ | repr. éditeur 0..64 à aligner sur o/b ; NON chargé |
+| **Pitch EG levels (FPL0-3, FPRL1, o/b)** | 🟡 | 🟢 | **chargés** group 0x05 N2 0x05-0x09 (SysexUtils, `voiceBlobToParams`). Encodage o/b offset 64 (`egLevelToDisplay`/`egLevelToWire`) **recoupé codec lua indépendant** (main.lua l.22 + TG77_Voice.json pNum 7005-7008 : display{-64,63}/message{0,127}/default 64). Éditeur aligné 0..64→0..127 (PitchEG.h) → corrige l'**envoi** (atteignait ½ plage). Oracle SteelStrng `val(0x05,0x05)==55` (Tests.h). NON vérifié hardware |
 | LFO 1 / LFO 2 | ⬜ | ⬜ | ni chargé ni câblé éditeur |
 
 ## AFM — Opérateurs (élément 1, OP1→OP6)
@@ -94,11 +95,12 @@ niveaux EG en o/b ; PHASE/SYNC packé ; coarse/detune AFM négatif/packé (s/m) 
 | Type filtre 1 (FTYPE : LPF/HPF/Thru) | 🟡 | ❓ | envoi câblé ; dump @403 (offset OK) mais encodage bulk ambigu (Thru→LPF = 0→1, ≠ enum) — besoin d'un point HPF. NON chargé |
 | **Mode de contrôle (FMODE) f1 & f2** | 🟡 | 🟢 | dump @base+298/+327 ; oracle SteelStrng `val(0x09,0x02)==2` (Tests.h:251) |
 | **EG filtre 1 & 2 : rates (FR1-4, FRR1-2)** | 🟡 | 🟢 | dump @base+296/+325+N2 ; oracle SteelStrng `val(0x09,0x03)==11` (Tests.h:252) |
-| EG filtre : niveaux (FL0-4, FRL1-2, o/b) | 🟡 | ⬜ | repr. éditeur à aligner sur o/b ; NON chargé |
+| **EG filtre 1 & 2 : niveaux (FL0-4, FRL1-2, o/b)** | 🟡 | 🟢 | **chargés** group 0x09 N2 0x09-0x0F des 2 filtres (SysexUtils). Encodage o/b offset 64 recoupé codec lua (main.lua l.22 + TG77_Voice.json pNum 7309-7315). Éditeur aligné 0..64→0..127 (Filter1/2.h) → corrige l'**envoi**. Oracle SteelStrng : FL0 filtre 1 == octet **64 == centre o/b par défaut** (`val(0x09,0x09)==64`, Tests.h). NON vérifié hardware |
+| EG filtre : FOS (break-point offsets, o/b 2 octets) | 🟡 | ⬜ | encodage param-change connu (lua OB2 combined=msg+1, V1=bit7/V2=low7) mais **layout BULK non confirmé** (octets @424-427 = 1,0,1,0, MSB/interleave ambigu) → NON chargé |
 | **Cutoff filtre 1** | 🟡 | 🟢 | dump **@404 confirmé** (diff single-param 127→0) ; oracle `val(0x09,0x01)==27` (Tests.h:236) |
 | **Cutoff filtre 2** | 🟡 | 🟢 | dump @433 ; oracle SteelStrng `valH(0x09,1,0x01)==50` (Tests.h:246) |
 | **Résonance** | 🟡 | 🟢 | dump @461 ; oracle SteelStrng `valH(0x09,2,0x32)==59` (Tests.h:247) |
-| Filter EG : niveaux/slope (R1-4, RR1, L0-4, RL1-2) | 🟡 | ⬜ | EG câblé group 0x09 (Filter1/2.h) ; niveaux NON chargés (o/b) |
+| Filter EG : rates/slope (R1-4, RR1-2, slope) | 🟡 | 🟢 | EG câblé group 0x09 (Filter1/2.h) ; rates chargés (cf. ligne rates ci-dessus) ; niveaux désormais o/b chargés (ligne dédiée) |
 
 ## Effets
 

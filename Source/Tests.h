@@ -309,6 +309,33 @@ struct SysexUtilsTests : public juce::UnitTest
                 expect (SyVoice::egGroupFor (k, 0) != 0x00);
         }
 
+        beginTest ("egLevelToDisplay/egLevelToWire — offset-binary (o/b) inversible + valeurs lua");
+        {
+            // Inversibilité sur TOUTE la plage filaire 0..127 (round-trip wire->display->wire).
+            for (int w = 0; w <= 127; ++w)
+            {
+                const int disp = SyVoice::egLevelToDisplay ((juce::uint8) w);
+                expectEquals ((int) SyVoice::egLevelToWire (disp), w);
+                expect (disp >= -64 && disp <= 63);   // plage d'affichage TG77_Voice.json
+            }
+            // Inversibilité sur la plage d'affichage -64..+63 (display->wire->display).
+            for (int dpy = -64; dpy <= 63; ++dpy)
+                expectEquals (SyVoice::egLevelToDisplay (SyVoice::egLevelToWire (dpy)), dpy);
+
+            // Valeurs ANCRES dérivées du codec lua/json (offset 64 ; centre par défaut = wire 64).
+            //   main.lua l.22 : « (o/b) offset binary -64..+63 -> E1 msg 0..127 passes through »
+            //   TG77_Voice.json PEG/FEG L : display{-64,63} message{0,127} defaultValue 64.
+            expectEquals (SyVoice::egLevelToDisplay (64), 0);     // centre
+            expectEquals (SyVoice::egLevelToDisplay (0), -64);    // minimum
+            expectEquals (SyVoice::egLevelToDisplay (127), 63);   // maximum
+            expectEquals ((int) SyVoice::egLevelToWire (0), 64);  // display 0 -> wire 64 (defaultValue)
+            expectEquals ((int) SyVoice::egLevelToWire (-64), 0);
+            expectEquals ((int) SyVoice::egLevelToWire (63), 127);
+            // Bornage : un display hors plage ne déborde jamais l'octet filaire 7 bits.
+            expectEquals ((int) SyVoice::egLevelToWire (200), 127);
+            expectEquals ((int) SyVoice::egLevelToWire (-200), 0);
+        }
+
         beginTest ("voiceBlobToParams decodes confirmed AFM operator params (SteelStrng)");
         {
             // Dump réel de la voix « SteelStrng » (1AFM, type@32 == 0x03), F0..F7 (466 o.).
@@ -347,8 +374,9 @@ struct SysexUtilsTests : public juce::UnitTest
             };
 
             auto params = SyVoice::voiceBlobToParams (steel, (int) sizeof (steel));
-            // 6 op×15 + (ELVL,ALGNUM,FCTOF1,FCTOF2,FFRES) + 4 pitch-rates + 2×7 filtre + VVOL.
-            expectEquals (params.size(), 6 * 29 + 6 + 4 + 14 + 1);
+            // 6 op×29 + (ELVL,ALGNUM,FCTOF1,FCTOF2,FFRES,FYPSW) + 4 pitch-rates + 5 pitch-levels
+            // (FPL0-3+FPRL1) + 2×7 filtre-rates + 2×7 filtre-niveaux + VVOL.
+            expectEquals (params.size(), 6 * 29 + 6 + 4 + 5 + 14 + 14 + 1);
 
             auto val = [&params] (int group, int param) -> int
             {
@@ -389,15 +417,37 @@ struct SysexUtilsTests : public juce::UnitTest
             expectEquals (val (0x09, 0x02), 2);    // FMODE filtre 1 @405
             expectEquals (val (0x09, 0x03), 11);   // FR1   filtre 1 @406
 
+            // NIVEAUX D'EG (o/b) — chargés en octet filaire (0..127). Valeurs lues directement
+            // dans le dump SteelStrng (cf. recoupement codec lua : passthrough wire == octet).
+            // Pitch-EG levels FPL0-3 (group 0x05, N2 0x05-0x08) = octets @382-385.
+            expectEquals (val (0x05, 0x05), 55);   // FPL0  @382 -> display egLevelToDisplay = -9
+            expectEquals (val (0x05, 0x06), 14);   // FPL1  @383 -> display -50
+            expectEquals (val (0x05, 0x07), 34);   // FPL2  @384 -> display -30
+            expectEquals (val (0x05, 0x08), 39);   // FPL3  @385 -> display -25
+            // Filtre-1 EG levels FL0-4 (group 0x09, addrHi 0, N2 0x09-0x0D) = octets @412-416.
+            expectEquals (val (0x09, 0x09), 64);   // FL0 @412 == CENTRE o/b par défaut -> display 0
+            expectEquals (val (0x09, 0x0A), 45);   // FL1 @413 -> display -19
+            expectEquals (val (0x09, 0x0D), 25);   // FL4 @416 -> display -39
+            expectEquals (val (0x09, 0x0E), 20);   // FRL1 @417 -> display -44
+            // Filtre-2 EG level FL0 (group 0x09, addrHi 1, N2 0x09) = octet @441.
+            expectEquals (valH (0x09, 1, 0x09), 28);   // FL0 filtre 2 @441 -> display -36
+            // Tous les niveaux d'EG chargés DOIVENT être dans la plage filaire valide 0..127.
+            for (auto& q : params)
+                if (q.group == 0x05 && q.param >= 0x05 && q.param <= 0x09)   // pitch levels
+                    expect (q.value >= 0 && q.value <= 127);
+            for (auto& q : params)
+                if (q.group == 0x09 && q.param >= 0x09 && q.param <= 0x0F)   // filter levels
+                    expect (q.value >= 0 && q.value <= 127);
+
             // 1 AFM MONO (type $00) partage la structure 1AFM -> doit charger aussi (Table 2).
             juce::MemoryBlock mono (steel, sizeof (steel));
             ((juce::uint8*) mono.getData())[32] = 0x00;
             expectEquals (SyVoice::voiceBlobToParams ((const juce::uint8*) mono.getData(),
-                                                      (int) mono.getSize()).size(), 6 * 29 + 6 + 4 + 14 + 1);
+                                                      (int) mono.getSize()).size(), 6 * 29 + 6 + 4 + 5 + 14 + 14 + 1);
 
             // 2 AFM / 4 AFM : N « layers » identiques (Table 2). On vérifie le compte et que
             // l'adressage par élément (addrHi = élément<<5) est bien produit.
-            const int perElem = 6 * 29 + 6 + 4 + 14;   // op + 5 abs + 4 pitch-rates + 2×7 filtre
+            const int perElem = 6 * 29 + 6 + 4 + 5 + 14 + 14;   // op + 6 + 4 pitch-rates + 5 pitch-levels + 2×7 filtre-rates + 2×7 filtre-niveaux
             {
                 juce::MemoryBlock two; two.setSize (832, true);
                 ((juce::uint8*) two.getData())[32] = 0x01;   // 2 AFM
@@ -469,7 +519,7 @@ struct SysexUtilsTests : public juce::UnitTest
             auto* p = (juce::uint8*) mb.getData();
             p[0] = 0xF0; p[32] = 0x08;
             auto params = SyVoice::voiceBlobToParams (p, 586);
-            expectEquals (params.size(), 198 + 9 + 1);   // AFM él.(119) + AWM él.(9) + VVOL
+            expectEquals (params.size(), 217 + 9 + 1);   // AFM él.(217, dont niveaux EG o/b) + AWM él.(9) + VVOL
 
             bool afmE1 = false, awmE2 = false;
             for (auto& q : params)
