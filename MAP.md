@@ -26,8 +26,14 @@ mono+poly, tous les éléments. Pattern Table 2 : base élément 1 = 107 + 9×(N
 
 Le **filtre AWM** est désormais **câblé** (édition) : les éditeurs de filtre basculent en fN 3/4/5
 quand l'élément est AWM (à spot-checker hardware). Son **chargement** depuis dump n'est pas encore
-ajouté (offsets AWM filtre non vérifiés). Restant : **mixtes AFM+AWM** (type 8-9) + **drum** (10) ;
-AWM fine/fixed (encodage à lever).
+ajouté (offsets AWM filtre non vérifiés).
+
+> **Validation offline (2026-06-24)** : le décodeur a été rejoué sur **566 voix AFM/AWM réelles**
+> (14 banques `.syx`) — **0 valeur hors plage** à tous les offsets chargés. Forte confiance.
+> NB : sur 1224 voix, ~658 sont **mixtes AFM+AWM (type 8-9) / drum (10)** → gros gisement non géré.
+
+Restant : **mixtes AFM+AWM** (type 8-9, ~moitié de la librairie !) + **drum** (10) ;
+AWM filtre (chargement) + fine/fixed (encodage à lever) ; niveaux EG en o/b.
 
 ---
 
@@ -46,7 +52,8 @@ AWM fine/fixed (encodage à lever).
 | Paramètre | Envoi → synthé | Ouverture dump | Notes |
 |---|:---:|:---:|---|
 | **Algorithme (ALGNUM)** | 🟡 | 🟢 | dump **@377 confirmé** (diff single-param 16→1) ; envoi via l'app pas encore testé |
-| Pitch EG | 🟡 | ⬜ | group 0x05 |
+| Pitch EG rates (FPR1-3, FPRR1) | 🟡 | 🟢 | bloc N2-ordonné @base+270+N2 ; validé 566 voix |
+| Pitch EG levels (o/b) | 🟡 | ⬜ | repr. éditeur 0..64 à aligner sur o/b |
 | LFO 1 / LFO 2 | 🟡 | ⬜ | — |
 
 ## AFM — Opérateurs (élément 1, OP1→OP6)
@@ -70,7 +77,9 @@ AWM fine/fixed (encodage à lever).
 | Paramètre | Envoi → synthé | Ouverture dump | Notes |
 |---|:---:|:---:|---|
 | Type filtre 1 (FTYPE : LPF/HPF/Thru) | ✅ | ❓ | envoi Track A ; dump @403 (offset OK) mais encodage bulk ambigu (Thru→LPF = 0→1, ≠ enum) — besoin d'un point HPF |
-| Mode de contrôle (FMODE) | ✅ | ⬜ | Track A (filtre 1 & 2) |
+| Mode de contrôle (FMODE) f1 & f2 | ✅ | 🟢 | dump @base+298/+327 ; validé 566 voix |
+| EG filtre 1 & 2 : rates (FR1-4, FRR1-2) | 🟡 | 🟢 | dump @base+296/+325+N2 ; validé 566 voix |
+| EG filtre : niveaux (FL0-4, FRL1-2, o/b) | 🟡 | ⬜ | repr. éditeur à aligner sur o/b |
 | **Cutoff filtre 1** | 🟡 | 🟢 | dump **@404 confirmé** (diff single-param 127→0) ; group 0x09/param 0x01 |
 | Cutoff filtre 2 | 🟡 | 🟢 | dump @433 (Table 2) ; group 0x09 addrHi 1 / param 0x01 — à spot-checker |
 | Résonance | 🟡 | 🟢 | dump @461 (Table 2) ; group 0x09 addrHi 2 / param 0x32 — à spot-checker |
