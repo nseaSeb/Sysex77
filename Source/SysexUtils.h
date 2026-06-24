@@ -126,11 +126,11 @@ namespace SyVoice
 
         Couverture v1 — UNIQUEMENT les params confirmés hardware : pour chaque
         opérateur AFM (élément 1, OP1..OP6) les rates/levels d'EG (R1-4, RR1-2,
-        L1-4, RL1-2, L0), le niveau de sortie (TL) et le fine. Les params dont
-        l'offset/encodage n'est pas encore vérifié (coarse, detune, RS, SLP, HT,
-        filtres, algo, effets, voice-common, éléments 2-4) sont VOLONTAIREMENT omis :
-        l'éditeur conserve sa valeur, on n'affiche jamais de donnée erronée
-        (« fiabilité d'abord »).
+        L1-4, RL1-2, L0), le niveau de sortie (TL) et le fine ; plus l'algorithme
+        (ALGNUM, element common). Les params dont l'offset/encodage n'est pas encore
+        vérifié (coarse, detune, RS, SLP, HT, filtres, effets, voice-common,
+        éléments 2-4) sont VOLONTAIREMENT omis : l'éditeur conserve sa valeur, on
+        n'affiche jamais de donnée erronée (« fiabilité d'abord »).
 
         Provenance des offsets : carte calée sur les dumps SteelStrng + recoupement
         du dump fingerprinté avec re_fingerprint.csv (match exact 6/6 sur TL & Fine ;
@@ -166,6 +166,12 @@ namespace SyVoice
                 if (off < sz)
                     out.add ({ op.group, 0, 0, m.param, (int) d[off] });
             }
+
+        // AFM element common (group 0x05, addrHi=0).
+        // ALGNUM @377 (0-indexé) : confirmé par diff single-param (RikielBass algo 16->1
+        // = byte 377 15->0). Le slider algo applique son propre offset d'affichage (1..45).
+        out.add ({ 0x05, 0, 0, 0x00, (int) d[377] });
+
         return out;
     }
 

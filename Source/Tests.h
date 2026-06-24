@@ -209,7 +209,7 @@ struct SysexUtilsTests : public juce::UnitTest
             };
 
             auto params = SyVoice::voiceBlobToParams (steel, (int) sizeof (steel));
-            expectEquals (params.size(), 6 * 15);   // 6 opérateurs × 15 params confirmés
+            expectEquals (params.size(), 6 * 15 + 1);   // 6 op × 15 params + ALGNUM
 
             auto val = [&params] (int group, int param) -> int
             {
@@ -227,6 +227,8 @@ struct SysexUtilsTests : public juce::UnitTest
             expectEquals (val (0x56, 0x26), 46);
             // R1 (param 0x00) OP1 = octet @332.
             expectEquals (val (0x56, 0x00), 24);
+            // ALGNUM (group 0x05, param 0x00) = octet @377 (confirmé par diff single-param).
+            expectEquals (val (0x05, 0x00), 23);
 
             // Garde-fous « fiabilité d'abord » : pas de bloc -> rien ; type non-1AFM -> rien.
             juce::uint8 notAfm[466] = { 0 }; notAfm[32] = 0x01;
