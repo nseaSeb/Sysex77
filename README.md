@@ -32,6 +32,9 @@ Inspiré, côté fonctionnalités, de l'éditeur *SynthWorks SY77*.
 > ⚠️ Certaines éditions (effets, groupes, enveloppes…) sont pour l'instant en **rendu/état seul**
 > côté éditeur ; l'envoi sysex complet vers le synthé est en cours de fiabilisation.
 
+📋 **État de validation paramètre par paramètre** (envoi → synthé / ouverture dump → éditeur) :
+voir **[MAP.md](MAP.md)**.
+
 ---
 
 ## Lancer l'app pré-compilée (macOS)
