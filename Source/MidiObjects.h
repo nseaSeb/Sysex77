@@ -203,6 +203,10 @@ public:
        // uint8 data = slider->getValue();
         sysexData[8] = value + midiTxOffset;   // ex. algo : affichage 1..45 -> synthé 0..44
 
+        // Octets PACKÉS (ex. AFM op 0x18/0x19) : l'auto-send brut écraserait les autres champs
+        // du même octet. L'hôte (Oscillator) compose alors l'octet complet et émet lui-même.
+        if (! autoSend) return;
+
         if (broadcastGroups.isEmpty())
         {
             sender.sendParam9 (oscAddressPatern, sysexData);
@@ -223,6 +227,11 @@ public:
     // Décalage appliqué entre l'affichage et l'octet sysex (TX: +offset, RX: -offset).
     // Sert quand le synthé indexe différemment de l'UI (ex. algorithme : 0..44 vs 1..45).
     void setMidiValueOffset (int o) { midiTxOffset = o; }
+
+    // Auto-send désactivé : la valeur change (affichage/persistance/RX) mais le widget
+    // N'ÉMET PAS de param-change lui-même. Pour les octets PACKÉS dont l'hôte recompose
+    // l'octet complet (cf. Oscillator.h, byte 0x18 FMLPMS/PES/FPM).
+    void setAutoSend (bool e) { autoSend = e; }
 
     // Mode « All » : diffuse chaque envoi à tous ces groupes (octet [3]), même N2/T2.
     // Vide = comportement normal (un seul groupe = sysexData[3]).
@@ -262,6 +271,7 @@ public:
 private:
     bool boolNegative = false;   // set if neg value like pan
     bool boolInvert = false;
+    bool autoSend = true;        // false = octet packé, l'hôte émet (cf. setAutoSend)
     int intNegativeDelta = 0; // correction for sysex
     int midiTxOffset = 0;     // décalage affichage<->sysex (cf. setMidiValueOffset)
     Array<int> broadcastGroups; // mode « All » : groupes de diffusion (cf. setMidiBroadcastGroups)
@@ -368,20 +378,19 @@ public:
 
     void buttonClicked (Button* button) override
     {
+        if(getToggleState())
+            setButtonText(strOn);
+        else
+            setButtonText(strOff);
+
+        // Octets PACKÉS (ex. AFM op 0x18 PES / 0x19 KOE-sync) : l'auto-send brut écraserait
+        // les autres champs ; l'hôte (Oscillator) compose et émet l'octet complet.
+        if (! autoSend) return;
 
         sysexData[8] = button->getToggleState();
-
         sender.sendParam9 (oscAddressPatern, sysexData);
-            if(getToggleState())
-            {
-                setButtonText(strOn);
-            }
-        else
-        {
-            setButtonText(strOff);
-        }
     }
-    
+
     void setMidiSysex (int sysexdata[0])
     {
         for(int i = 0; i < 9 ;i++)
@@ -391,7 +400,10 @@ public:
     {
         strOscAdress = oscAdress;
     }
-    
+
+    // Auto-send désactivé (octet packé recomposé par l'hôte). Cf. MidiSlider::setAutoSend.
+    void setAutoSend (bool e) { autoSend = e; }
+
     // Outil RE (jetable) : un bouton est 0/1 -> envoie ON.
     bool reSend (int wireValue, int outAddr[9])
     {
@@ -419,6 +431,7 @@ private:
     String strOscAdress;
  //   MidiMessage midiMessage;
     SysexBusSender sender;
+    bool autoSend = true;        // false = octet packé, l'hôte émet (cf. setAutoSend)
     uint8 sysexData[9] {};
     uint8 inputData[9] {};
     String  strOn;
@@ -607,6 +620,13 @@ public:
    void comboBoxChanged (ComboBox* comboBoxThatHasChanged) override
     {
              Logger::writeToLog("midiCombo  changed");
+        // ANTI-ÉCHO : ComboBox re-déclenche comboBoxChanged de façon ASYNCHRONE quand son
+        // currentId (lié au ValueTree via referTo) change SANS passer par setSelectedId
+        // (cf. juce_ComboBox.cpp::valueChanged -> setSelectedId(... sendNotification)). Si ce
+        // ré-envoi tombe HORS du garde synchrone (ScopedEchoSuppress), on le bloque ici via
+        // l'état de suppression du bus -> aucune ré-émission d'un changement issu d'une RX.
+        if (SysexBus::get().suppressSend.load (std::memory_order_acquire) > 0)
+            return;
         sysexData[8] = getSelectedId() -1;
 
         sender.sendParam9 (oscAddressPatern, sysexData);
@@ -614,7 +634,7 @@ public:
     }
     void valueChanged(Value & value) override
     {
-        
+
         Logger::writeToLog("midislider value change");
         if(value.refersToSameSourceAs(valueSysexIn))
         {
@@ -631,6 +651,10 @@ public:
                     if(sysexData[6] ==  val)
                     {
                         val =value.getValue()[5];
+                        // Garde le ré-envoi ASYNC de ComboBox (cf. comboBoxChanged) sous
+                        // suppression : setSelectedId(dontSendNotification) synchronise déjà
+                        // lastCurrentId, mais on protège aussi le cas mutation externe.
+                        const ScopedEchoSuppress noEcho;
                         setSelectedId(val + 1, dontSendNotification); // pas de renvoi -> évite la boucle d'écho
                     }
                 }

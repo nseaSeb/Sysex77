@@ -517,6 +517,33 @@ namespace SyVoice
         return (juce::uint8) juce::jlimit (0, 127, display + 64);
     }
 
+    //==============================================================================
+    // FPD — Pitch Detune opérateur (param 0x1A), encodage SIGNE-MAGNITUDE.
+    // PROVENANCE (hardware-verified, codec lua INDÉPENDANT) :
+    //   docs/TG-77 Voice lua and json/main.lua l.45 : SM[1000*op+0x1A] = {15, 16}
+    //   -> half=15, signbit=16 ; encodeValue : signed = msg-15 ; si signed>=0 -> signed,
+    //      sinon -> 16 + (-signed). Donc pour un affichage signé d (-15..+15) :
+    //        d >= 0  -> wire = d            (0..15)
+    //        d <  0  -> wire = 16 | (-d)    (17..31)
+    //   docs/sy77midi_ocr.txt l.438 : « FPD -15~+15 (s/m) Pitch Detune ».
+    // NB : c'est EXACTEMENT le chemin boolNegative de MidiSlider (intNegativeDelta=max+2=17,
+    //   ~v) : -d -> (~(-d)) + 17 = 16 + d. fpdDetuneToWire/FromWire sont la version PURE
+    //   testable, et permettent de re-vérifier ce chemin (cf. Tests.h).
+
+    /** Affichage détune signé (-15..+15) -> octet filaire s/m (0..15 / 17..31). */
+    inline juce::uint8 fpdDetuneToWire (int display) noexcept
+    {
+        display = juce::jlimit (-15, 15, display);
+        return (juce::uint8) (display >= 0 ? display : (0x10 | (-display)));
+    }
+
+    /** Octet filaire s/m FPD -> affichage signé (-15..+15). Inverse de fpdDetuneToWire. */
+    inline int fpdDetuneToDisplay (juce::uint8 wire) noexcept
+    {
+        const int w = wire & 0x7F;
+        return (w & 0x10) ? -(w & 0x0F) : (w & 0x0F);
+    }
+
     /** Configure un slider de NIVEAU d'EG pour afficher le signé o/b (-64..+63) tout en
         stockant l'octet filaire 0..127 (centre 64). À appeler une fois sur chaque slider de
         niveau pitch-EG / filter-EG. La VALEUR du slider reste l'octet filaire (passthrough

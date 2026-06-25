@@ -13,6 +13,7 @@
 #include <JuceHeader.h>
 #include "LookAndFeel.h"   // AfmOscLookAndFeel + AfmWaveLookAndFeel (sprite teinté au thème)
 #include "Operator.h"      // panneau algorithme (AlgoDraw + sélecteur 1..45) embarqué à droite
+#include "AfmLfo.h"        // panneau Main/Sub LFO (colonne droite, sous l'algo)
 
 //==============================================================================
 /*
@@ -50,12 +51,12 @@ public:
         labelPhase1.attachToComponent(&sliderPhase1, false);
         
         setSliderStyle(sliderFine2);
-        labelFine2.attachToComponent(&sliderFine1, false);
+        labelFine2.attachToComponent(&sliderFine2, false);
         setSliderDetune(sliderDetune2);
         labelDetune2.attachToComponent(&sliderDetune2, false);
         labelDetune2.setJustificationType(Justification::centred);
         setSliderStyle(sliderPhase2);
-        labelPhase2.attachToComponent(&sliderPhase1, false);
+        labelPhase2.attachToComponent(&sliderPhase2, false);
         
         setSliderStyle(sliderFine3);
         labelFine3.attachToComponent(&sliderFine3, false);
@@ -162,6 +163,8 @@ public:
 
         // Panneau algorithme (colonne droite), masqué automatiquement en mode zoom.
         addAndMakeVisible(algoPanel);
+        // Panneau LFO (Main + Sub) sous l'algo, comme l'écran SynthWorks. Masqué en zoom.
+        addAndMakeVisible(lfoPanel);
     }
 
     void setSliderLevel (Slider& slider)
@@ -179,17 +182,20 @@ public:
     {
 
     }
-    void setSliderDetune (Slider& slider)
+    void setSliderDetune (MidiSlider& slider)
     {
         addAndMakeVisible(slider);
         slider.setSliderStyle(Slider::SliderStyle::LinearBar);   // barre + valeur (cohérent avec la table)
-        slider.setRange(-15, 15);
-        slider.setNumDecimalPlacesToDisplay(0);
+        // FPD = détune signé -15..+15, encodage SIGNE-MAGNITUDE (param 0x1A).
+        // setRangeAndRound(min<0) ACTIVE le chemin boolNegative de MidiSlider :
+        //   TX  d<0 -> ~d + 17 = 16 | (-d)   (cf. SyVoice::fpdDetuneToWire)
+        //   RX  wire>=15 -> ~(wire-17)       (cf. SyVoice::fpdDetuneToDisplay)
+        // Auparavant setRange(-15,15) ne touchait PAS boolNegative -> les négatifs partaient
+        // bruts (wrap 7 bits) et la lecture du dump s/m (wire 17..31) s'affichait telle quelle.
+        slider.setRangeAndRound(-15, 15, 0);
+        slider.setSliderStyle(Slider::SliderStyle::LinearBar);   // setRangeAndRound force Rotary pour min<0 -> on rétablit la barre
         slider.setLookAndFeel(nullptr);   // suit le LnF du thème (plat en Light)
         slider.setPopupDisplayEnabled(true, true,this);
-
-        
- 
     }
     void setSliderStyle (Slider& slider)
     {
@@ -398,49 +404,28 @@ public:
              sysexdata[3] = 0x06;
         sliderOsc6.setMidiSysex(sysexdata);
         
-        sysexdata[6] = 0x18;
-        sysexdata[3] = 0x56;
-        btFix1.setMidiSysex(sysexdata);
-            sysexdata[3] = 0x46;
-        btFix2.setMidiSysex(sysexdata);
-            sysexdata[3] = 0x36;
-        btFix3.setMidiSysex(sysexdata);
-            sysexdata[3] = 0x26;
-        btFix4.setMidiSysex(sysexdata);
-            sysexdata[3] = 0x16;
-        btFix5.setMidiSysex(sysexdata);
-            sysexdata[3] = 0x06;
-        btFix6.setMidiSysex(sysexdata);
-        
-        sysexdata[6] = 0x19;
-        sysexdata[3] = 0x56;
-        btPhase1.setMidiSysex(sysexdata);
-        sysexdata[3] = 0x46;
-        btPhase2.setMidiSysex(sysexdata);
-        sysexdata[3] = 0x36;
-        btPhase3.setMidiSysex(sysexdata);
-        sysexdata[3] = 0x26;
-        btPhase4.setMidiSysex(sysexdata);
-        sysexdata[3] = 0x16;
-        btPhase5.setMidiSysex(sysexdata);
-        sysexdata[3] = 0x06;
-        btPhase6.setMidiSysex(sysexdata);
-  
-        sysexdata[7] = 0x01;
-        sysexdata[3] = 0x56;
-        sliderPhase1.setMidiSysex(sysexdata);
-        sysexdata[3] = 0x46;
-        sliderPhase2.setMidiSysex(sysexdata);
-        sysexdata[3] = 0x36;
-        sliderPhase3.setMidiSysex(sysexdata);
-        sysexdata[3] = 0x26;
-        sliderFine4.setMidiSysex(sysexdata);
-        sysexdata[3] = 0x16;
-        sliderPhase5.setMidiSysex(sysexdata);
-        sysexdata[3] = 0x06;
-        sliderPhase6.setMidiSysex(sysexdata);
-        sysexdata[7] = 0x00;
-        
+        // --- Octets PACKÉS 0x18 (MODE/Fixed = FPM b0) et 0x19 (SYNC = KOE V1 b0, PHASE = V2).
+        // Adresse posée pour la composition (groupe par op + addrHi élément).
+        packedAddrHi = sysexdata[4];
+        {
+            MidiButton* fix[6] = { &btFix1,&btFix2,&btFix3,&btFix4,&btFix5,&btFix6 };
+            MidiButton* syn[6] = { &btPhase1,&btPhase2,&btPhase3,&btPhase4,&btPhase5,&btPhase6 };
+            MidiSlider* pha[6] = { &sliderPhase1,&sliderPhase2,&sliderPhase3,&sliderPhase4,&sliderPhase5,&sliderPhase6 };
+            for (int o = 0; o < 6; ++o)
+            {
+                // btFix = MODE (FPM, octet 0x18 b0). Auto-send OFF -> composition de l'octet complet.
+                fix[o]->setAutoSend (false);
+                fix[o]->onClick = [this, o] { send18 (o); };
+                // btPhase = SYNC (KOE, octet 0x19 V1 b0). Auto-send OFF.
+                syn[o]->setAutoSend (false);
+                syn[o]->onClick = [this, o] { send19 (o); };
+                // sliderPhase = PHASE (octet 0x19 V2 0~127). Auto-send OFF + plage 0..127.
+                pha[o]->setAutoSend (false);
+                pha[o]->setRangeAndRound (0, 127, 0);
+                pha[o]->onValueChange = [this, o] { send19 (o); };
+            }
+        }
+
         // Colonne COARSE = fréquence Coarse (FPC, param 0x25). (Avant : 0x26 = fine -> la
         // colonne COARSE affichait le fine, toujours 0 sur beaucoup de presets.)
         sysexdata[6] = 0x25;
@@ -457,11 +442,23 @@ public:
         sysexdata[3] = 0x06;
         sliderFine6.setMidiSysex(sysexdata);
 
-        // Coarse affiché en 1-indexé (le SY77 montre 1..N, le bulk/sysex stocke 0..N-1).
+        // Coarse (FPC, param 0x25) = octet brut, AUCUN décalage d'affichage.
+        // L'éditeur TG77 vérifié hardware (TG77_Voice.json "COARSE OP*") envoie l'octet
+        // tel quel sur 0..127 (display==message, pas d'offset). L'ancien setMidiValueOffset(-1)
+        // « 1-indexait » l'affichage : display 0 -> wire -1 (wrap 127), rendant le bas de la
+        // plage inutilisable (« coarse pas utilisable »). On retire l'offset et on borne 0..127.
         for (MidiSlider* s : { &sliderFine1,&sliderFine2,&sliderFine3,&sliderFine4,&sliderFine5,&sliderFine6 })
-            s->setMidiValueOffset(-1);
+        {
+            s->setMidiValueOffset(0);
+            s->setRangeAndRound(0, 127, 0);
+        }
 
-        // Colonne FINE (param 0x26, fréquence fine 0..99) : referTo + adresse par opérateur.
+        // Colonne FINE (FPF, param 0x26) : referTo + adresse par opérateur.
+        // PLAGE 0..127 (octet brut, display==wire), PAS 0..99 : la carte TG77 vérifiée
+        // hardware (TG77_Voice.json "FINE OP*", paramNumber *038 = 0x26) borne 0..127.
+        // L'ancien 0..99 (#3) rendait inaccessibles les valeurs 100..127 et faussait la
+        // proportion/affichage de la barre (« comportement du bouton »). OCR Table 1-7
+        // l.460 (FPF) sans plage lisible -> on suit la carte hardware.
         {
             MidiSlider* fin[6] = { &sliderFreqFine1,&sliderFreqFine2,&sliderFreqFine3,
                                    &sliderFreqFine4,&sliderFreqFine5,&sliderFreqFine6 };
@@ -473,7 +470,7 @@ public:
                     Identifier ("ELEMENT" + String (element) + "FREQFINE" + String (o + 1)), &um));
                 sx[3] = grp[o];
                 fin[o]->setMidiSysex (sx);
-                fin[o]->setRangeAndRound (0, 99, 0);
+                fin[o]->setRangeAndRound (0, 127, 0);
             }
         }
 
@@ -493,7 +490,13 @@ public:
                 };
                 wireS (sensVel[o], 0x11, 15, "SVEL");
                 wireS (sensAm[o],  0x10,  7, "SAM");
-                wireS (sensPm[o],  0x18, 31, "SPM");
+                // SENSIT PM = FMLPMS (octet packé 0x18 b4~2, plage 0~7). Auto-send OFF :
+                // recomposition de l'octet 0x18 (sinon écrase MODE/FPM b0 + PES b1). Spec l.431.
+                sensPm[o].setAutoSend (false);
+                sensPm[o].setRangeAndRound (0, 7, 0);
+                sensPm[o].getValueObject().referTo (valueTreeVoice.getPropertyAsValue (
+                    Identifier ("ELEMENT" + String (element) + "SPM" + String (o + 1)), &um));
+                sensPm[o].onValueChange = [this, o] { send18 (o); };
                 for (int k = 0; k < 4; ++k)
                 {
                     wireS (bpScl[o][k],  0x1C + k, 127, "BP"  + String (k + 1) + "_");
@@ -503,10 +506,14 @@ public:
                 velSw[o].setMidiSysex (sv);
                 velSw[o].getToggleStateValue().referTo (valueTreeVoice.getPropertyAsValue (
                     Identifier ("ELEMENT" + String (element) + "VELSW" + String (o + 1)), &um));
-                int sp[9] = { 0x43, 0X10, 0x34, 0x05, aH, 0x00, 0x0C, 0x00, 0x00 };     // FYPSW (élément)
-                pegSw[o].setMidiSysex (sp);
+                // PEG SW = PES (Pitch-EG Switch), PAR OPÉRATEUR, octet packé 0x18 b1 (spec l.432).
+                // CORRIGÉ : auparavant FYPSW group 0x05/0x0C = « Velocity Switch » du pitch-EG
+                // d'ÉLÉMENT (1 seul, spec l.356), avec une propriété PARTAGÉE -> 6 boutons / 1 état
+                // / aucun effet (mauvaise adresse). Maintenant : 6 états distincts, recompose 0x18.
+                pegSw[o].setAutoSend (false);
                 pegSw[o].getToggleStateValue().referTo (valueTreeVoice.getPropertyAsValue (
-                    Identifier ("ELEMENT" + String (element) + "PEGSW"), &um));
+                    Identifier ("ELEMENT" + String (element) + "PEGSW" + String (o + 1)), &um));
+                pegSw[o].onClick = [this, o] { send18 (o); };
             }
         }
         
@@ -543,6 +550,8 @@ public:
 
         // Route aussi l'algorithme de l'élément courant vers le panneau embarqué.
         algoPanel.setElementNumber(element, um);
+        // ... et le LFO (Main + Sub) de l'élément courant (group 0x05).
+        lfoPanel.setElementNumber(element, um);
     }
     
     void buttonClicked (Button* button) override
@@ -657,6 +666,7 @@ public:
         btZoomPrev.setVisible (zoom);
         btZoomNext.setVisible (zoom);
         algoPanel.setVisible (! zoom);   // panneau algo visible seulement en mode table
+        lfoPanel.setVisible (! zoom);    // panneau LFO visible seulement en mode table
         btZoomPrev.setEnabled (zoomOp > 0);
         btZoomNext.setEnabled (zoomOp >= 0 && zoomOp < 5);
 
@@ -686,8 +696,14 @@ public:
     void layoutTable()
     {
         auto content = getLocalBounds();
-        // Colonne droite : schéma d'algorithme (comme l'éditeur Atari d'origine).
-        algoPanel.setBounds (content.removeFromRight (algoPanelWidth()).reduced (6));
+        // Colonne droite : ALGORITHM en haut, puis MAIN/SUB LFO dessous (comme SynthWorks).
+        {
+            auto rightCol = content.removeFromRight (algoPanelWidth());
+            // L'algo a besoin de peu de hauteur (slider + schéma compact) ; le LFO prend le reste.
+            auto algoArea = rightCol.removeFromTop (jmax (150, rightCol.getHeight() * 42 / 100));
+            algoPanel.setBounds (algoArea.reduced (6));
+            lfoPanel.setBounds (rightCol.reduced (6, 2));
+        }
         const int headerH = tableHeaderH (content.getHeight());
         content.removeFromTop (headerH);
         const int rowH = tableRowH (content.getHeight());   // plafonnée, lignes calées en haut
@@ -870,7 +886,7 @@ private:
 
     // Panel détaillé (vue zoom) : sensibilités, switches, scaling — par opérateur (tableaux).
     MidiSlider sensVel[6], sensAm[6], sensPm[6];   // SENSIT VEL/AM/PM (params 0x11/0x10/0x18)
-    MidiButton velSw[6], pegSw[6];                 // VEL SW (RVSW 0x24), PEG SW (FYPSW elem 0x0C)
+    MidiButton velSw[6], pegSw[6];                 // VEL SW (RVSW 0x24), PEG SW (PES, octet packé 0x18 b1, par op)
     MidiSlider bpScl[6][4], offScl[6][4];          // SCALING : break-points (0x1C-1F) + offsets (0x20-23)
     Label lblSensVel { "", "Vel" }, lblSensAm { "", "AM" }, lblSensPm { "", "PM" },
           lblVelSw { "", "Vel SW" }, lblPegSw { "", "PEG SW" }, lblScaling { "", "Scaling (BP / Offset)" };
@@ -945,9 +961,48 @@ private:
 
     AfmWaveLookAndFeel waveLook;   // formes d'onde des 6 opérateurs (vraie image SY77, teintée au thème)
 
+    //==============================================================================
+    // OCTETS PACKÉS de l'opérateur AFM (Table 1-7) — composés ici, pas auto-envoyés.
+    //   0x18 : FMLPMS (M_LFO PM sens, b4~2) | PES (Pitch-EG switch, b1) | FPM (freq Mode, b0).
+    //          -> sensPm, pegSw, btFix écrivaient TOUS l'octet 0x18 en BRUT et s'écrasaient.
+    //   0x19 : KOE (init-phase set Enable = SYNC) en V1 b0 ; PHASE (0~127) en V2.
+    //          -> btPhase (sync) et sliderPhase (valeur) partagent le même frame V1/V2.
+    // On garde un cache par opérateur et on RECOMPOSE l'octet complet à chaque édition.
+    SysexBusSender packedSender;
+    int packedGroup[6] = { 0x56,0x46,0x36,0x26,0x16,0x06 };   // OP1..OP6
+    int packedAddrHi = 0;                                     // élément<<5 (posé dans setElementNumber)
+
+    // Octet 0x18 recomposé À PARTIR DE L'ÉTAT DES 3 WIDGETS de l'op (pas de cache à resynchroniser
+    // -> robuste au chargement de voix) : FMLPMS (sensPm b4~2) | PES (pegSw b1) | FPM (btFix b0).
+    void send18 (int op)
+    {
+        MidiButton* fix[6] = { &btFix1,&btFix2,&btFix3,&btFix4,&btFix5,&btFix6 };
+        const int pm   = (int) sensPm[op].getValue() & 0x07;
+        const int pes  = pegSw[op].getToggleState() ? 1 : 0;
+        const int fpm  = fix[op]->getToggleState() ? 1 : 0;
+        const int v    = (pm << 2) | (pes << 1) | fpm;
+        uint8 b[9] = { 0x43, 0x10, 0x34, (uint8) packedGroup[op], (uint8) packedAddrHi,
+                       0x00, 0x18, 0x00, (uint8) (v & 0x7F) };
+        packedSender.sendParam9 ("/SYSEX", b);
+    }
+    // Octet 0x19 recomposé : V1 = KOE/SYNC (btPhase) b0 ; V2 = PHASE (sliderPhase, 0~127).
+    void send19 (int op)
+    {
+        MidiButton* syn[6] = { &btPhase1,&btPhase2,&btPhase3,&btPhase4,&btPhase5,&btPhase6 };
+        MidiSlider* pha[6] = { &sliderPhase1,&sliderPhase2,&sliderPhase3,&sliderPhase4,&sliderPhase5,&sliderPhase6 };
+        const int koe = syn[op]->getToggleState() ? 1 : 0;
+        const int ph  = (int) pha[op]->getValue() & 0x7F;
+        uint8 b[9] = { 0x43, 0x10, 0x34, (uint8) packedGroup[op], (uint8) packedAddrHi,
+                       0x00, 0x19, (uint8) koe, (uint8) ph };
+        packedSender.sendParam9 ("/SYSEX", b);
+    }
+
     // Panneau algorithme embarqué (colonne droite) — réutilise toute la logique d'Operator
     // (sélecteur 1..45, schéma AlgoDraw, sysex ALGNUM avec offset -1). Masqué en mode zoom.
     Operator algoPanel;
+
+    // Panneau LFO (Main + Sub) — colonne droite, sous l'algo. Masqué en mode zoom.
+    AfmLfo lfoPanel;
 
     // Largeur réservée au panneau algorithme à droite ; layoutTable() et paintTable()
     // doivent utiliser la même valeur pour rester cohérents.

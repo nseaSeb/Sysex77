@@ -43,8 +43,21 @@ par élément, blocs cumulatifs (AFM 357 o. / AWM 112 o.) — testé sur type 8 
 > Sur 1224 voix, ~413 restantes = surtout **drum (type 10)**.
 
 Restant : **drum** (type 10) ; AWM filtre (chargement) + fine/fixed (encodage à lever) ;
-**FOS filtre (o/b 2 octets, layout bulk à confirmer)** ; PHASE/SYNC packé ; coarse/detune AFM
-négatif/packé (s/m) ; effets ; LFO. (Niveaux EG pitch/filtre o/b : **résolus**, recoupés lua.)
+**FOS filtre (o/b 2 octets, layout bulk à confirmer)** ; effets ; LFO (chargement dump).
+**Résolus 2026-06-25** : detune AFM s/m (envoi+affichage), coarse (offset retiré), octets packés
+0x18 (MODE/PES/PM recomposés) et 0x19 (SYNC/PHASE recomposés). Niveaux EG pitch/filtre o/b : résolus (lua).
+
+> **Boucle d'écho hardware (CORRIGÉE 2026-06-25)** : sur SY77 réel, l'app ré-émettait en
+> boucle les param-changes ÉCHOÉS par le synthé (oscillation A↔B incluant des params non
+> touchés). **Cause** : (1) le `valueSysexIn` reçu était notifié en ASYNCHRONE — l'application
+> aux widgets se faisait HORS de tout garde ; (2) `ComboBox::valueChanged` (JUCE) re-publie via
+> `setSelectedId(... sendNotification)` quand son currentId lié change. **Fix** : garde anti-écho
+> ATOMIQUE et RÉENTRANT (`ScopedEchoSuppress`, `SysexBus::suppressSend`) posé autour de
+> l'APPLICATION RX (notification rendue SYNCHRONE dans `MidiDemo::handleAsyncUpdate`), qui
+> SUPPRIME tout envoi widget→bus pendant l'application ; le replay de voice-load est aussi sous
+> garde (plus de flot non sollicité vers le synthé). Remplace l'ancien `boolStopReceive` global/
+> non thread-safe. Couvert par `Tests.h` (suite **EchoLoop**, 3 tests). Choke-point unique :
+> `SysexBus::publish`.
 
 ---
 
@@ -57,6 +70,7 @@ négatif/packé (s/m) ; effets ; LFO. (Niveaux EG pitch/filtre o/b : **résolus*
 | **Volume voix** | 🟡 | 🟢 | dump @95 ; group 0x02 / param 0x3F ; oracle SteelStrng `val(0x02,0x3F)==60` (Tests.h:238) |
 | **Niveau élément (ELVL)** | 🟡 | 🟢 | dump @98+9·e ; group 0x03 / param 0x00 ; oracle SteelStrng `val(0x03,0x00)==1` (Tests.h:239) |
 | Pan, niveaux d'envoi (rev/cho/var) | 🟡 | ⬜ | — |
+| **Groupe de sortie (OUTSEL, 0x08 b1/b2)** | 🟡 | ⬜ | **CÂBLÉ (#2)** : btGroup1/btGroup2 (Element.h) émettent l'octet PACKÉ group 0x03 / param 0x08 par élément (addrHi=(el-1)<<5). b1=OUTSEL0 (grp1), b2=OUTSEL1 (grp2), b0=MCTEN laissé 0. Avant : « rendu/état seul » → aucun envoi (les boutons ne faisaient rien). Spec OCR l.292-294 + carte `out sel@08`. Envoi au CLIC seulement ; non vérifié hardware |
 
 ## AFM — Élément commun (élément 1)
 
@@ -64,9 +78,10 @@ négatif/packé (s/m) ; effets ; LFO. (Niveaux EG pitch/filtre o/b : **résolus*
 |---|:---:|:---:|---|
 | **Algorithme (ALGNUM)** | 🟡 | 🟢 | dump **@377 confirmé** (diff single-param 16→1) ; oracle `val(0x05,0x00)==23` (Tests.h:234) |
 | **Pitch EG rates (FPR1-3, FPRR1)** | 🟡 | 🟢 | bloc N2-ordonné @base+271+ ; oracle SteelStrng `val(0x05,0x02)==16`, `val(0x05,0x03)==13` (Tests.h:249-250) |
-| **PEG switch (FYPSW)** | 🟡 | 🟡 | chargé param 0x0C (SysexUtils:213) ; pas d'oracle |
+| **PEG vel switch (FYPSW, élément)** | 🟡 | 🟡 | chargé param 0x05/0x0C ; **= « Velocity Switch » du pitch-EG d'élément** (1 par élément, spec OCR l.356), PAS le « PEG SW » par-op de la grille. Pas d'oracle |
 | **Pitch EG levels (FPL0-3, FPRL1, o/b)** | 🟡 | 🟢 | **chargés** group 0x05 N2 0x05-0x09 (SysexUtils, `voiceBlobToParams`). Encodage o/b offset 64 (`egLevelToDisplay`/`egLevelToWire`) **recoupé codec lua indépendant** (main.lua l.22 + TG77_Voice.json pNum 7005-7008 : display{-64,63}/message{0,127}/default 64). Éditeur aligné 0..64→0..127 (PitchEG.h) → corrige l'**envoi** (atteignait ½ plage). Oracle SteelStrng `val(0x05,0x05)==55` (Tests.h). NON vérifié hardware |
-| LFO 1 / LFO 2 | ⬜ | ⬜ | ni chargé ni câblé éditeur |
+| **Main LFO** (Speed/Delay/PMD/AMD/FMD/Wave/Phase) | 🟡 | ⬜ | éditeur câblé (`AfmLfo.h`) ; group 0x05 N2 0x0D-0x13 (Table 1-6, OCR l.357-364) ; non vérifié hardware ; chargement dump non branché |
+| **Sub LFO** (Wave/Speed/Mode/Time/PMD) | 🟡 | ⬜ | éditeur câblé (`AfmLfo.h`) ; group 0x05 N2 0x15-0x19 (Table 1-6, OCR l.366-371) ; Mode = delay/decay (bouton 2 états) ; non vérifié hardware ; chargement dump non branché |
 
 ## AFM — Opérateurs (élément 1, OP1→OP6)
 
@@ -77,16 +92,18 @@ négatif/packé (s/m) ; effets ; LFO. (Niveaux EG pitch/filtre o/b : **résolus*
 | EG levels L0-L4 | ✅ | 🟢 | |
 | EG levels RL1, RL2 | ✅ | 🟢 | |
 | **Niveau de sortie (TL)** | ✅ | 🟢 | Track A + aller-retour (6/6) |
-| Fine | ✅ | 🟢 | aller-retour @interne 44 (6/6) ; oracle `val(0x56,0x26)==46` (Tests.h) |
-| **Coarse (FPC)** | 🟡 | 🟢 | chargé interne 43 / param 0x25 (SysexUtils:179) ; **oracle SteelStrng** `val(0x56,0x25)==1` (Tests.h:228) |
-| **Waveform (PWAVE)** | 🟡 | 🟢 | chargé interne 24 / param 0x17 (SysexUtils:180) ; **oracle SteelStrng** `val(0x56,0x17)==15` (Tests.h:229) |
-| **Detune (FPD)** | 🟡 | 🟡 | chargé interne 28 / param 0x1A (SysexUtils:181) ; **pas d'oracle** (encodage négatif s/m non levé) |
-| **SENSIT (VEL/AM)** | 🟡 | 🟡 | chargé param 0x11/0x10 (SysexUtils:184), offsets bulk ESTIMÉS ; pas d'oracle |
-| **SCALING (BP1-4 + offset-levels)** | 🟡 | 🟡 | chargé param 0x1C-1F / 0x20-23 (SysexUtils:186-187) ; pas d'oracle |
-| **VEL SW (RVSW)** | 🟡 | 🟡 | chargé param 0x24 (SysexUtils:188) ; pas d'oracle |
+| Fine (FPF, 0x26) | 🟢 | 🟢 | **CORRIGÉ plage** : colonne FINE (`sliderFreqFine*`) bornée **0..127** (octet brut, display==wire) au lieu de 0..99 — la carte TG77 vérifiée hardware (`FINE OP*`, pNum *038=0x26) borne 0..127. L'ancien 0..99 rendait 100..127 inatteignables et faussait la barre (#3). Chargement : oracle dump `val(0x56,0x26)==46` (Tests.h) |
+| **Coarse (FPC)** | 🟢 | 🟢 | **CORRIGÉ** : envoi octet brut 0..127, AUCUN offset (retrait du `setMidiValueOffset(-1)` qui rendait display 0 → wire 127). Aligné sur l'éditeur TG77 vérifié hardware (`COARSE OP*` display==message 0..127). Oracle dump `val(0x56,0x25)==1` |
+| **Waveform (PWAVE)** | 🟡 | 🟢 | chargé interne 24 / param 0x17 ; **oracle SteelStrng** `val(0x56,0x17)==15` |
+| **Detune (FPD)** | 🟢 | 🟢 | **CORRIGÉ** : encodage s/m activé (slider `setRangeAndRound(-15,15)` → chemin boolNegative). Pures `fpdDetuneToWire/Display` (SysexUtils) + test (Tests.h, half=15 signbit=16). Provenance hardware : main.lua l.45 `SM[*+0x1A]={15,16}` + OCR l.438. La trace SY77 (wire 29/30) = display -13/-14, désormais affichée/envoyée correctement |
+| **SENSIT (VEL/AM)** | 🟡 | 🟡 | chargé param 0x11/0x10, offsets bulk ESTIMÉS ; pas d'oracle |
+| **SENSIT PM (FMLPMS, 0x18 b4~2)** | 🟢 | ⬜ | **CORRIGÉ** : recompose l'octet packé 0x18 (auto-send OFF, plage 0..7) au lieu d'envoyer 0..31 brut qui écrasait MODE/PES. Spec OCR l.431 |
+| **SCALING (BP1-4 + offset-levels)** | 🟡 | 🟡 | chargé param 0x1C-1F / 0x20-23 ; pas d'oracle |
+| **VEL SW (RVSW)** | 🟡 | 🟡 | chargé param 0x24 ; pas d'oracle |
 | RS / Slope / HT | ❓ | ⬜ | interne 15 = constante dans le dump → offset à revoir |
-| Freq MODE (Fixed/Ratio, PM 0x18) | ⬜ | ⬜ | NON chargé : packé avec SENSIT → bit-split à faire (SysexUtils:184) |
-| PHASE / SYNC (0x19) | ⬜ | ⬜ | NON chargé : octet packé phase+sync → extraction de bits à faire (SysexUtils:189) |
+| **Freq MODE (Fixed/Ratio, FPM 0x18 b0)** | 🟢 | ⬜ | **CORRIGÉ collision 0x18** : MODE/PES/PM recomposent désormais l'octet 0x18 complet (`Oscillator::send18`, lit l'état des 3 widgets → robuste). Spec OCR l.433. Chargement dump non branché (octet packé) |
+| **PHASE / SYNC (0x19)** | 🟢 | ⬜ | **CORRIGÉ** : V1 b0 = KOE/SYNC (btPhase), V2 = PHASE 0..127 (sliderPhase) recomposés en un frame (`Oscillator::send19`). Spec OCR l.435-436. Auparavant sync et phase s'écrasaient (et copier-coller `sliderFine4` corrigé). Chargement dump non branché |
+| **PEG SW par-op (PES, 0x18 b1)** | 🟢 | ⬜ | **CORRIGÉ** : la grille « PEG SW » (6 boutons) = Pitch-EG Switch PAR OPÉRATEUR (spec OCR l.432), recompose l'octet 0x18 b1 (`Oscillator::send18`). Avant : câblé sur FYPSW (group 0x05/0x0C, switch d'ÉLÉMENT) avec une propriété PARTAGÉE → 6 boutons/1 état/aucun effet. Maintenant 6 états distincts, propriété `ELEMENT<e>PEGSW<o>` |
 
 ## Filtres (filtre 1 & 2, élément AFM)
 
@@ -123,6 +140,9 @@ sur le type mixte 8.
 | **Amp-EG (PAR1-4, PARR1, PAL2-3)** | 🟡 | 🟢 | dump @base+89.. param 0x50-0x56 ; **oracle TARKUSCYMB** (Tests.h:317-323) ; câblé WaveEg mode AWM |
 | Niveau élément (ELVL) | 🟡 | 🟢 | commun, cf. Voice Common ; oracle TARKUSCYMB `val(0x03,0,0x00)==127` (Tests.h:314) |
 | Fine / Fixed / PARS (s/m) / filtre AWM | 🟡 | ⬜ | encodage à lever → NON chargé (filtre AWM câblé édition seulement) |
+| **PPM (Fixed mode, 0x02)** | 🟡 | ⬜ | câblé `btFixed` (AWMVue.h) group 0x07 N2 0x02 ; spec OCR l.487 ; non vérifié hardware |
+| **PNOTE (fixed note#, 0x03)** | ❓ | ⬜ | **PAS de contrôle** dans l'éditeur (group 0x07 N2 0x03, 0~127, OCR l.488). La trace `07/2n/03` en mode fixed = note de hauteur fixe ; à exposer après confirmation hardware (#4) |
+| **PPF (fine, 0x04, o/b)** | ⚠️ | ⬜ | câblé `sliderFine` (AWMVue.h) N2 0x04, mais via le chemin **boolNegative/boolInvert** (s/m-like) alors que la spec dit **offset-binary** (`-64~+63 (o/b)`, OCR l.489) → encodage de l'envoi à CONFIRMER hardware (#4). Non modifié (pas de devinette) |
 
 ---
 

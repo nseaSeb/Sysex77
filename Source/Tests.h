@@ -10,6 +10,71 @@
 
 #pragma once
 #include "SysexUtils.h"
+#include "SysexBus.h"
+
+//==============================================================================
+/** Boucle d'écho éditeur<->synthé : le garde anti-écho doit empêcher TOUT envoi
+    sur le bus pendant l'application d'un message param-change reçu (RX).
+    On simule un widget qui RÉ-ÉMET en réaction à la réception : avec le garde,
+    aucun message ne doit atteindre l'abonné du bus -> la boucle est coupée. */
+struct EchoLoopTests : public juce::UnitTest
+{
+    EchoLoopTests() : juce::UnitTest ("EchoLoop") {}
+
+    void runTest() override
+    {
+        auto& bus = SysexBus::get();
+        auto savedHandler = bus.onMessage;     // restauré en fin de test (abonné réel = MidiDemo)
+        const int savedDepth = bus.suppressSend.load();
+
+        int published = 0;
+        bus.onMessage = [&published] (const juce::OSCMessage&) { ++published; };
+        bus.suppressSend.store (0);
+
+        SysexBusSender sender;
+        juce::uint8 b[9] = { 0x43, 0x10, 0x34, 0x56, 0x00, 0x00, 0x19, 0x00, 0x00 };
+
+        beginTest ("send passes through when not suppressed");
+        {
+            published = 0;
+            sender.sendParam9 ("/SYSEX", b);
+            expectEquals (published, 1);
+        }
+
+        beginTest ("a received param applied under the guard re-emits NOTHING");
+        {
+            published = 0;
+            {
+                // Simule l'application d'un message RX : un widget ré-émet en cascade.
+                const ScopedEchoSuppress noEcho;
+                sender.sendParam9 ("/SYSEX", b);   // ré-émission widget -> doit être supprimée
+                sender.sendParam9 ("/SYSEX", b);
+            }
+            expectEquals (published, 0);           // AUCUN renvoi vers le synthé -> pas d'écho
+        }
+
+        beginTest ("guard is reentrant (nested), send resumes only at depth 0");
+        {
+            published = 0;
+            {
+                const ScopedEchoSuppress a;
+                {
+                    const ScopedEchoSuppress nested;
+                    sender.sendParam9 ("/SYSEX", b);
+                }
+                sender.sendParam9 ("/SYSEX", b);   // toujours sous le garde externe -> supprimé
+                expectEquals (published, 0);
+            }
+            sender.sendParam9 ("/SYSEX", b);       // garde dépilé -> envoi rétabli
+            expectEquals (published, 1);
+        }
+
+        bus.onMessage = savedHandler;              // ne pas laisser un abonné parasite
+        bus.suppressSend.store (savedDepth);
+    }
+};
+
+static EchoLoopTests echoLoopTests;
 
 //==============================================================================
 struct SysexUtilsTests : public juce::UnitTest
@@ -334,6 +399,31 @@ struct SysexUtilsTests : public juce::UnitTest
             // Bornage : un display hors plage ne déborde jamais l'octet filaire 7 bits.
             expectEquals ((int) SyVoice::egLevelToWire (200), 127);
             expectEquals ((int) SyVoice::egLevelToWire (-200), 0);
+        }
+
+        beginTest ("fpdDetuneToWire/Display — détune s/m inversible + valeurs lua (half=15 signbit=16)");
+        {
+            // Inversibilité sur la plage d'affichage -15..+15.
+            for (int d = -15; d <= 15; ++d)
+                expectEquals (SyVoice::fpdDetuneToDisplay (SyVoice::fpdDetuneToWire (d)), d);
+
+            // Valeurs ANCRES (main.lua l.45 : SM[op*1000+0x1A] = {15,16} ; OCR l.438 « FPD -15~+15 s/m »).
+            expectEquals ((int) SyVoice::fpdDetuneToWire (0),   0);    // 0 -> 0
+            expectEquals ((int) SyVoice::fpdDetuneToWire (15),  15);   // +max -> 15
+            expectEquals ((int) SyVoice::fpdDetuneToWire (-1),  17);   // signbit 16 | 1
+            expectEquals ((int) SyVoice::fpdDetuneToWire (-15), 31);   // signbit 16 | 15
+            // L'octet filaire 29/30 vu dans la trace SY77 = display -13/-14 (16|13, 16|14).
+            expectEquals (SyVoice::fpdDetuneToDisplay (29), -13);
+            expectEquals (SyVoice::fpdDetuneToDisplay (30), -14);
+            expectEquals (SyVoice::fpdDetuneToDisplay (15),  15);
+            expectEquals (SyVoice::fpdDetuneToDisplay (0),    0);
+            // Concorde EXACTEMENT avec le chemin boolNegative de MidiSlider (intNegativeDelta=17, ~v) :
+            //   TX d<0 : (~d)+17 == 16|(-d). Vérifie l'équivalence pour toute la plage négative.
+            for (int d = -15; d <= -1; ++d)
+                expectEquals ((int) SyVoice::fpdDetuneToWire (d), (~d) + 17);
+            // Bornage.
+            expectEquals ((int) SyVoice::fpdDetuneToWire (100),  15);
+            expectEquals ((int) SyVoice::fpdDetuneToWire (-100), 31);
         }
 
         beginTest ("voiceBlobToParams decodes confirmed AFM operator params (SteelStrng)");

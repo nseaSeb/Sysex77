@@ -41,6 +41,16 @@ if ! command -v cmake >/dev/null 2>&1; then
     exit 1
 fi
 
+# Auto-bump du dernier segment de version AVANT chaque build, pour que la version
+# affichée (barre de titre / onglet Setting) corresponde toujours au binaire compilé
+# -> on parle toujours du même build (1.2.0-dev -> 1.2.1-dev -> ...). Cf. ROADMAP.
+VERSION_FILE="Source/Version.h"
+if [[ -f "$VERSION_FILE" ]] && command -v perl >/dev/null 2>&1; then
+    perl -i -pe 's{(kVersion\s*=\s*"\d+\.\d+\.)(\d+)(.*?")}{ $1 . ($2 + 1) . $3 }e' "$VERSION_FILE"
+    NEWVER="$(perl -ne 'print $1 if /kVersion\s*=\s*"([^"]+)"/' "$VERSION_FILE")"
+    echo "==> Version : ${NEWVER:-?} (auto-bump)"
+fi
+
 CMAKE_ARGS=(-B "$BUILD_DIR" -DCMAKE_BUILD_TYPE="$BUILD_TYPE")
 if [[ -n "${JUCE_DIR:-}" ]]; then
     CMAKE_ARGS+=(-DJUCE_DIR="$JUCE_DIR")

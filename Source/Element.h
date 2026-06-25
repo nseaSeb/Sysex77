@@ -466,6 +466,31 @@ public:
             valueTreeVoice.setProperty (g1id, true, nullptr);
         btGroup1.getToggleStateValue().referTo (valueTreeVoice.getPropertyAsValue (g1id, &undoManager));
         btGroup2.getToggleStateValue().referTo (valueTreeVoice.getPropertyAsValue (g2id, &undoManager));
+
+        // --- Routage de sortie (OUTSEL) -> sysex group 0x03, OCTET PACKÉ 0x08 ---------------
+        // Spec Table 1-4 (sy77midi_ocr.txt l.292-294) + carte project-sy77-addresses.md :
+        //   group 0x03, param 0x08 = MCTEN (b0, micro-tuning) | OUTSEL0 (b1) | OUTSEL1 (b2).
+        // Auparavant les 2 bascules étaient « rendu/état seul » (aucun envoi) -> elles ne
+        // faisaient RIEN sur le synthé (problème #2). On compose l'octet complet à partir de
+        // l'état des deux boutons (comme send18/19 des opérateurs AFM) et on émet par élément.
+        // addrHi = (élément-1)<<5 (0x00/0x20/0x40/0x60).
+        outSelAddrHi = (operatorID - 1) << 5;
+        btGroup1.onClick = [this] { sendOutSel(); };
+        btGroup2.onClick = [this] { sendOutSel(); };
+    }
+
+    // Émet l'octet packé OUTSEL (group 0x03, param 0x08) recomposé depuis les 2 bascules.
+    // b1 = OUTSEL0 (groupe 1), b2 = OUTSEL1 (groupe 2). b0 (MCTEN, micro-tuning) laissé à 0 :
+    // non édité ici (pas de widget). Statut MAP : 🟡 (câblé d'après spec+carte, à confirmer
+    // hardware). L'envoi ne part qu'au CLIC utilisateur (jamais au chargement) -> sécurité.
+    void sendOutSel()
+    {
+        const int outsel0 = btGroup1.getToggleState() ? 1 : 0;   // b1
+        const int outsel1 = btGroup2.getToggleState() ? 1 : 0;   // b2
+        const int v = (outsel1 << 2) | (outsel0 << 1);           // b0 (MCTEN) = 0
+        juce::uint8 b[9] = { 0x43, 0x10, 0x34, 0x03, (juce::uint8) outSelAddrHi,
+                             0x00, 0x08, 0x00, (juce::uint8) (v & 0x7F) };
+        outSelSender.sendParam9 ("/SYSEX", b);
     }
 
    int getOpNumber ()
@@ -695,6 +720,8 @@ private:
     Slider sliderPan {Slider::SliderStyle::LinearVertical , Slider::NoTextBox};
     TextButton  btGroup1 {"1"};
     TextButton btGroup2 {"2"};
+    SysexBusSender outSelSender;   // envoi OUTSEL (group 0x03, octet packé 0x08) — cf. sendOutSel
+    int outSelAddrHi = 0;          // (élément-1)<<5, posé dans setOpNumber
 
     GroupComponent groupWave{"","Wave"};
     GroupComponent groupFilter{"",TRANS("Filter")};

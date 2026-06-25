@@ -127,6 +127,8 @@ static int sysexModel;
 static int  sysexDeviceNumber = 1;     // 1..16 ; octet émis = 0x10 | (n-1)
 static bool sysexReceiveOmni  = false; // "ALL" : accepte les messages entrants de tout device
 static bool followSynth       = false; // "Suivre le synthé" : ouvre la vue du paramètre reçu
+static bool monitorRaw        = false; // moniteur : false = décodé (G/AH/AL/P/val), true = octets bruts hex
+static bool midiThru          = false; // MIDI Thru : renvoie l'entrée vers la/les sortie(s). OFF par défaut (écrit vers le synthé)
 static juce::String lastMonitorKey;    // moniteur compact : dédup des param-changes par adresse
 static     float fAngle = -90 * (juce::MathConstants<float>::pi  / 180.0); //Radiant to draw at 90°
 File appDirPath = File::getSpecialLocation(File::userApplicationDataDirectory ).getChildFile("Application Support/Sysex77");
@@ -315,10 +317,42 @@ struct MidiSettingsPage : public Component
 
         // Moniteur : effacer + copier (pratique pour la rétro-ingénierie).
         addAndMakeVisible (clearBtn);
-        clearBtn.onClick = [this] { monitorRef.clear(); lastMonitorKey = {}; };
+        clearBtn.onClick = [this] { monitorRef.clear(); lastMonitorKey = {}; if (onClearHistory) onClearHistory(); };
         addAndMakeVisible (copyBtn);
         copyBtn.onClick = [this] { juce::SystemClipboard::copyTextToClipboard (monitorRef.getText()); };
+
+        // Toggle "Raw / Interprété" : bascule l'affichage du moniteur entre octets bruts (hex)
+        // et forme décodée (G/AH/AL/P/val). Persisté. Re-rend l'historique -> s'applique aussi
+        // aux lignes déjà listées (cf. MidiDemo::rebuildMonitorFromHistory).
+        addAndMakeVisible (rawBtn);
+        monitorRaw = getAppSettings()->getBoolValue ("MonitorRaw", false);
+        rawBtn.setToggleState (monitorRaw, dontSendNotification);
+        rawBtn.setColour (ToggleButton::tickColourId, SYColSelected);
+        rawBtn.onClick = [this]
+        {
+            monitorRaw = rawBtn.getToggleState();
+            getAppSettings()->setValue ("MonitorRaw", monitorRaw);
+            getAppSettings()->saveIfNeeded();
+            if (onRawToggled) onRawToggled();   // re-rend le moniteur dans le nouveau mode
+        };
+
+        // Toggle "Thru" (MIDI Thru) : renvoie l'entrée MIDI vers la/les sortie(s) sélectionnée(s).
+        // OFF PAR DÉFAUT et NON persisté à ON par surprise (sécurité hardware : écrit vers le synthé).
+        addAndMakeVisible (thruBtn);
+        midiThru = getAppSettings()->getBoolValue ("MidiThru", false);
+        thruBtn.setToggleState (midiThru, dontSendNotification);
+        thruBtn.setColour (ToggleButton::tickColourId, SYColSelected);
+        thruBtn.onClick = [this]
+        {
+            midiThru = thruBtn.getToggleState();
+            getAppSettings()->setValue ("MidiThru", midiThru);
+            getAppSettings()->saveIfNeeded();
+        };
     }
+
+    // Câblés par MidiDemo (qui possède le moniteur et l'historique des messages).
+    std::function<void()> onRawToggled;    // re-rend le moniteur (changement Raw/Interprété)
+    std::function<void()> onClearHistory;  // vide l'historique borné (bouton Clear)
 
     void resized() override
     {
@@ -340,7 +374,11 @@ struct MidiSettingsPage : public Component
         reBtn     .setBounds (half + m, rowY + 56, half - 2*m, 24);
         reReadBtn .setBounds (m,        rowY + 82, getWidth() - 2*m, 24);
 
-        const int my = rowY + 112;
+        // Toggles d'affichage/transit du moniteur, côte à côte au-dessus du moniteur.
+        rawBtn .setBounds (m,        rowY + 108, half - 2*m, 22);
+        thruBtn.setBounds (half + m, rowY + 108, half - 2*m, 22);
+
+        const int my = rowY + 138;
         clearBtn.setBounds (getWidth() - m - 80,            my, 80, 22);
         copyBtn .setBounds (getWidth() - m - 80 - 6 - 80,   my, 80, 22);
         monLab  .setBounds (m, my, getWidth() - 2*m - 172, 24);
@@ -362,6 +400,8 @@ struct MidiSettingsPage : public Component
     Label&      monLab;
     TextEditor& monitorRef;
     ToggleButton followBtn { "Suivre le synthe : ouvrir la vue du parametre recu depuis le SY77" };
+    ToggleButton rawBtn    { "Moniteur : octets bruts (hex) au lieu de la forme decodee" };
+    ToggleButton thruBtn   { "MIDI Thru : renvoyer l'entree vers la sortie (ecrit vers le synthe)" };
     TextButton   diffBtn   { "Diff 2 dumps (.syx)..." };
     TextButton   reBtn     { "RE fingerprint -> CSV" };
     TextButton   reReadBtn { "RE lire valeurs -> CSV" };
@@ -413,6 +453,20 @@ public:
             getAppSettings()->saveIfNeeded();
             resized();
         };
+
+        // Sélecteurs de ports MIDI in/out TOUJOURS VISIBLES (à gauche du toggle clavier).
+        // Réutilisent la gestion de ports existante (cf. showMidiPortMenu) -> cohérence totale
+        // avec l'onglet Midi Setting. Au-dessus des onglets (sinon le clic part dans la barre).
+        for (TextButton* b : { &btMidiIn, &btMidiOut })
+        {
+            addAndMakeVisible (*b);
+            b->setAlwaysOnTop (true);
+            b->setColour (TextButton::ColourIds::buttonOnColourId, SYColSelected);
+        }
+        btMidiIn .setTooltip ("Ports MIDI d'entrée (réception du synthé)");
+        btMidiOut.setTooltip ("Ports MIDI de sortie (envoi vers le synthé)");
+        btMidiIn .onClick = [this] { showMidiPortMenu (true,  btMidiIn);  };
+        btMidiOut.onClick = [this] { showMidiPortMenu (false, btMidiOut); };
 
         midiKeyboard.setName ("MIDI Keyboard");
         addAndMakeVisible (midiKeyboard);
@@ -596,6 +650,11 @@ public:
             midiMonitor.insertTextAtCaret ("\n[RE] valeurs: " + juce::String (counter) + " controles -> " + csv.getFullPathName() + "\n");
         };
 
+        // Moniteur : bascule Raw/Interprété -> re-rend tout l'historique borné dans le nouveau mode.
+        midiSettingsPage->onRawToggled   = [this] { rebuildMonitorFromHistory(); };
+        // Bouton Clear : vide aussi l'historique borné (sinon un re-render le ferait réapparaître).
+        midiSettingsPage->onClearHistory = [this] { monitorHistory.clearQuick(); };
+
         // Barre de navigation visible dès le démarrage (on n'atterrit plus sur une vue
         // sans menu). On ouvre "Midi Setting" en premier : choix de l'interface.
         tabs.setVisible(true);
@@ -656,6 +715,26 @@ public:
         // plus besoin de masquer la barre de navigation à sa sélection.
         updateDeviceList (true);
         updateDeviceList (false);
+        refreshMidiPortButtons();   // tient à jour le compteur de ports ouverts (hot-plug inclus)
+    }
+
+    // Met l'état des ports ouverts dans le libellé des sélecteurs compacts ("In", "In·2"…).
+    // Lit la MÊME source de vérité (midiInputs/midiOutputs) que l'onglet -> toujours cohérent.
+    void refreshMidiPortButtons()
+    {
+        auto openCount = [] (const ReferenceCountedArray<MidiDeviceListEntry>& devs, bool isInput)
+        {
+            int n = 0;
+            for (auto& d : devs)
+                if (isInput ? d->inDevice.get() != nullptr : d->outDevice.get() != nullptr) ++n;
+            return n;
+        };
+        const int nin = openCount (midiInputs, true), nout = openCount (midiOutputs, false);
+        btMidiIn .setButtonText (nin  > 0 ? "In·"  + String (nin)  : String ("In"));
+        btMidiOut.setButtonText (nout > 0 ? "Out·" + String (nout) : String ("Out"));
+        // Allume le bouton (couleur ON du thème) si au moins un port est ouvert dans ce sens.
+        btMidiIn .setToggleState (nin  > 0, dontSendNotification);
+        btMidiOut.setToggleState (nout > 0, dontSendNotification);
     }
     
     //==============================================================================
@@ -764,10 +843,66 @@ public:
 
         // Bouton de toggle calé à droite, sur la rangée d'onglets (barre de nav en bas).
         const int barTop = tabs.getBottom() - 32; // 32 = profondeur de la barre d'onglets
-        btToggleKeyboard.setBounds (getWidth() - margin - 70, barTop + 3, 70, 26);
+        const int toggleX = getWidth() - margin - 70;
+        btToggleKeyboard.setBounds (toggleX, barTop + 3, 70, 26);
         btToggleKeyboard.toFront (false); // au-dessus de la barre d'onglets (sinon le clic part dans les onglets)
+
+        // Sélecteurs in/out TOUJOURS VISIBLES, à GAUCHE du toggle clavier, sur la même rangée.
+        // Compacts (54 px) ; ordre [In][Out][Clavier] de gauche à droite.
+        const int selW = 54, gap = 4;
+        const int outX = toggleX - gap - selW;
+        const int inX  = outX  - gap - selW;
+        btMidiIn .setBounds (inX,  barTop + 3, selW, 26);
+        btMidiOut.setBounds (outX, barTop + 3, selW, 26);
+        btMidiIn .toFront (false);
+        btMidiOut.toFront (false);
     }
-    
+
+    // Sélecteur de ports compact (bandeau bas) : PopupMenu à cases cochables (multi-sélection).
+    // RÉUTILISE la gestion de ports existante -> SOURCE DE VÉRITÉ UNIQUE partagée avec l'onglet
+    // Midi Setting : mêmes listes (midiInputs/midiOutputs), mêmes openDevice/closeDevice, même
+    // persistance (saveEnabledDevices -> MidiInDevices/MidiOutDevices). Après bascule, on re-synchronise
+    // la ListBox de l'onglet (syncSelectedItemsWithDeviceList) -> les deux vues restent COHÉRENTES.
+    void showMidiPortMenu (bool isInput, Component& anchor)
+    {
+        auto& devices = isInput ? midiInputs : midiOutputs;
+
+        PopupMenu menu;
+        menu.addSectionHeader (isInput ? "Entrées MIDI" : "Sorties MIDI");
+        if (devices.isEmpty())
+            menu.addItem (-1, "(aucun périphérique)", false, false);
+
+        for (int i = 0; i < devices.size(); ++i)
+        {
+            const bool isOpen = isInput ? devices[i]->inDevice.get()  != nullptr
+                                        : devices[i]->outDevice.get() != nullptr;
+            // itemID = index+1 (0 = menu annulé) ; ticked = port ouvert ; toggle au clic.
+            menu.addItem (i + 1, devices[i]->deviceInfo.name, true, isOpen);
+        }
+
+        menu.showMenuAsync (PopupMenu::Options().withTargetComponent (&anchor),
+                            [this, isInput] (int result)
+        {
+            if (result <= 0) return;                       // menu annulé / item désactivé
+            const int index = result - 1;
+            auto& devs = isInput ? midiInputs : midiOutputs;
+            if (! isPositiveAndBelow (index, devs.size())) return;
+
+            const bool isOpen = isInput ? devs[index]->inDevice.get()  != nullptr
+                                        : devs[index]->outDevice.get() != nullptr;
+            if (isOpen) closeDevice (isInput, index);      // bascule : ouvre/ferme le port
+            else        openDevice  (isInput, index);
+
+            saveEnabledDevices (isInput);                  // persistance (même clé que l'onglet)
+
+            // Reflète l'état dans la ListBox de l'onglet Midi Setting -> vues cohérentes.
+            if (auto* sel = isInput ? midiInputSelector.get() : midiOutputSelector.get())
+                sel->syncSelectedItemsWithDeviceList (isInput ? midiInputs : midiOutputs);
+
+            refreshMidiPortButtons();   // met à jour le libellé/état des sélecteurs compacts
+        });
+    }
+
     void openDevice (bool isInput, int index)
     {
         if (isInput)
@@ -959,29 +1094,124 @@ private:
     {
         return Array<var>(values...);
     }
+    // Octets bruts d'un message MIDI en hex ("F0 43 10 …"). Sysex inclut F0/F7.
+    static String midiBytesToHex (const MidiMessage& m)
+    {
+        const uint8* d = m.getRawData();
+        const int n = m.getRawDataSize();
+        String s;
+        for (int i = 0; i < n; ++i)
+            s << String::toHexString (d[i]).paddedLeft ('0', 2).toUpperCase() << (i + 1 < n ? " " : "");
+        return s;
+    }
+
+    // Rend UNE ligne de moniteur pour un message, selon le mode courant (brut/décodé).
+    // Retourne false si le message doit être OMIS (bruit filtré, ou dédup en mode décodé).
+    // `dedup` porte l'état de dédup entre appels (en mode décodé : une ligne par adresse).
+    bool formatMonitorLine (const MidiMessage& message, String& out, String& dedup)
+    {
+        // --- Mode BRUT : chaque message en hex, AUCUNE déduplication (on veut tout voir).
+        if (monitorRaw)
+        {
+            out << midiBytesToHex (message) << "\n";
+            return true;
+        }
+
+        // --- Mode DÉCODÉ : param-change SY77 9 octets -> G/AH/AL/P/val, dédup par adresse.
+        if (message.getSysExDataSize() == 9)
+        {
+            const uint8* d = message.getSysExData();
+            if (d[0] == 0x43 && d[2] == 0x34
+                && SyVoice::acceptsDevice (d[1], sysexDeviceNumber, sysexReceiveOmni))
+            {
+                const String key = String (d[3]) + "." + String (d[4]) + "."
+                                 + String (d[5]) + "." + String (d[6]);
+                if (key == dedup) return false;          // même adresse que la précédente -> omise
+                dedup = key;
+                auto hx = [] (int v) { return String::toHexString (v).paddedLeft ('0', 2); };
+                out << ">> SY77  G=" << hx (d[3])
+                    << "  AH=" << hx (d[4]) << "  AL=" << hx (d[5])
+                    << "  P="  << hx (d[6])
+                    << "   val=" << (int) d[8] << " (0x" << hx (d[8]) << ")\n";
+                return true;
+            }
+            return false; // sysex 9 octets non-SY77 : pas de description brute en mode décodé
+        }
+
+        // Bruit filtré pour la RE : CC data-entry, horloge, active-sense, transport.
+        if (message.isController() || message.isMidiClock() || message.isActiveSense()
+            || message.isMidiStart() || message.isMidiContinue() || message.isMidiStop()
+            || message.isSongPositionPointer())
+            return false;
+
+        out << message.getDescription() << "\n";
+        return true;
+    }
+
+    // Re-rend tout le moniteur depuis l'historique borné (ex. au changement Raw/Interprété).
+    // Reproduit la dédup « par adresse » du flux temps réel (clé réinitialisée au début).
+    void rebuildMonitorFromHistory()
+    {
+        String text, dedup;
+        for (auto& m : monitorHistory)
+        {
+            String line;
+            if (formatMonitorLine (m, line, dedup))
+                text << line;
+        }
+        midiMonitor.clear();
+        midiMonitor.setText (text, dontSendNotification);
+        lastMonitorKey = dedup;   // poursuit la dédup pour les messages suivants
+        midiMonitor.moveCaretToEnd();
+    }
+
     void handleAsyncUpdate() override
     {
         // This is called on the message loop
-        
+
         {
             const ScopedLock sl (midiMonitorLock);
             messages.swapWith (incomingMessages);
-            
+
         }
-        
+
         String messageText;
-        
+
         for (auto& message : messages)
         {
-            if(message.getSysExDataSize()==9)
+            // --- MIDI Thru : renvoie l'entrée reçue vers la/les sortie(s) sélectionnée(s). ---
+            // Forward EXPLICITE, distinct du chemin widget->bus : il appelle directement
+            // sendToOutputs (PAS SysexBus::publish), donc le ScopedEchoSuppress (qui ne garde
+            // QUE publish) ne l'avale jamais. Et comme on ne forwarde QUE des messages reçus
+            // en ENTRÉE (jamais ceux que l'app émet elle-même), le Thru ne re-forwarde pas nos
+            // propres envois -> pas de boucle créée par l'app (cf. compte-rendu : seul un
+            // soft-thru du synthé pourrait boucler, ce que l'utilisateur assume en activant Thru).
+            if (midiThru && ! message.isActiveSense())
+                sendToOutputs (message);
+
+            // Historique borné pour pouvoir RE-RENDRE le moniteur au changement de mode.
+            monitorHistory.add (message);
+            if (monitorHistory.size() > kMonitorHistoryMax)
+                monitorHistory.removeRange (0, monitorHistory.size() - kMonitorHistoryMax);
+
+            // Application aux widgets : UNIQUEMENT pour les param-changes SY77 9 octets adressés.
+            if (message.getSysExDataSize() == 9)
             {
-                memcpy(&data, message.getSysExData(), message.getSysExDataSize());
-                // Message paramétrique SY77 (0x43 .. 0x34) ET adressé au device sélectionné
-                // (ou tout device en mode ALL). On ignore le reste (autres machines/canaux).
+                memcpy (&data, message.getSysExData(), message.getSysExDataSize());
                 if (data[0] == 0x43 && data[2] == 0x34
                     && SyVoice::acceptsDevice (data[1], sysexDeviceNumber, sysexReceiveOmni))
                 {
+                    // ANTI-ÉCHO : on APPLIQUE le param reçu (mise à jour des widgets) sous
+                    // suppression d'envoi. Tout widget qui ré-émettrait en cascade (combo,
+                    // octet packé recomposé, etc.) est neutralisé -> pas de renvoi vers le
+                    // SY77, donc pas de ré-écho -> la boucle A↔B est coupée à la source.
+                    const ScopedEchoSuppress noEcho;
+                    // Notification SYNCHRONE (true) : les widgets s'appliquent ICI, DANS la
+                    // portée du garde anti-écho. La notification ASYNC par défaut de Value
+                    // s'exécuterait APRÈS destruction du garde -> un éventuel ré-envoi
+                    // échapperait à la suppression (c'était le trou de la boucle d'écho).
                     valueSysexIn = make_var_array(data[3], data[4],data[5],data[6],data[7],data[8]);
+                    valueSysexIn.getValueSource().sendChangeMessage (true);
 
                     // "Suivre le synthé" : ouvre la vue correspondant au groupe reçu, pour que
                     // le paramètre modifié sur le SY77 soit visible (sa valeur s'y met à jour).
@@ -996,36 +1226,17 @@ private:
                         if (target >= 0 && tabs.getCurrentTabIndex() != target)
                             tabs.setCurrentTabIndex (target);
                     }
-
-                    // Moniteur COMPACT : une SEULE ligne par adresse (G/AH/AL/P) touchée.
-                    // Un balayage de valeurs sur le même paramètre = une ligne (on imprime
-                    // uniquement quand l'adresse change). Évite le déluge de lignes.
-                    const String key = String (data[3]) + "." + String (data[4]) + "."
-                                     + String (data[5]) + "." + String (data[6]);
-                    if (key != lastMonitorKey)
-                    {
-                        lastMonitorKey = key;
-                        auto hx = [] (int v) { return String::toHexString (v).paddedLeft ('0', 2); };
-                        messageText << ">> SY77  G=" << hx (data[3])
-                                    << "  AH=" << hx (data[4]) << "  AL=" << hx (data[5])
-                                    << "  P="  << hx (data[6])
-                                    << "   val=" << (int) data[8] << " (0x" << hx (data[8]) << ")\n";
-                    }
                 }
-                continue; // bloc sysex 9 octets : pas de description brute (déjà décodé ci-dessus)
             }
 
-            // Bruit filtré pour la RE : CC data-entry, horloge, active-sense, transport.
-            if (message.isController() || message.isMidiClock() || message.isActiveSense()
-                || message.isMidiStart() || message.isMidiContinue() || message.isMidiStop()
-                || message.isSongPositionPointer())
-                continue;
-
-            messageText << message.getDescription() << "\n";
+            // Affichage moniteur (mode courant brut/décodé + dédup), via le formateur partagé.
+            String line;
+            if (formatMonitorLine (message, line, lastMonitorKey))
+                messageText << line;
         }
         if (messageText.isNotEmpty())
             midiMonitor.insertTextAtCaret (messageText);
-        
+
     }
 public:
     void sendToOutputs (const MidiMessage& msg)
@@ -1231,12 +1442,21 @@ public:
     
     TextButton  btBulk {"Bulk Protect"};
     TextButton  btToggleKeyboard {"Clavier"};
+    // Sélecteurs de ports MIDI TOUJOURS VISIBLES (bandeau bas, à gauche du toggle clavier).
+    // Ouvrent un PopupMenu à cases cochables ; même source de vérité que l'onglet Midi Setting
+    // (midiInputs/midiOutputs + openDevice/closeDevice + saveEnabledDevices). Cf. showMidiPortMenu.
+    TextButton  btMidiIn  {"In"};
+    TextButton  btMidiOut {"Out"};
     std::unique_ptr<MidiDeviceListBox> midiInputSelector, midiOutputSelector;
     std::unique_ptr<MidiSettingsPage>  midiSettingsPage;
     ReferenceCountedArray<MidiDeviceListEntry> midiInputs, midiOutputs;
     
     CriticalSection midiMonitorLock;
     Array<MidiMessage> incomingMessages;
+    // Historique borné des messages affichés -> permet de RE-RENDRE le moniteur quand on
+    // bascule Raw/Interprété (s'applique donc aussi aux lignes déjà présentes). Borne mémoire.
+    Array<MidiMessage> monitorHistory;
+    static constexpr int kMonitorHistoryMax = 2000;
     DemoTabbedComponent tabs;
 
     uint8 data[12];

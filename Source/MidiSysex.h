@@ -169,10 +169,16 @@ void oscMessageReceived (const OSCMessage& message)
                     // chaque widget se met à jour via son propre chemin de réception (vérifié
                     // Track A). Notification SYNCHRONE par param, sinon les Value JUCE coalescent
                     // et seul le dernier paramètre serait appliqué.
-                    for (auto& vp : SyVoice::voiceBlobToParams (d, sz))
+                    // ANTI-ÉCHO : on rejoue le contenu de la voix comme des RX, mais on NE veut
+                    // RIEN renvoyer au synthé (ce serait un flot de param-changes = re-écriture
+                    // non sollicitée + risque de boucle). Suppression d'envoi sur tout le replay.
                     {
-                        valueSysexIn = make_var_array (vp.group, vp.addrHi, vp.addrLo, vp.param, 0, vp.value);
-                        valueSysexIn.getValueSource().sendChangeMessage (true);
+                        const ScopedEchoSuppress noEcho;
+                        for (auto& vp : SyVoice::voiceBlobToParams (d, sz))
+                        {
+                            valueSysexIn = make_var_array (vp.group, vp.addrHi, vp.addrLo, vp.param, 0, vp.value);
+                            valueSysexIn.getValueSource().sendChangeMessage (true);
+                        }
                     }
                 }
 

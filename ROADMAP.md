@@ -67,7 +67,7 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
 | 0.1 | ~~Resynchroniser `MAP.md` avec le code réel~~ **FAIT** | sysex | bas | MAP.md resync : Coarse/Waveform 🟢 (oracle), Detune/SENSIT/SCALING 🟡, AWM section ajoutée |
 | 0.2 | ~~Tests d'encodage d'envoi (régression EG)~~ **FAIT (group byte)** | sysex | bas | `egGroupFor` pure (SysexUtils.h) consommée par les 4 éditeurs + test `egGroupFor locks…` (118/118). NB : verrouille le **group**, pas encore les offsets de param |
 | 0.3 | ~~Brancher `Hook.h` sur `valueSysexIn` (RX)~~ **FAIT** | midi | bas | `Segment` écoute `valueSysexIn` (Hook.h) ; match des DEUX adresses (rate via `sysexRate`, level via `sysexLevel`) et route vers le bon axe via `setValue()` (sans renvoi). Les EG via Hook se resynchronisent depuis le synthé (118/118) |
-| 0.4 | ~~Supprimer `boolStopReceive` (garder `dontSendNotification`)~~ **FAIT** | midi | bas | Flag non thread-safe retiré (décl. + set true/false dans `sendToOutputs` + test RX dans `handleIncomingMidiMessage`). Anti-écho porté uniquement par `dontSendNotification` (4 widgets Midi*) + `setValue()` sans renvoi (Segment) (118/118) |
+| 0.4 | ~~Supprimer `boolStopReceive`~~ **FAIT puis RÉVISÉ (2026-06-25)** | midi | bas | Flag non thread-safe retiré. `dontSendNotification` seul s'est révélé INSUFFISANT sur hardware (boucle d'écho réelle) : `ComboBox::valueChanged` re-publie, et la notif RX async sortait du garde. Remplacé par un garde ATOMIQUE/RÉENTRANT `ScopedEchoSuppress`+`SysexBus::suppressSend` autour de l'application RX (rendue synchrone) — cf. Journal 2026-06-25 #1. Tests `EchoLoop` (698/698) |
 
 ### Vague 1 — Fiabiliser l'aller-retour synthé
 | # | Tâche | Agent | Effort | Critère de fini |
@@ -81,7 +81,7 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
 |---|---|---|---|
 | 2.1 | FTYPE (lever bulk↔enum) | sysex | aller-retour hardware (un point HPF) |
 | 2.2 | ~~Niveaux EG en offset-binary (pitch-EG levels, filtre FL0-4/FRL1-2)~~ **FAIT (recoupé lua)** | sysex | `egLevelToDisplay`/`egLevelToWire` (SysexUtils.h, o/b offset 64) recoupés au codec lua INDÉPENDANT (main.lua l.22 + TG77_Voice.json PEG/FEG L : display{-64,63} message{0,127} default 64). Chargés dans `voiceBlobToParams` (FPL0-3+FPRL1 group 0x05 ; FL0-4+FRL1-2 group 0x09 des 2 filtres). Éditeurs alignés sur la plage filaire réelle 0..127 (centre 64) — PitchEG/Filter1/Filter2 : était 0..64 (atteignait ½ plage) → corrige aussi l'ENVOI ; affichage signé -64..+63 via `applyEgLevelDisplay`. Tests : inversibilité full-range + valeurs-ancres lua + oracle SteelStrng (FL0==64=centre) (635/635). **FOS (2 octets) NON traité** (layout bulk non confirmé). NB validation 811-voix NON reproductible (corpus hors-repo) — preuve = lua + oracles. |
-| 2.3 | PHASE/SYNC bit-split | sysex | diff single-param |
+| 2.3 | ~~PHASE/SYNC bit-split~~ + ~~collision 0x18~~ + ~~detune s/m~~ + ~~coarse~~ **FAIT (2026-06-25, ENVOI)** | sysex | Bugs hardware réels remontés (test SY77). **(1) Detune** : slider passé à `setRangeAndRound(-15,15)` → chemin s/m (boolNegative) ; pures `fpdDetuneToWire/Display` + test (half=15/signbit=16, main.lua l.45 + OCR l.438). **(2) Coarse** : retrait de `setMidiValueOffset(-1)` (display 0 → wire 127) ; octet brut 0..127 comme l'éditeur TG77 vérifié. **(3) Collision 0x18** (btFix=FPM b0, sensPm=FMLPMS b4~2, pegSw=PES b1) : auto-send OFF + recomposition de l'octet complet `Oscillator::send18` lisant l'état des 3 widgets (OCR l.431-433). **(4) PHASE/SYNC 0x19** : KOE/sync (V1 b0) + phase (V2) recomposés en un frame `send19` (OCR l.435-436). **(5) PEG SW grille** : était FYPSW d'élément (group 0x05/0x0C, prop partagée → 6 boutons/1 état/aucun effet) ; c'est en fait PES par-op (0x18 b1, OCR l.432) → propriété distincte `ELEMENT<e>PEGSW<o>`. Copier-coller corrigés (`sliderFine4`→`sliderPhase4`, `labelFine2`/`labelPhase2`). `setAutoSend` ajouté à MidiSlider/MidiButton. Build/test **691/691**. **Chargement dump des octets packés NON branché** (loader ne décode pas 0x18/0x19). |
 | 2.4 | Drum (type 10) | sysex | Table 2 + validation offline + spot-check |
 
 ### Vague 3 — Rapprocher de SynthWorks + ergonomie
@@ -89,7 +89,7 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
 |---|---|---|---|
 | 3.1 | ~~Dessiner la topologie des 45 algos (depuis `kAlgo`) + l'afficher dans Voice~~ **FAIT** | ui | moyen | Topologie décodée depuis `kAlgo` (table partagée avec le rendu son) via `SyDraw::afmTopology` : edges modulateur→porteuse (thru/registres/feedback), **porteuse = puits du graphe** (ne module aucun op → sortie) — donne les vrais algos SY77 (algo 1 = 1 porteuse OP1 ; 45 = 6 // ; 44 = OP6→{1..5}+fb). `AlgoDraw` (vue AFM, Operator.h) trace désormais les liens : flèches modulateur→cible, boucle de feedback, porteuses (accent thème) descendant vers une barre OUT ; modulateurs sourds (textMuted). `AlgoDraw::drawAlgoGlyph` rend une version compacte par élément AFM dans la carte ALGO/ROUTAGE de la vue Voice (`paintOverChildren`). Couleurs = rôles de palette (jamais en dur). Code mort `FMOperator` (sliders inutilisés) remplacé par une boîte d'opérateur propre. Preuve : snapshots PNG (`createComponentSnapshot` + glyph) relus pour algos 1/5/8/21/42/44/45 — liens conformes à `kAlgo` ; grand schéma confirmé en vrai dans l'app (vue AFM). RENDU ACCEPTÉ EN L'ÉTAT (2026-06-25), perfectible — artefacts de tracé connus (stub de feedback sur les modulateurs ; algos 19/36/40/41/43), routage pas pleinement orthogonal ; polissage visuel différé. La logique/topologie est bonne, c'est le tracé à fignoler. Build 635/635. |
 | 3.2 | Unifier rotatif vs barre ; remplacer les sliders verticaux illisibles | ui | moyen |
-| 3.3 | Éditeur LFO (Main + Sub) | ui+sysex+midi | moyen |
+| 3.3 | Éditeur LFO (Main + Sub) — **EN COURS (2026-06-25)** | ui+sysex+midi | moyen | Panneau `AfmLfo.h` (Main LFO : Wave/Speed/Delay/Phase/PMD/AMD/FMD ; Sub LFO : Wave/Speed/Time/PMD + Mode delay/decay), réutilisant MidiSlider/MidiCombo/MidiButton. Intégré dans la **colonne droite** de la vue AFM (`Oscillator.h`), sous l'ALGORITHM — fidèle à l'écran SynthWorks. Câblé pour les 4 éléments : group **0x05**, addrHi élément<<5, params N2 Table 1-6 (Main 0x0D-0x13, Sub 0x15-0x19 ; OCR l.357-371, recoupé `project-sy77-addresses.md`). Statut MAP **🟡** (envoi câblé spec-correct, **non vérifié hardware**) ; chargement depuis dump **⬜** (offsets bulk non vérifiés). Build/test **635/635, 0 régression**. À FAIRE : vérif hardware de l'envoi ; brancher le chargement (.syx) une fois les offsets bulk confirmés ; fignolage layout/wave-glyph. |
 | 3.4 | Nettoyer le code mort + couleurs en dur → rôles de thème | ui | bas |
 
 ---
@@ -101,3 +101,55 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
   l.22 + `TG77_Voice.json` PEG/FEG L). Fonctions pures `egLevelToDisplay`/`egLevelToWire`
   + chargement pitch-EG/filtre levels + alignement éditeurs (0..64 → 0..127, corrige l'envoi).
   FOS (o/b 2 octets) laissé en suspens (layout bulk non confirmé). 635/635 tests.
+- **2026-06-25** — Bugs grille opérateur AFM remontés sur VRAI SY77, corrigés (ENVOI) : detune
+  s/m, coarse (offset retiré), collision octet 0x18 (MODE/PES/PM recomposés), PHASE/SYNC 0x18 b1
+  + 0x19 V1/V2 recomposés, PEG SW grille = PES par-op (≠ FYPSW d'élément). `setAutoSend` ajouté
+  aux widgets ; pures `fpdDetuneToWire/Display` + test. Copier-coller `sliderFine4`/labels corrigés.
+  691/691 tests. Reste OUVERT : chargement dump des octets packés (loader ne décode pas 0x18/0x19).
+- **2026-06-25** — 4 problèmes remontés sur VRAI SY77.
+  **#1 BOUCLE D'ÉCHO (critique) — CORRIGÉE.** L'app ré-émettait en boucle les param-changes
+  échoés par le synthé. Cause racine double : (a) le `valueSysexIn` reçu était notifié en
+  ASYNCHRONE (`MidiDemo.h` handleAsyncUpdate) → l'application widget se faisait HORS de tout
+  garde ; (b) `ComboBox::valueChanged` (juce_ComboBox.cpp l.308-311) RE-PUBLIE via
+  `setSelectedId(... sendNotification)` quand son currentId (lié au ValueTree) change sans passer
+  par setSelectedId → `MidiCombo::comboBoxChanged` → `sendParam9`. Le `dontSendNotification` des
+  widgets ne suffisait donc pas (Slider/Button OK, mais ComboBox re-fire ; et l'async sortait du
+  garde). Fix THREAD-SAFE et RÉENTRANT : `ScopedEchoSuppress` + `SysexBus::suppressSend` (atomique),
+  posé autour de l'APPLICATION RX désormais SYNCHRONE (`sendChangeMessage(true)`), qui fait DROPper
+  tout envoi widget→bus dans `SysexBus::publish` (choke-point unique). Voice-load replay aussi sous
+  garde. Remplace proprement l'ancien `boolStopReceive` (global, non thread-safe, et inutile car il
+  n'entourait qu'un `sendMessageNow` synchrone, pas l'écho différé). Tests `EchoLoop` (3) ajoutés.
+  **#2 GROUPES DE SORTIE — CÂBLÉS.** btGroup1/2 (Element.h) n'envoyaient RIEN (« rendu/état seul »).
+  Désormais : octet packé group 0x03 / param 0x08 (b1=OUTSEL0, b2=OUTSEL1 ; b0=MCTEN laissé 0),
+  addrHi=(el-1)<<5, émis au clic. Spec OCR l.292-294 + carte `out sel@08`. 🟡 non vérifié hardware.
+  **#3 FINE (FPF 0x26) — CORRIGÉ.** Colonne FINE bornée à tort 0..99 → **0..127** (octet brut),
+  conforme à la carte TG77 hardware (`FINE OP*` pNum *038, 0..127). 100..127 étaient inatteignables.
+  **#4 AWM mode fixed — INVESTIGUÉ (pas de fix deviné).** Trace `07/2n/02,03,04` = PPM (fixed sw,
+  0x02), PNOTE (fixed note#, 0x03), PPF (fine, 0x04). L'éditeur n'a PAS de contrôle PNOTE, et
+  `sliderFine` (PPF) passe par le chemin boolNegative/boolInvert (s/m-like) alors que la spec dit
+  offset-binary (OCR l.489) → encodage de l'envoi à confirmer hardware avant correction. MAP mis à jour.
+  Build 698/698 tests.
+- **2026-06-25 (UI)** — Sélecteurs de ports MIDI **in/out toujours visibles** ajoutés dans le
+  bandeau bas, à GAUCHE du toggle clavier (`MidiDemo.h`) : 2 petits boutons `btMidiIn`/`btMidiOut`
+  (ordre [In][Out][Clavier]) ouvrant chacun un `PopupMenu` à cases cochables (multi-sélection).
+  RÉUTILISE la gestion de ports existante (SOURCE DE VÉRITÉ UNIQUE de l'onglet Midi Setting) :
+  `showMidiPortMenu` lit `midiInputs/midiOutputs`, bascule via `openDevice`/`closeDevice`, persiste
+  via `saveEnabledDevices` (clés `MidiInDevices`/`MidiOutDevices`), puis re-synchronise la ListBox
+  de l'onglet (`MidiDeviceListBox::syncSelectedItemsWithDeviceList`) → les 2 vues restent cohérentes.
+  Libellé/état rafraîchis (compteur de ports ouverts + couleur ON du thème) par `refreshMidiPortButtons`,
+  appelé dans `timerCallback` (hot-plug, timer existant) et après chaque bascule. Rôles de thème
+  respectés (couleur ON via `SYColSelected`). Build 695/695 tests.
+- **2026-06-25 (UI)** — Moniteur MIDI : 2 toggles ajoutés dans `MidiSettingsPage` (`MidiDemo.h`),
+  côte à côte au-dessus du moniteur, ticks au thème (`SYColSelected`).
+  **(1) Raw / Interprété** (`rawBtn`, persisté `MonitorRaw`, défaut OFF=décodé) : bascule chaque
+  message entre OCTETS BRUTS hex (`midiBytesToHex`, sans dédup) et forme décodée G/AH/AL/P/val
+  (dédup par adresse). Formatage factorisé dans `formatMonitorLine` (partagé flux temps réel +
+  re-render). S'applique AUSSI aux lignes déjà présentes : `rebuildMonitorFromHistory` re-rend
+  depuis un historique borné `monitorHistory` (≤2000 msgs ; vidé par Clear).
+  **(2) MIDI Thru** (`thruBtn`, persisté `MidiThru`, **défaut OFF**, étiquette « écrit vers le
+  synthé ») : dans `handleAsyncUpdate`, forwarde chaque message reçu (hors active-sense) via
+  `sendToOutputs`. ANTI-BOUCLE : le forward appelle DIRECTEMENT `sendToOutputs`, PAS
+  `SysexBus::publish` → le `ScopedEchoSuppress` (qui ne garde que `publish`) ne l'avale jamais ;
+  et on ne forwarde QUE l'entrée reçue (jamais les propres émissions de l'app) → aucune boucle
+  créée par l'app. Seul un soft-thru du synthé pourrait boucler (assumé en activant Thru, OFF par
+  défaut). Build 695/695 tests.

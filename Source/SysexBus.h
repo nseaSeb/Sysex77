@@ -38,9 +38,31 @@ struct SysexBus
 
     void publish (const juce::OSCMessage& message)
     {
+        // GARDE ANTI-ÉCHO (remplace l'ancien boolStopReceive global/racy) :
+        // pendant l'APPLICATION d'un param-change REÇU (RX), tout envoi déclenché en
+        // cascade par un widget est SUPPRIMÉ. Sans cela, certains chemins de réception
+        // RÉ-ÉMETTENT (ex. ComboBox::valueChanged re-publie via setSelectedId() en
+        // sendNotification ; cf. juce_ComboBox.cpp) -> le SY77 ré-échoie -> boucle A↔B.
+        // Compteur ATOMIQUE et RÉENTRANT (pose/dépose en pile), posé uniquement autour
+        // de l'application RX sur le thread message (cf. ScopedEchoSuppress).
+        if (suppressSend.load (std::memory_order_acquire) > 0)
+            return;
         if (onMessage != nullptr)
             onMessage (message);
     }
+
+    /** Profondeur de suppression d'envoi (cf. ScopedEchoSuppress). 0 = envoi normal. */
+    std::atomic<int> suppressSend { 0 };
+};
+
+/** Suppresseur d'envoi à portée (RAII). À poser autour de TOUTE application d'un
+    message param-change reçu (assignation de valueSysexIn / replay de voice-load) :
+    aucun envoi vers le synthé ne part tant qu'un de ces gardes est vivant. */
+struct ScopedEchoSuppress
+{
+    ScopedEchoSuppress()  { SysexBus::get().suppressSend.fetch_add (1, std::memory_order_acq_rel); }
+    ~ScopedEchoSuppress() { SysexBus::get().suppressSend.fetch_sub (1, std::memory_order_acq_rel); }
+    JUCE_DECLARE_NON_COPYABLE (ScopedEchoSuppress)
 };
 
 /** Émetteur compatible avec l'API d'OSCSender utilisée dans le projet, mais qui
