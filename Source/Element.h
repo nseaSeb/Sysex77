@@ -73,6 +73,21 @@ private:
 // partagés avec les éditeurs plein-onglet (CommonFilter, WaveEg, …).
 
 //==============================================================================
+/** Libellé d'une table de pan (PANNM 0..95). Les 8 premiers noms reprennent la liste
+    « PAN JOBS » de SynthWorks (docs/synthwork/pan-table.jpg : P1 Center … P8 Full Left)
+    comme AMORCE PROVISOIRE — la correspondance index<->nom n'est PAS dans le spec et
+    reste à confirmer hardware ; les autres tables s'affichent « Pan NN ». */
+inline juce::String panTableName (int idx)
+{
+    static const char* const known[8] = {
+        "Center", "Full Right", "Right 90%", "Right 75%",
+        "Right 50%", "Right 25%", "Right 10%", "Full Left"
+    };
+    if (idx >= 0 && idx < 8) return juce::String (idx) + " " + known[idx];
+    return "Pan " + juce::String (idx);
+}
+
+//==============================================================================
 /*
 */
 class Element    : public Component, TextButton::Listener, public ChangeBroadcaster, public Slider::Listener, public Value::Listener,public ChangeListener, public ValueTree::Listener
@@ -87,15 +102,21 @@ public:
         sliderVolume.setPopupDisplayEnabled(true, true, this);
         sliderVolume.setNumDecimalPlacesToDisplay(0);
         sliderVolume.addListener(this);
-        addAndMakeSlider(sliderPan);
-        sliderPan.setLookAndFeel(nullptr);   // suit le LnF du thème (plat en Light)
-        sliderPan.setPopupDisplayEnabled(true, true,this);
-       
+
         addAndMakeVisible(pitch);
-        sliderPan.setRange(-64, 64);
-         sliderPan.setNumDecimalPlacesToDisplay(0);
-        sliderPan.addMouseListener(this, false);
-        
+
+        // PAN : la colonne PAN est une CARTE (panneau + nom de table + mini-EG), DESSINÉE dans
+        // paint() comme les cartes FILTER/VOLUME. Le clic n'importe où dans la carte ouvre
+        // l'éditeur (PanEg) où se fait TOUTE l'édition du pan (table + nom + EG). Cf. mouseUp.
+
+        // Libellé de la barre verticale de niveau de sortie de l'élément (ELVL), jusque-là
+        // sans légende (demande utilisateur).
+        addAndMakeVisible (labelLevel);
+        labelLevel.setJustificationType (Justification::centred);
+        labelLevel.setColour (Label::textColourId, SYColLabel);
+        labelLevel.setFont (Font (9.0f, Font::bold));
+        labelLevel.setInterceptsMouseClicks (false, false);
+
         // Groupe de sortie de l'élément : 2 bascules (G1/G2). Both = les deux, Off = aucune.
         // Rendu/état seul pour l'instant (pas d'envoi sysex).
         addAndMakeVisible(btGroup1);
@@ -225,8 +246,6 @@ public:
         btWave.removeListener(this);
         btVCA.removeListener(this);
         btFilter.removeListener(this);
-        sliderPan.setLookAndFeel(nullptr);
-        sliderPan.removeMouseListener(this);
         sliderVolume.removeListener(this);
         valueTreeVoice.removeListener(this);
     }
@@ -289,13 +308,31 @@ public:
     
     void mouseUp (const MouseEvent& e) override
     {
-        
-        if(e.getNumberOfClicks()>1) // double clic
-        {
-            if(e.eventComponent == &sliderPan)
-                sliderPan.setValue(0);
-        }
-            
+        // Clic dans la carte PAN (zone sans enfant) -> ouvre l'éditeur de pan (table + EG).
+        if (e.eventComponent == this && e.mouseWasClicked()
+            && getHeight() >= 56 && panCardArea.contains (e.getPosition()))
+            elementValue.setValue (commande::PanEdit);
+    }
+
+    // Nom d'affichage de la table de pan : nom personnalisé (PNNAM) si défini, sinon « Pan NN ».
+    String panDisplayName() const
+    {
+        const String custom = valueTreeVoice.getProperty (
+            Identifier (String ("ELEMENT") + String (operatorID) + "PANNAME")).toString();
+        const int nm = (int) valueTreeVoice.getProperty (
+            Identifier (String ("ELEMENT") + String (operatorID) + "PANNM"), 0);
+        return custom.isNotEmpty() ? custom : panTableName (nm);
+    }
+
+    // Niveaux/poids du mini-EG de pan (affichage carte). Défaut = centre (octet o/b 32) si non
+    // réglé -> la carte montre une ligne centrale plutôt qu'un « tout à gauche » trompeur.
+    void getPanEg (juce::Array<float>& levels, juce::Array<float>& weights) const
+    {
+        auto id = [this] (const char* s) { return Identifier (String ("ELEMENT") + String (operatorID) + s); };
+        auto lv = [&] (const char* s) { return (float) (int) valueTreeVoice.getProperty (id (s), 32); };
+        auto rt = [&] (const char* s) { return (float) (64 - (int) valueTreeVoice.getProperty (id (s), 0)); };
+        levels  = { lv ("PANL0"), lv ("PANL1"), lv ("PANL2"), lv ("PANL3"), lv ("PANL4"), lv ("PANRL1"), lv ("PANRL2") };
+        weights = { rt ("PANR1"), rt ("PANR2"), rt ("PANR3"), rt ("PANR4"), rt ("PANRR1"), rt ("PANRR2") };
     }
     void valueChanged(Value & value) override
     {
@@ -550,22 +587,42 @@ public:
             }
         }
 
-        // Deux sorties du pan (L / R) sur le bord droit de l'élément : point de départ
-        // du routage vers la matrice (à connecter ensuite).
+        // Carte PAN (façon FILTER/VOLUME) : panneau + nom de table + mini-EG de pan, CLIQUABLE
+        // (le clic ouvre l'éditeur, cf. mouseUp). Puis les 2 sorties L/R (départ du routage vers
+        // la matrice). Rangées ACTIVES uniquement (les inactives ~30 px sont épurées).
+        if (getHeight() >= 56 && ! panCardArea.isEmpty())
         {
-            auto pb = groupPan.getBounds().toFloat();
+            auto pc = panCardArea.toFloat();
+            juce::Array<float> lv, w;
+            getPanEg (lv, w);
+            SyDraw::drawEnvelope (g, pc, lv, w, 63.0f, SYColSelected, {}, false);
+
+            // Ligne centrale (pan au milieu).
+            g.setColour (SYColLabel.withAlpha (0.35f));
+            const float cy = pc.getBottom() - (32.0f / 63.0f) * pc.getHeight();
+            g.drawHorizontalLine ((int) cy, pc.getX(), pc.getRight());
+
+            // Nom de la table (bandeau haut lisible).
+            auto nameBar = pc.reduced (2.0f).withHeight (16.0f);
+            g.setColour (SYColBackground.withAlpha (0.6f));
+            g.fillRect (nameBar);
+            g.setColour (SYColBackground.contrasting());
+            g.setFont (Font (12.0f, Font::bold));
+            g.drawText (panDisplayName(), nameBar.toNearestInt(), Justification::centred, true);
+
+            // Sorties L (bas) / R (haut) vers le bord droit de l'élément.
             const float ox = (float) getWidth() - 4.0f;
-            const float lY = pb.getY() + pb.getHeight() * 0.32f;
-            const float rY = pb.getY() + pb.getHeight() * 0.68f;
+            const float rY = pc.getY() + pc.getHeight() * 0.30f;
+            const float lY = pc.getY() + pc.getHeight() * 0.70f;
             g.setColour (SYColSelected);
-            g.fillEllipse (ox - 3.0f, lY - 3.0f, 6.0f, 6.0f);
             g.fillEllipse (ox - 3.0f, rY - 3.0f, 6.0f, 6.0f);
-            g.drawLine (sliderPan.getRight(), lY, ox - 3.0f, lY, 1.0f);
-            g.drawLine (sliderPan.getRight(), rY, ox - 3.0f, rY, 1.0f);
+            g.fillEllipse (ox - 3.0f, lY - 3.0f, 6.0f, 6.0f);
+            g.drawLine (pc.getRight(), rY, ox - 3.0f, rY, 1.0f);
+            g.drawLine (pc.getRight(), lY, ox - 3.0f, lY, 1.0f);
             g.setColour (SYColLabel);
             g.setFont (10.0f);
-            g.drawText ("L", (int) ox - 30, (int) lY - 7, 14, 12, Justification::right);
             g.drawText ("R", (int) ox - 30, (int) rY - 7, 14, 12, Justification::right);
+            g.drawText ("L", (int) ox - 30, (int) lY - 7, 14, 12, Justification::right);
         }
 
         g.setColour (SYColBackground.contrasting());
@@ -623,26 +680,34 @@ public:
         // L'overlay d'édition couvre exactement la zone où la réponse est dessinée (paint).
         filterGraph.setBounds (groupFilter.getBounds().reduced (5, 14));
 
+        // VOLUME : carte d'EG ALIGNÉE sur FILTER (même inset vertical y=16, h=H-32) — avant elle
+        // débordait en haut (y=4). La barre de niveau (ELVL) est à droite avec un ÉCART net.
         const int volW = xPan - xVol;
         groupVolume.setBounds (xVol, 0, volW, H);
-        btVCA.setBounds (xVol + 4, 4, volW - 34, H - 8);
+        btVCA.setBounds (xVol + 4, 16, volW - 40, H - 32);
         egGraph.setBounds (btVCA.getBounds().reduced (2)); // overlay d'édition = zone dessinée
-        sliderVolume.setBounds (xPan - 30, 16, 24, H - 24);
+        sliderVolume.setBounds (xPan - 24, 16, 18, H - 32);
+        labelLevel.setVisible (H >= 56);
+        labelLevel.setBounds (xPan - 30, 2, 28, 12);
 
         const int panW = xEnd - xPan;
         groupPan.setBounds (xPan, 0, panW, H);
-        // Pan vertical (façon SynthWorks) ; les 2 sorties L/R sont dessinées à droite (paint).
-        sliderPan.setBounds (xPan + 6, 16, 16, H - 28);
-        // Bascules de groupe de sortie (G1/G2), empilées à droite du pan. Masquées sur les
-        // rangées d'éléments inactifs (trop courtes, ~30 px) pour éviter le débordement.
+        // PAN : la carte (cliquable -> éditeur, cf. mouseUp/paint) occupe le haut de la colonne ;
+        // les 2 bascules de groupe de sortie (G1/G2) sont sous la carte. Rangées INACTIVES
+        // (~30 px) : carte épurée (panCardArea vide) pour ne pas brouiller les mini-graphes.
         const bool compact = H < 56;
         btGroup1.setVisible (! compact);
         btGroup2.setVisible (! compact);
         if (! compact)
         {
-            const int gx = sliderPan.getRight() + 4;
-            btGroup1.setBounds (gx, 16, 22, 18);
-            btGroup2.setBounds (gx, 36, 22, 18);
+            const int px = xPan + 4, pw = jmax (40, panW - 8);
+            panCardArea = { px, 16, pw, jmax (24, H - 16 - 26) };
+            btGroup1.setBounds (px, panCardArea.getBottom() + 4, 24, 18);
+            btGroup2.setBounds (px + 28, panCardArea.getBottom() + 4, 24, 18);
+        }
+        else
+        {
+            panCardArea = {};
         }
     }
 enum mode
@@ -685,7 +750,9 @@ private:
     Value    algoValue;     // -> AFMALGOELEMENTx
     Label    waveNameLabel; // nom de la wave (colonne WAVE, mode AWM)
     Value    waveNameValue; // -> ELEMENT<n>WAVENAME
-    Slider sliderPan {Slider::SliderStyle::LinearVertical , Slider::NoTextBox};
+    // PAN : carte cliquable (panneau + nom + mini-EG) dessinée dans paint() ; clic -> éditeur.
+    Rectangle<int> panCardArea;    // zone cliquable de la carte PAN (cf. mouseUp/paint/resized)
+    Label       labelLevel {"","Level"};  // légende de la barre verticale ELVL (niveau élément)
     TextButton  btGroup1 {"1"};
     TextButton btGroup2 {"2"};
     SysexBusSender outSelSender;   // envoi OUTSEL (group 0x03, octet packé 0x08) — cf. sendOutSel

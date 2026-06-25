@@ -401,6 +401,30 @@ struct SysexUtilsTests : public juce::UnitTest
             expectEquals ((int) SyVoice::egLevelToWire (-200), 0);
         }
 
+        beginTest ("panLevelToDisplay/panLevelToWire — pan EG offset-binary (o/b) offset 32 inversible");
+        {
+            // Round-trip sur toute la plage filaire pan 0..63 (centre 32).
+            for (int w = 0; w <= 63; ++w)
+            {
+                const int disp = SyVoice::panLevelToDisplay ((juce::uint8) w);
+                expectEquals ((int) SyVoice::panLevelToWire (disp), w);
+                expect (disp >= -32 && disp <= 31);   // plage d'affichage spec (-32~+31 o/b)
+            }
+            for (int dpy = -32; dpy <= 31; ++dpy)
+                expectEquals (SyVoice::panLevelToDisplay (SyVoice::panLevelToWire (dpy)), dpy);
+
+            // Ancres : centre = octet 32 ; extrêmes -32/+31. Cf. sy77midi_ocr.txt l.563-584.
+            expectEquals (SyVoice::panLevelToDisplay (32), 0);    // centre (pan = milieu)
+            expectEquals (SyVoice::panLevelToDisplay (0), -32);   // gauche
+            expectEquals (SyVoice::panLevelToDisplay (63), 31);   // droite
+            expectEquals ((int) SyVoice::panLevelToWire (0), 32); // display 0 -> octet 32
+            expectEquals ((int) SyVoice::panLevelToWire (-32), 0);
+            expectEquals ((int) SyVoice::panLevelToWire (31), 63);
+            // Bornage : ne déborde jamais 0..63 (distinct de l'offset-64 des EG pitch/filtre).
+            expectEquals ((int) SyVoice::panLevelToWire (200), 63);
+            expectEquals ((int) SyVoice::panLevelToWire (-200), 0);
+        }
+
         beginTest ("fpdDetuneToWire/Display — détune s/m inversible + valeurs lua (half=15 signbit=16)");
         {
             // Inversibilité sur la plage d'affichage -15..+15.

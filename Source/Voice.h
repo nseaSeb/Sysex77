@@ -9,6 +9,7 @@
  */
 #include "Element.h"
 #include "Volume.h"
+#include "PanVue.h"
 #pragma once
 
 //==============================================================================
@@ -79,8 +80,27 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         addAndMakeVisible(editWave4);
         editWave4.setAlwaysOnTop(true);
         editWave4.setVisible(false);
-        
-        
+
+        editPan1.setElementNumber(1, undoManager);
+        addAndMakeVisible(editPan1);
+        editPan1.setAlwaysOnTop(true);
+        editPan1.setVisible(false);
+
+        editPan2.setElementNumber(2, undoManager);
+        addAndMakeVisible(editPan2);
+        editPan2.setAlwaysOnTop(true);
+        editPan2.setVisible(false);
+
+        editPan3.setElementNumber(3, undoManager);
+        addAndMakeVisible(editPan3);
+        editPan3.setAlwaysOnTop(true);
+        editPan3.setVisible(false);
+
+        editPan4.setElementNumber(4, undoManager);
+        addAndMakeVisible(editPan4);
+        editPan4.setAlwaysOnTop(true);
+        editPan4.setVisible(false);
+
 
         addAndMakeVisible(comboMode);
         
@@ -213,7 +233,11 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         editWave1.setVisible(false);
         editAfm1.setVisible(false);
         editFilter1.setVisible(false);
-    
+        editPan1.setVisible(false);
+        editPan2.setVisible(false);
+        editPan3.setVisible(false);
+        editPan4.setVisible(false);
+
         editWave2.setVisible(false);
         editAfm2.setVisible(false);
         editFilter2.setVisible(false);
@@ -251,7 +275,8 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         // Ne pas dessiner le routage si un éditeur est ouvert par-dessus
         if (editAfm1.isVisible()    || editAfm2.isVisible()    || editAfm3.isVisible()    || editAfm4.isVisible()    ||
             editWave1.isVisible()   || editWave2.isVisible()   || editWave3.isVisible()   || editWave4.isVisible()   ||
-            editFilter1.isVisible() || editFilter2.isVisible() || editFilter3.isVisible() || editFilter4.isVisible())
+            editFilter1.isVisible() || editFilter2.isVisible() || editFilter3.isVisible() || editFilter4.isVisible() ||
+            editPan1.isVisible()    || editPan2.isVisible()    || editPan3.isVisible()    || editPan4.isVisible())
             return;
 
         // L'algo n'est plus dessiné ici (il vit dans les cellules WAVE des éléments AFM,
@@ -335,7 +360,12 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
                 editAfm1.setVisible(true);
                 editAfm1.setTabVolume();
             }
-            
+        if(element1.elementValue == Element::commande::PanEdit)
+            {
+                editPan1.setVisible(true);
+                editPan1.refresh();
+            }
+
              element1.elementValue =0;
         }
 
@@ -365,6 +395,11 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
                 editAfm2.setVisible(true);
                 editAfm2.setTabVolume();
             }
+            if(element2.elementValue == Element::commande::PanEdit)
+            {
+                editPan2.setVisible(true);
+                editPan2.refresh();
+            }
              element2.elementValue =0;
         }
  
@@ -391,6 +426,11 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
                 editAfm3.setVisible(true);
                 editAfm3.setTabVolume();
             }
+            if(element3.elementValue == Element::commande::PanEdit)
+            {
+                editPan3.setVisible(true);
+                editPan3.refresh();
+            }
              element3.elementValue =0;
         }
         
@@ -416,6 +456,11 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
                 //editVolume1.setVisible(true);
                 editAfm4.setVisible(true);
                 editAfm4.setTabVolume();
+            }
+            if(element4.elementValue == Element::commande::PanEdit)
+            {
+                editPan4.setVisible(true);
+                editPan4.refresh();
             }
              element4.elementValue =0;
         }
@@ -583,7 +628,12 @@ void setNombreElements (int nombre)
         editAfm2.setBounds(boundsZone);
         editAfm3.setBounds(boundsZone);
         editAfm4.setBounds(boundsZone);
-        
+
+        editPan1.setBounds(boundsZone);
+        editPan2.setBounds(boundsZone);
+        editPan3.setBounds(boundsZone);
+        editPan4.setBounds(boundsZone);
+
         grid = getWidth()/10;
         auto wGrid = (getWidth()-20) * 0.7;
         const int topElem = 68;                 // sous la barre du haut + les en-têtes de colonnes
@@ -719,7 +769,13 @@ void setNombreElements (int nombre)
     AFMVue editAfm2;
     AFMVue editAfm3;
     AFMVue editAfm4;
-    
+
+    // Éditeurs d'EG de pan (overlay plein-page, un par élément), ouverts via PanEdit.
+    PanVue editPan1;
+    PanVue editPan2;
+    PanVue editPan3;
+    PanVue editPan4;
+
     int grid;
     MidiSlider sliderMaster;
     

@@ -554,6 +554,37 @@ namespace SyVoice
         s.valueFromTextFunction = [] (const juce::String& t) { return (double) egLevelToWire (t.getIntValue()); };
     }
 
+    //==============================================================================
+    // PAN EG LEVELS — offset-binary OFFSET 32 (distinct du 64 des EG pitch/filtre).
+    //
+    // Les niveaux de l'EG de pan (PNL0-4, PNRL1-2 ; group 0x0A) sont SIGNÉS −32~+31
+    // « (o/b) » d'après docs/sy77midi_ocr.txt l.563-584. Même principe que egLevelTo*,
+    // mais l'octet filaire fait 0..63 (centre 32) au lieu de 0..127 (centre 64) :
+    //   display = (wire & 0x7F) − 32     (plage −32..+31)
+    //   wire    = jlimit(0,63, d + 32)   (centre = octet 32)
+    // 🟡 NON vérifié hardware (centre = octet 32 à confirmer par dump pan réel) ; on N'utilise
+    // PAS le mode négatif de MidiSlider (= signe-magnitude, ≠ offset-binary) pour ces niveaux.
+
+    /** Octet filaire o/b pan (0..63) -> valeur d'affichage signée (-32..+31). */
+    inline int panLevelToDisplay (juce::uint8 wire) noexcept
+    {
+        return (int) (wire & 0x7F) - 32;
+    }
+
+    /** Valeur d'affichage signée (-32..+31) -> octet filaire o/b pan (0..63). */
+    inline juce::uint8 panLevelToWire (int display) noexcept
+    {
+        return (juce::uint8) juce::jlimit (0, 63, display + 32);
+    }
+
+    /** Configure un slider de NIVEAU d'EG de pan : valeur = octet filaire 0..63 (centre 32),
+        texte affiché = signé -32..+31 (via panLevelToDisplay). Cf. applyEgLevelDisplay. */
+    inline void applyPanLevelDisplay (juce::Slider& s)
+    {
+        s.textFromValueFunction = [] (double v) { return juce::String (panLevelToDisplay ((juce::uint8) juce::roundToInt (v))); };
+        s.valueFromTextFunction = [] (const juce::String& t) { return (double) panLevelToWire (t.getIntValue()); };
+    }
+
     /** Message Sysex paramétrique SY77 prêt à émettre (ajoute F0/F7). */
     inline juce::MidiMessage paramMessage (int deviceNumber, juce::uint8 group,
                                            juce::uint8 addrHi, juce::uint8 addrLo,
