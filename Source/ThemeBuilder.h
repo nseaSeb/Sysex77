@@ -34,7 +34,7 @@ public:
         cbKnobs  .onChange = [this] { work.knobStyle   = cbKnobs  .getText(); apply(); };
 
         addAndMakeVisible (tgDark);
-        tgDark.setButtonText ("Thème sombre");
+        tgDark.setButtonText ("Theme sombre");
         tgDark.setToggleState (work.dark, juce::dontSendNotification);
         tgDark.onClick = [this] { work.dark = tgDark.getToggleState(); apply(); };
 

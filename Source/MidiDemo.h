@@ -128,7 +128,7 @@ static int  sysexDeviceNumber = 1;     // 1..16 ; octet émis = 0x10 | (n-1)
 static bool sysexReceiveOmni  = false; // "ALL" : accepte les messages entrants de tout device
 static bool followSynth       = false; // "Suivre le synthé" : ouvre la vue du paramètre reçu
 static bool monitorRaw        = false; // moniteur : false = décodé (G/AH/AL/P/val), true = octets bruts hex
-static bool midiThru          = false; // MIDI Thru : renvoie l'entrée vers la/les sortie(s). OFF par défaut (écrit vers le synthé)
+static bool devMode           = false; // Mode développeur : affiche le moniteur MIDI + outils RE (onglet "Midi Setting")
 // Interrupteurs rapides écoute/envoi (bandeau bas) — diagnostic hardware.
 // midiListen OFF : l'app IGNORE tout MIDI entrant (gate handleIncomingMidiMessage).
 // midiSend   OFF : l'app n'émet RIEN vers les sorties (gate sendToOutputs, coupe aussi le Thru).
@@ -256,42 +256,22 @@ struct DemoTabbedComponent  : public TabbedComponent
 };
 
 //==============================================================================
-/** Vue "Midi Setting" : héberge le choix des interfaces (in/out), le bouton
-    Bluetooth, le Bulk Protect et le moniteur MIDI. Ces composants restent la
-    propriété de MidiDemo (câblés à sa logique MIDI) ; cette page ne fait que les
-    re-parenter et les disposer, pour en faire un onglet à part entière (la barre
-    de navigation ne disparaît donc plus). */
+/** Vue "Midi Setting" (MODE DÉVELOPPEUR uniquement) : moniteur MIDI + outils de
+    rétro-ingénierie (fingerprint, lecture valeurs, diff de dumps), Bluetooth et le
+    "MIDI Thru" (gardé ici car il écrit vers le synthé / risque d'écho). Le choix des
+    interfaces In/Out, "Suivre le synthé", le canal et "Bulk Protect" ont été rapatriés
+    dans l'onglet "Setting" (ConfigPage). Cet onglet n'est ajouté à la barre que si
+    devMode == true (toggle dans Settings). Les composants restent la propriété de
+    MidiDemo ; cette page ne fait que les re-parenter et les disposer. */
 struct MidiSettingsPage : public Component
 {
-    MidiSettingsPage (Label& inLabel, Component& inSel,
-                      Label& outLabel, Component& outSel,
-                      TextButton& pair, TextButton& bulk,
-                      Label& monLabel, TextEditor& monitor)
-        : inLab (inLabel), inSelector (inSel), outLab (outLabel), outSelector (outSel),
-          pairBtn (pair), bulkBtn (bulk), monLab (monLabel), monitorRef (monitor)
+    MidiSettingsPage (TextButton& pair, Label& monLabel, TextEditor& monitor)
+        : pairBtn (pair), monLab (monLabel), monitorRef (monitor)
     {
         setOpaque (false);
-        addAndMakeVisible (inLab);
-        addAndMakeVisible (inSelector);
-        addAndMakeVisible (outLab);
-        addAndMakeVisible (outSelector);
         addAndMakeVisible (pairBtn);
-        addAndMakeVisible (bulkBtn);
         addAndMakeVisible (monLab);
         addAndMakeVisible (monitorRef);
-
-        // "Suivre le synthé" : quand un paramètre arrive du SY77, ouvrir la vue concernée
-        // (la valeur s'y met à jour en direct = retour visuel). Persisté.
-        addAndMakeVisible (followBtn);
-        followSynth = getAppSettings()->getBoolValue ("FollowSynth", false);
-        followBtn.setToggleState (followSynth, dontSendNotification);
-        followBtn.setColour (ToggleButton::tickColourId, SYColSelected);
-        followBtn.onClick = [this]
-        {
-            followSynth = followBtn.getToggleState();
-            getAppSettings()->setValue ("FollowSynth", followSynth);
-            getAppSettings()->saveIfNeeded();
-        };
 
         // Outil RE : comparer deux dumps .syx (avant/après un changement d'UN paramètre)
         // pour localiser l'octet -> bâtir la carte d'offsets bulk.
@@ -340,19 +320,6 @@ struct MidiSettingsPage : public Component
             getAppSettings()->saveIfNeeded();
             if (onRawToggled) onRawToggled();   // re-rend le moniteur dans le nouveau mode
         };
-
-        // Toggle "Thru" (MIDI Thru) : renvoie l'entrée MIDI vers la/les sortie(s) sélectionnée(s).
-        // OFF PAR DÉFAUT et NON persisté à ON par surprise (sécurité hardware : écrit vers le synthé).
-        addAndMakeVisible (thruBtn);
-        midiThru = getAppSettings()->getBoolValue ("MidiThru", false);
-        thruBtn.setToggleState (midiThru, dontSendNotification);
-        thruBtn.setColour (ToggleButton::tickColourId, SYColSelected);
-        thruBtn.onClick = [this]
-        {
-            midiThru = thruBtn.getToggleState();
-            getAppSettings()->setValue ("MidiThru", midiThru);
-            getAppSettings()->saveIfNeeded();
-        };
     }
 
     // Câblés par MidiDemo (qui possède le moniteur et l'historique des messages).
@@ -362,32 +329,32 @@ struct MidiSettingsPage : public Component
     void resized() override
     {
         const int m = 10;
-        const int half = getWidth() / 2;
-        const int selH = getHeight() / 2 - 80;
+        auto r = getLocalBounds().reduced (m);
+        const int half = (r.getWidth() - m) / 2;
 
-        inLab .setBounds (m,        m,       half - 2*m, 24);
-        outLab.setBounds (half + m, m,       half - 2*m, 24);
-        inSelector .setBounds (m,        m + 28, half - 2*m, selH);
-        outSelector.setBounds (half + m, m + 28, half - 2*m, selH);
+        // Rangée Bluetooth (pleine largeur)
+        pairBtn.setBounds (r.removeFromTop (24));
+        r.removeFromTop (8);
 
-        const int rowY = m + 28 + selH + m;
-        pairBtn.setBounds (m,        rowY, half - 2*m, 24);
-        bulkBtn.setBounds (half + m, rowY, half - 2*m, 24);
+        // Outils RE : Diff | Fingerprint, puis Lire valeurs (pleine largeur)
+        auto row2 = r.removeFromTop (24);
+        diffBtn.setBounds (row2.removeFromLeft (half));
+        reBtn  .setBounds (row2.removeFromRight (half));
+        r.removeFromTop (8);
+        reReadBtn.setBounds (r.removeFromTop (24));
+        r.removeFromTop (8);
 
-        followBtn.setBounds (m, rowY + 30, getWidth() - 2*m, 22);
-        diffBtn   .setBounds (m,        rowY + 56, half - 2*m, 24);
-        reBtn     .setBounds (half + m, rowY + 56, half - 2*m, 24);
-        reReadBtn .setBounds (m,        rowY + 82, getWidth() - 2*m, 24);
+        // En-tête du moniteur : libellé + toggle Raw à gauche, Copier/Clear à droite.
+        auto head = r.removeFromTop (24);
+        copyBtn .setBounds (head.removeFromRight (80));
+        head.removeFromRight (6);
+        clearBtn.setBounds (head.removeFromRight (80));
+        head.removeFromRight (10);
+        rawBtn.setBounds (head.removeFromLeft (220));
+        monLab.setBounds (head);
+        r.removeFromTop (4);
 
-        // Toggles d'affichage/transit du moniteur, côte à côte au-dessus du moniteur.
-        rawBtn .setBounds (m,        rowY + 108, half - 2*m, 22);
-        thruBtn.setBounds (half + m, rowY + 108, half - 2*m, 22);
-
-        const int my = rowY + 138;
-        clearBtn.setBounds (getWidth() - m - 80,            my, 80, 22);
-        copyBtn .setBounds (getWidth() - m - 80 - 6 - 80,   my, 80, 22);
-        monLab  .setBounds (m, my, getWidth() - 2*m - 172, 24);
-        monitorRef.setBounds (m, my + 26, getWidth() - 2*m, getHeight() - (my + 26) - m);
+        monitorRef.setBounds (r);
     }
 
     // Déclenché par le bouton RE ; câblé par MidiDemo, qui possède les onglets et peut
@@ -396,17 +363,10 @@ struct MidiSettingsPage : public Component
     std::function<void()> onFingerprint;
     std::function<void()> onReadValues;
 
-    Label&      inLab;
-    Component&  inSelector;
-    Label&      outLab;
-    Component&  outSelector;
     TextButton& pairBtn;
-    TextButton& bulkBtn;
     Label&      monLab;
     TextEditor& monitorRef;
-    ToggleButton followBtn { "Suivre le synthe : ouvrir la vue du parametre recu depuis le SY77" };
     ToggleButton rawBtn    { "Moniteur : octets bruts (hex) au lieu de la forme decodee" };
-    ToggleButton thruBtn   { "MIDI Thru : renvoyer l'entree vers la sortie (ecrit vers le synthe)" };
     TextButton   diffBtn   { "Diff 2 dumps (.syx)..." };
     TextButton   reBtn     { "RE fingerprint -> CSV" };
     TextButton   reReadBtn { "RE lire valeurs -> CSV" };
@@ -569,13 +529,25 @@ public:
         // addOscListener() installe le callback du bus au lieu de binder un port.
         addOscListener();
 
-        // Onglet "Midi Setting" : vraie page (choix interfaces + Bluetooth + Bulk + moniteur).
-        // Réutilise les composants de MidiDemo (re-parentés dans la page).
-        midiSettingsPage.reset (new MidiSettingsPage (midiInputLabel, *midiInputSelector,
-                                                      midiOutputLabel, *midiOutputSelector,
-                                                      pairButton, btBulk,
-                                                      incomingMidiLabel, midiMonitor));
-        tabs.addTab (TRANS("Midi Setting"), SYColBackground, midiSettingsPage.get(), false);
+        // Onglet "Midi Setting" : moniteur MIDI + outils RE (Bluetooth, Bulk). Réutilise les
+        // composants de MidiDemo (re-parentés dans la page). Toujours construit (re-parente le
+        // moniteur), mais AJOUTÉ À LA BARRE seulement en mode développeur (devMode).
+        midiSettingsPage.reset (new MidiSettingsPage (pairButton, incomingMidiLabel, midiMonitor));
+        devMode = getAppSettings()->getBoolValue ("DevMode", false);
+        if (devMode)
+            tabs.addTab (TRANS("Midi Setting"), SYColBackground, midiSettingsPage.get(), false);
+
+        // Réglages MIDI rapatriés dans l'onglet "Setting" (ConfigPage) : on injecte les sélecteurs
+        // d'interface In/Out et le bouton Bulk Protect (propriété de MidiDemo) dans la carte MIDI,
+        // et on câble le toggle "Mode développeur" pour ajouter/retirer l'onglet "Midi Setting".
+        if (auto* cfg = dynamic_cast<ConfigPage*> (tabs.getTabContentComponent (0)))
+        {
+            configPage = cfg;
+            cfg->attachMidiInterface (midiInputLabel, *midiInputSelector,
+                                      midiOutputLabel, *midiOutputSelector, btBulk);
+            cfg->onDevModeChanged   = [this] (bool on) { setMidiSettingsTabVisible (on); };
+            cfg->onTestConnection   = [this] { sendConnectionTest(); };
+        }
 
         // Outil RE (jetable) : « empreinte ». Parcourt le contenu de CHAQUE onglet (via
         // getTabContentComponent, qui les renvoie même non-courants), envoie à chaque contrôle
@@ -679,14 +651,17 @@ public:
         midiSettingsPage->onClearHistory = [this] { monitorHistory.clearQuick(); };
 
         // Barre de navigation visible dès le démarrage (on n'atterrit plus sur une vue
-        // sans menu). On ouvre "Midi Setting" en premier : choix de l'interface.
+        // sans menu). On ouvre "Setting" en premier : moyeu de configuration.
         tabs.setVisible(true);
         tabs.setAlwaysOnTop(true);
 
         setSize (1280, 820);
-        // Restaure l'onglet mémorisé (défaut : 3 = Midi Setting), puis autorise la sauvegarde.
-        tabs.setCurrentTabIndex (jlimit (0, tabs.getNumTabs() - 1,
-                                         getAppSettings()->getIntValue ("CurrentTab", 4))); // 4 = Midi Setting
+        // Onglet de démarrage (préférence "StartupTab", réglée dans Settings) :
+        //   1 = "Dernier utilisé" -> restaure CurrentTab mémorisé ; 2.. = onglet fixe d'index 0..
+        const int startPref = getAppSettings()->getIntValue ("StartupTab", 1);
+        const int target    = (startPref <= 1) ? getAppSettings()->getIntValue ("CurrentTab", 0)
+                                               : startPref - 2;
+        tabs.setCurrentTabIndex (jlimit (0, tabs.getNumTabs() - 1, target));
         tabs.allowTabSave = true;
         startTimer (500);
     }
@@ -731,9 +706,71 @@ public:
             sendToOutputs (m);
         }
     }
+    // Mode développeur : ajoute/retire l'onglet "Midi Setting" (moniteur + outils RE) à chaud.
+    // L'onglet est toujours le dernier ; midiSettingsPage reste vivant (non possédé par tabs).
+    void setMidiSettingsTabVisible (bool on)
+    {
+        int found = -1;
+        for (int i = 0; i < tabs.getNumTabs(); ++i)
+            if (tabs.getTabNames()[i] == TRANS("Midi Setting")) { found = i; break; }
+
+        if (on && found < 0)
+            tabs.addTab (TRANS("Midi Setting"), SYColBackground, midiSettingsPage.get(), false);
+        else if (! on && found >= 0)
+        {
+            if (tabs.getCurrentTabIndex() == found)
+                tabs.setCurrentTabIndex (0);   // on quitte l'onglet avant de le retirer
+            tabs.removeTab (found);
+        }
+    }
+
+    // Test de connexion : demande au synthé d'émettre quelque chose et attend SA réponse.
+    // Le SY77 (1989) n'implémente pas forcément l'Identity Request universel (F0 7E 06 01) ; en
+    // revanche il répond de façon FIABLE à une demande de dump de voix (Yamaha F0 43 ...). On
+    // envoie donc les deux : la réponse (dump Yamaha OU Identity Reply) est détectée dans
+    // handleAsyncUpdate, et un timeout est géré dans timerCallback. Statut affiché dans la carte MIDI.
+    void sendConnectionTest()
+    {
+        if (configPage == nullptr) return;
+        if (! midiSend)
+        {
+            configPage->setConnStatus (TRANS("MIDI output is off (enable \"Out\")"), false);
+            awaitingConnReply = false;
+            return;
+        }
+        if (! midiListen)
+        {
+            configPage->setConnStatus (TRANS("MIDI input is off (enable \"In\")"), false);
+            awaitingConnReply = false;
+            return;
+        }
+        awaitingConnReply = true;
+        connDeadlineMs    = Time::getMillisecondCounter() + 1500;
+        configPage->setConnStatus (TRANS("Testing connection..."), false);
+
+        // Identity Request universel (matériel générique) — inoffensif si ignoré.
+        const uint8 inquiry[] = { 0x7E, 0x7F, 0x06, 0x01 };   // sans F0/F7 (ajoutés par JUCE)
+        MidiMessage idReq = MidiMessage::createSysExMessage (inquiry, (int) sizeof (inquiry));
+        idReq.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
+        sendToOutputs (idReq);
+
+        // Demande de dump de voix (interne, slot 0) — le SY77 y répond par un bulk Yamaha.
+        MidiMessage dumpReq = SyVoice::voiceDumpRequest (sysexDeviceNumber, 0x00, 0x00);
+        dumpReq.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
+        sendToOutputs (dumpReq);
+    }
+
     //==============================================================================
     void timerCallback() override
     {
+        // Test de connexion : pas de réponse dans le délai -> on le signale.
+        if (awaitingConnReply && Time::getMillisecondCounter() > connDeadlineMs)
+        {
+            awaitingConnReply = false;
+            if (configPage != nullptr)
+                configPage->setConnStatus (TRANS("No response from the synth"), false);
+        }
+
         // "Midi Setting" est désormais un onglet à part entière (MidiSettingsPage) :
         // plus besoin de masquer la barre de navigation à sa sélection.
         updateDeviceList (true);
@@ -1203,20 +1240,33 @@ private:
 
         for (auto& message : messages)
         {
-            // --- MIDI Thru : renvoie l'entrée reçue vers la/les sortie(s) sélectionnée(s). ---
-            // Forward EXPLICITE, distinct du chemin widget->bus : il appelle directement
-            // sendToOutputs (PAS SysexBus::publish), donc le ScopedEchoSuppress (qui ne garde
-            // QUE publish) ne l'avale jamais. Et comme on ne forwarde QUE des messages reçus
-            // en ENTRÉE (jamais ceux que l'app émet elle-même), le Thru ne re-forwarde pas nos
-            // propres envois -> pas de boucle créée par l'app (cf. compte-rendu : seul un
-            // soft-thru du synthé pourrait boucler, ce que l'utilisateur assume en activant Thru).
-            if (midiThru && ! message.isActiveSense())
-                sendToOutputs (message);
+            // (MIDI Thru logiciel supprimé : le SY77 a son propre Thru hardware, et un thru
+            //  logiciel sur un port bidirectionnel renvoie au synthé ce qu'il vient d'émettre
+            //  -> doublons/écho. On ne forwarde donc plus l'entrée vers la sortie.)
 
             // Historique borné pour pouvoir RE-RENDRE le moniteur au changement de mode.
             monitorHistory.add (message);
             if (monitorHistory.size() > kMonitorHistoryMax)
                 monitorHistory.removeRange (0, monitorHistory.size() - kMonitorHistoryMax);
+
+            // Test de connexion : on accepte SOIT un dump/param Yamaha (F0 43 ..., réponse à notre
+            // demande de dump = preuve que le SY77 parle), SOIT un Identity Reply universel
+            // (F0 7E <dev> 06 02 <fab> ...) pour du matériel générique.
+            if (awaitingConnReply && message.isSysEx())
+            {
+                const uint8* id = message.getSysExData();
+                const int    n  = message.getSysExDataSize();
+                const bool yamaha   = (n >= 1 && id[0] == 0x43);
+                const bool identity = (n >= 5 && id[0] == 0x7E && id[2] == 0x06 && id[3] == 0x02);
+                if (yamaha || identity)
+                {
+                    awaitingConnReply = false;
+                    const bool isYam = yamaha || (identity && id[4] == 0x43);
+                    if (configPage != nullptr)
+                        configPage->setConnStatus (isYam ? TRANS("Connected - Yamaha synth detected")
+                                                         : TRANS("Connected - device responded"), true);
+                }
+            }
 
             // Application aux widgets : UNIQUEMENT pour les param-changes SY77 9 octets adressés.
             if (message.getSysExDataSize() == 9)
@@ -1486,6 +1536,11 @@ public:
     Array<MidiMessage> monitorHistory;
     static constexpr int kMonitorHistoryMax = 2000;
     DemoTabbedComponent tabs;
+
+    // Test de connexion (carte MIDI de Settings) : envoi d'une requête + attente de la réponse.
+    ConfigPage* configPage      = nullptr;  // page "Setting" (pour publier le statut de connexion)
+    bool        awaitingConnReply = false;
+    uint32      connDeadlineMs   = 0;
 
     uint8 data[12];
     

@@ -15,23 +15,131 @@
 #include "ThemeBuilder.h"
 
 //==============================================================================
+// Langue de l'UI : applique (ou retire) les mappings LocalisedStrings. Les clés source sont en
+// anglais ; "fr" charge Ressources/French.txt (embarqué en BinaryData), "en" repasse aux clés.
+// Appelé au démarrage (Main.cpp, depuis la préférence "Language") et au changement dans Settings.
+inline void syApplyLanguage (const juce::String& lang)
+{
+    if (lang == "fr")
+        juce::LocalisedStrings::setCurrentMappings (new juce::LocalisedStrings (
+            juce::String::createStringFromData (BinaryData::French_txt, BinaryData::French_txtSize), false));
+    else
+        juce::LocalisedStrings::setCurrentMappings (nullptr); // anglais = clés source, pas de mapping
+}
 
 //==============================================================================
-struct ConfigPage   : public Component, public ChangeListener, public Button::Listener, public ComboBox::Listener
+// Vue "Setting" : moyeu de configuration (cartes Machine / MIDI / Apparence / Développeur).
+// Les anciens sélecteurs de couleur ont été retirés (remplacés par le Theme Builder).
+// Les sélecteurs d'interface MIDI In/Out sont la propriété de MidiDemo et injectés via
+// attachMidiInterface() (un Component n'a qu'un seul parent).
+struct ConfigPage   : public Component, public ComboBox::Listener
 
 {
-    
+
     ConfigPage()
     {
         setOpaque(false);
-        addAndMakeVisible(btColBack);
-        addAndMakeVisible(btColAlt);
         addAndMakeVisible(comboModel);
-        addAndMakeVisible(btColLab);
-        addAndMakeVisible(btColSel);
         addAndMakeVisible(labEngine);
         addAndMakeVisible(comboEngine);
-        
+        labEngine.setText (TRANS("MIDI channel (Device 1-16 / ALL)"), dontSendNotification);
+        labEngine.setColour (Label::textColourId, SYColLabel);
+
+        // Suivre le synthé : quand un paramètre arrive du SY77, ouvre la vue concernée.
+        addAndMakeVisible (followBtn);
+        followSynth = getAppSettings()->getBoolValue ("FollowSynth", false);
+        followBtn.setToggleState (followSynth, dontSendNotification);
+        followBtn.setColour (ToggleButton::tickColourId, SYColSelected);
+        followBtn.setTooltip (TRANS("Automatically open the view of the parameter received from the SY77"));
+        followBtn.onClick = [this]
+        {
+            followSynth = followBtn.getToggleState();
+            getAppSettings()->setValue ("FollowSynth", followSynth);
+            getAppSettings()->saveIfNeeded();
+        };
+
+        // Test de connexion : envoie un Identity Request au synthé (câblé par MidiDemo) ;
+        // la réponse (ou le timeout) met à jour labConnStatus via setConnStatus().
+        addAndMakeVisible (btTestConn);
+        btTestConn.onClick = [this] { if (onTestConnection) onTestConnection(); };
+        addAndMakeVisible (labConnStatus);
+        labConnStatus.setColour (Label::textColourId, SYColLabel);
+        labConnStatus.setFont (Font (FontOptions (12.0f)));
+        labConnStatus.setJustificationType (Justification::centredLeft);
+
+        // Mode développeur : fait apparaître l'onglet "Midi Setting" (moniteur MIDI + outils RE).
+        // Le câblage add/remove de l'onglet est fourni par MidiDemo via onDevModeChanged.
+        addAndMakeVisible (devBtn);
+        devMode = getAppSettings()->getBoolValue ("DevMode", false);
+        devBtn.setToggleState (devMode, dontSendNotification);
+        devBtn.setColour (ToggleButton::tickColourId, SYColSelected);
+        devBtn.onClick = [this]
+        {
+            devMode = devBtn.getToggleState();
+            getAppSettings()->setValue ("DevMode", devMode);
+            getAppSettings()->saveIfNeeded();
+            if (onDevModeChanged) onDevModeChanged (devMode);
+        };
+        addAndMakeVisible (labDevHint);
+        labDevHint.setText (TRANS("Shows the \"Midi Setting\" tab: MIDI monitor and reverse-engineering tools."),
+                            dontSendNotification);
+        labDevHint.setColour (Label::textColourId, SYColLabel);
+        labDevHint.setFont (Font (FontOptions (12.0f)));
+        labDevHint.setMinimumHorizontalScale (1.0f);
+        labDevHint.setJustificationType (Justification::topLeft);
+
+        // Langue FR/EN : pilote les mappings LocalisedStrings (clés source = anglais, French.txt
+        // traduit en français). Le changement s'applique pleinement au prochain démarrage.
+        addAndMakeVisible (labLang);
+        addAndMakeVisible (comboLang);
+        // Noms de langue NON traduits (ils s'affichent pareil quelle que soit l'UI). Le "ç" passe
+        // par un décodage UTF-8 EXPLICITE : dans ce projet les littéraux C++ doivent rester ASCII
+        // (String(const char*) ne décode pas l'UTF-8 ici) -> accents uniquement via CharPointer_UTF8.
+        comboLang.addItem (String (CharPointer_UTF8 ("Fran\xc3\xa7" "ais")), 1);
+        comboLang.addItem ("English",  2);
+        {
+            const String lang = getAppSettings()->getValue ("Language",
+                                    SystemStats::getUserLanguage().startsWith ("fr") ? "fr" : "en");
+            comboLang.setSelectedId (lang == "fr" ? 1 : 2, dontSendNotification);
+        }
+        comboLang.onChange = [this]
+        {
+            const String lang = (comboLang.getSelectedId() == 1) ? "fr" : "en";
+            getAppSettings()->setValue ("Language", lang);
+            getAppSettings()->saveIfNeeded();
+            syApplyLanguage (lang);
+            NativeMessageBox::showMessageBoxAsync (MessageBoxIconType::InfoIcon,
+                TRANS("Language"), TRANS("Restart the application to fully apply the language."));
+        };
+
+        // Onglet de démarrage : "Dernier utilisé" (suit CurrentTab) ou un onglet fixe.
+        // L'id 1 = dernier utilisé ; id 2.. = onglet d'index 0.. (cf. MidiDemo au démarrage).
+        addAndMakeVisible (labStartTab);
+        addAndMakeVisible (comboStartTab);
+        comboStartTab.addItem (TRANS("Last used"), 1);
+        comboStartTab.addItem (TRANS("Setting"),   2);
+        comboStartTab.addItem (TRANS("Librairie"), 3);
+        comboStartTab.addItem (TRANS("Voice"),     4);
+        comboStartTab.addItem (TRANS("Effects"),   5);
+        comboStartTab.setSelectedId (jlimit (1, 5, getAppSettings()->getIntValue ("StartupTab", 1)),
+                                     dontSendNotification);
+        comboStartTab.onChange = [this]
+        {
+            getAppSettings()->setValue ("StartupTab", comboStartTab.getSelectedId());
+            getAppSettings()->saveIfNeeded();
+        };
+
+        // Réinitialiser : thème + couleurs + canal MIDI aux valeurs par défaut (confirmation).
+        addAndMakeVisible (btReset);
+        btReset.onClick = [this]
+        {
+            NativeMessageBox::showOkCancelBox (MessageBoxIconType::QuestionIcon,
+                TRANS("Default settings"),
+                TRANS("Reset theme, colours and MIDI channel to their defaults?"),
+                nullptr,
+                ModalCallbackFunction::create ([this] (int r) { if (r == 1) resetDefaults(); }));
+        };
+
         comboEngine.addItem("01",1);
         comboEngine.addItem("02",2);
         comboEngine.addItem("03",3);
@@ -64,7 +172,7 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
         addAndMakeVisible(labTheme);
         addAndMakeVisible(comboTheme);
         addAndMakeVisible(btReloadThemes);
-        btReloadThemes.addListener(this);
+        btReloadThemes.onClick = [this] { reloadThemes(); };
         addAndMakeVisible(btThemeBuilder);
         btThemeBuilder.onClick = [this]
         {
@@ -87,11 +195,6 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
         rebuildThemeCombo();
         comboTheme.addListener(this);
 
-        btColBack.addListener(this);
-        btColAlt.addListener(this);
-        btColLab.addListener(this);
-        btColSel.addListener(this);
-        
 // initialisation et ouverture des propriétées
         initProperties();
         loadParams();
@@ -104,11 +207,6 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
     {
         comboEngine.removeListener(this);
         comboModel.removeListener(this);
-        btColBack.removeListener(this);
-        btColAlt.removeListener(this);
-        btColLab.removeListener(this);
-        btColSel.removeListener(this);
-        btReloadThemes.removeListener(this);
         comboTheme.removeListener(this);
         saveParams(); //sauvegarde des paramètres
     }
@@ -184,7 +282,6 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
                 pushAliasesToPalette();
             }
 
-        updateColourButtons();
     }
     void 	comboBoxChanged (ComboBox *comboBoxThatHasChanged) override
     {
@@ -208,11 +305,23 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
             const int idx = comboTheme.getSelectedItemIndex();
             if (idx >= 0 && idx < (int) themes.size())
                 applySyPalette (themes[(size_t) idx]);
-            updateColourButtons();
             updateTabsAndRepaint();
         }
 
         getState();
+    }
+
+    // Injection des contrôles MIDI propriété de MidiDemo (un Component n'a qu'un seul parent) :
+    // sélecteurs d'interface In/Out + bouton "Bulk Protect". Appelé une fois après construction.
+    void attachMidiInterface (Label& inLabel, Component& inSel, Label& outLabel, Component& outSel,
+                              TextButton& bulk)
+    {
+        midiInLab = &inLabel; midiInSel = &inSel; midiOutLab = &outLabel; midiOutSel = &outSel;
+        bulkBtn = &bulk;
+        addAndMakeVisible (inLabel);  addAndMakeVisible (inSel);
+        addAndMakeVisible (outLabel); addAndMakeVisible (outSel);
+        addAndMakeVisible (bulk);
+        resized();
     }
 
     // Helpers d'UI partagés -------------------------------------------------
@@ -221,14 +330,6 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
         comboTheme.clear (dontSendNotification);
         for (int i = 0; i < (int) themes.size(); ++i)
             comboTheme.addItem (themes[(size_t) i].name, i + 1);
-    }
-    void updateColourButtons()
-    {
-        btColAlt .setColour (TextButton::buttonColourId, SYColAlt);
-        btColBack.setColour (TextButton::buttonColourId, SYColBackground);
-        btColLab .setColour (TextButton::buttonColourId, SYColLabel);
-        btColSel .setColour (TextButton::buttonColourId, SYColSelected);
-        repaint();
     }
     void updateTabsAndRepaint()
     {
@@ -250,99 +351,149 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
         comboTheme.setSelectedItemIndex (idx, dontSendNotification);
         if (! themes.empty())
             applySyPalette (themes[(size_t) idx]);
-        updateColourButtons();
         updateTabsAndRepaint();
         getState();
     }
-    void buttonClicked (Button* button) override
+
+    // Affiche le résultat du test de connexion (appelé par MidiDemo : réponse identité ou timeout).
+    // ok = vert (succès) ; sinon couleur de label neutre. Sûr : appelé depuis le message loop.
+    void setConnStatus (const String& text, bool ok)
     {
-        Logger::writeToLog("ConfigPage: clicked");
-
-        if (button == &btReloadThemes) { reloadThemes(); return; }
-
-        // Crée un unique_ptr pour le ColourSelector
-        auto colourSelector = std::make_unique<ColourSelector>();
-        colourSelector->setName("Colour");
-        colourSelector->addChangeListener(this);
-        colourSelector->setCurrentColour(button->findColour(TextButton::buttonColourId));
-        colourSelector->setColour(ColourSelector::backgroundColourId, Colours::transparentBlack);
-        colourSelector->setSize(300, 400);
-        
-        // Configure le nom selon le bouton cliqué
-        if (button == &btColBack)
-            colourSelector->setName("colBack");
-        else if (button == &btColAlt)
-            colourSelector->setName("colAlt");
-        else if (button == &btColLab)
-            colourSelector->setName("colLab");
-        else if (button == &btColSel)
-            colourSelector->setName("colSel");
-        
-        // Transfère la propriété du unique_ptr à launchAsynchronously
-        CallOutBox::launchAsynchronously(std::move(colourSelector),
-                                       button->getScreenBounds(),
-                                       nullptr);
+        labConnStatus.setColour (Label::textColourId, ok ? SYColSelected : SYColLabel);
+        labConnStatus.setText (text, dontSendNotification);
     }
-    
-    void changeListenerCallback (ChangeBroadcaster* source) override
+
+    // Réinitialise thème + couleurs + canal MIDI aux valeurs par défaut (Dark Orange, device 1).
+    void resetDefaults()
     {
-        Logger::writeToLog( "ConfigPage: Change Listener");
-        if (auto* cs = dynamic_cast<ColourSelector*> (source))
-        {
-            //  btColBack.setColour(ColourSelector::backgroundColourId, Colours::transparentBlack);
-            
-            
-            //       editor.applyNewValue (getAsString (cs->getCurrentColour(), true));
-            
-            if (cs->getName() == "colAlt")
-            {
-                SYColAlt = cs->getCurrentColour();
-                
-                btColAlt.setColour(TextButton::ColourIds::buttonColourId, SYColAlt);
-            }
-            else if (cs->getName() == "colBack")
-            {
-                setColour(ResizableWindow::backgroundColourId, cs->getCurrentColour());
-                SYColBackground = cs->getCurrentColour();
-                btColBack.setColour(TextButton::ColourIds::buttonColourId, SYColBackground);
-                
-            }
-            else if (cs->getName() == "colLab")
-            {
-                SYColLabel = cs->getCurrentColour();
-                btColLab.setColour(TextButton::ColourIds::buttonColourId, SYColLabel);
-                
-            }
-            else if (cs->getName() == "colSel")
-            {
-                setColour(Slider::ColourIds::trackColourId, cs->getCurrentColour());
-                SYColSelected = cs->getCurrentColour();
-                btColSel.setColour(TextButton::ColourIds::buttonColourId, SYColSelected);
+        applySyTheme (0);                       // palette par défaut (Dark Orange historique)
+        for (int i = 0; i < (int) themes.size(); ++i)
+            if (themes[(size_t) i].name == SYPal.name)
+            { comboTheme.setSelectedItemIndex (i, dontSendNotification); break; }
 
-            }
+        sysexDeviceNumber = 1;
+        sysexReceiveOmni  = false;
+        comboEngine.setSelectedId (1, dontSendNotification);
 
-            // Pousse la retouche dans la palette active (thème « Custom ») et redessine tout.
-            pushAliasesToPalette();
-            updateTabsAndRepaint();
-        }
+        followSynth = false;
+        followBtn.setToggleState (false, dontSendNotification);
+        getAppSettings()->setValue ("FollowSynth", false);
+        getAppSettings()->saveIfNeeded();
 
+        updateTabsAndRepaint();
         getState();
+        saveParams();
+    }
 
+    // Carte : fond surface + contour panelBorder + titre accentué. Cohérent avec ModernLookAndFeel.
+    void paintCard (Graphics& g, Rectangle<int> r, const String& title)
+    {
+        if (r.isEmpty()) return;
+        auto rf = r.toFloat().reduced (0.5f);
+        g.setColour (SYPal.surface.withAlpha (SYPal.dark ? 0.55f : 0.85f));
+        g.fillRoundedRectangle (rf, SyMetrics::cornerLg);
+        g.setColour (SYPal.panelBorder);
+        g.drawRoundedRectangle (rf, SyMetrics::cornerLg, SyMetrics::stroke);
+        g.setColour (SYPal.accent);
+        g.setFont (Font (FontOptions (12.0f, Font::bold)));
+        g.drawText (title.toUpperCase(), r.reduced (14, 0).withTrimmedTop (9).withHeight (16),
+                    Justification::topLeft, false);
+    }
+    void paint (Graphics& g) override
+    {
+        paintCard (g, cardMachine, TRANS("Machine"));
+        paintCard (g, cardMidi,    "MIDI");
+        paintCard (g, cardTheme,   TRANS("Appearance"));
+        paintCard (g, cardGeneral, TRANS("General"));
+        paintCard (g, cardDev,     TRANS("Developer"));
     }
     void resized() override
     {
-        btColBack.setBounds(10,58,getWidth()/2 - 20,24);
-        btColAlt.setBounds(10,106, getWidth()/2 - 20, 24 );
-        btColLab.setBounds(10,154, getWidth()/2 - 20, 24 );
-        btColSel.setBounds(10,202, getWidth()/ 2 - 20, 24 );
-        comboModel.setBounds(10, 24, getWidth()/2 - 20, 24);
-        labEngine.setBounds(getWidth()/2 +10, 24, getWidth()/2 - 20, 24);
-        comboEngine.setBounds(getWidth()/2 +10, 58, getWidth()/2 - 20, 24);
-        labTheme.setBounds(getWidth()/2 +10, 92, getWidth()/2 - 20, 20);
-        comboTheme.setBounds(getWidth()/2 +10, 112, getWidth()/2 - 20, 24);
-        btReloadThemes.setBounds(getWidth()/2 +10, 144, getWidth()/4 - 14, 24);
-        btThemeBuilder.setBounds(getWidth()*3/4 +2, 144, getWidth()/4 - 12, 24);
-        labVersion.setBounds(10, getHeight() - 22, getWidth() - 20, 18);
+        auto area = getLocalBounds().reduced (16);
+        labVersion.setBounds (area.removeFromBottom (18));
+        area.removeFromBottom (8);
+
+        const int gap = 16, pad = 14, rowH = 26, labH = 18, vgap = 8, titleH = 26;
+        const int colW = (area.getWidth() - gap) / 2;
+        auto left  = area.removeFromLeft (colW);
+        area.removeFromLeft (gap);
+        auto right = area.removeFromLeft (colW);
+
+        // ----- Colonne gauche : Machine + MIDI -----
+        cardMachine = left.removeFromTop (titleH + rowH + pad);
+        {
+            auto c = cardMachine.reduced (pad);
+            c.removeFromTop (titleH - pad);
+            comboModel.setBounds (c.removeFromTop (rowH));
+        }
+        left.removeFromTop (gap);
+
+        const int selH = 104;
+        const int midiH = titleH + labH + rowH + vgap + (labH + selH) + vgap
+                          + rowH + rowH + vgap + rowH + labH + pad;   // +Bulk +Test +statut
+        cardMidi = left.removeFromTop (midiH);
+        {
+            auto c = cardMidi.reduced (pad);
+            c.removeFromTop (titleH - pad);
+            labEngine.setBounds (c.removeFromTop (labH));
+            comboEngine.setBounds (c.removeFromTop (rowH));
+            c.removeFromTop (vgap);
+            auto io = c.removeFromTop (labH + selH);
+            auto inCol  = io.removeFromLeft ((io.getWidth() - 8) / 2);
+            io.removeFromLeft (8);
+            auto outCol = io;
+            if (midiInLab)  midiInLab->setBounds  (inCol.removeFromTop (labH));
+            if (midiInSel)  midiInSel->setBounds  (inCol);
+            if (midiOutLab) midiOutLab->setBounds (outCol.removeFromTop (labH));
+            if (midiOutSel) midiOutSel->setBounds (outCol);
+            c.removeFromTop (vgap);
+            followBtn.setBounds (c.removeFromTop (rowH));
+            if (bulkBtn) bulkBtn->setBounds (c.removeFromTop (rowH));
+            c.removeFromTop (vgap);
+            btTestConn.setBounds (c.removeFromTop (rowH));
+            labConnStatus.setBounds (c.removeFromTop (labH));
+        }
+
+        // ----- Colonne droite : Apparence + General + Développeur -----
+        const int themeH = titleH + labH + rowH + vgap + rowH + vgap + labH + rowH + pad; // +langue
+        cardTheme = right.removeFromTop (themeH);
+        {
+            auto c = cardTheme.reduced (pad);
+            c.removeFromTop (titleH - pad);
+            labTheme.setBounds (c.removeFromTop (labH));
+            comboTheme.setBounds (c.removeFromTop (rowH));
+            c.removeFromTop (vgap);
+            auto btnRow = c.removeFromTop (rowH);
+            btReloadThemes.setBounds (btnRow.removeFromLeft ((btnRow.getWidth() - 8) / 2));
+            btnRow.removeFromLeft (8);
+            btThemeBuilder.setBounds (btnRow);
+            c.removeFromTop (vgap);
+            labLang.setBounds (c.removeFromTop (labH));
+            comboLang.setBounds (c.removeFromTop (rowH));
+        }
+        right.removeFromTop (gap);
+
+        const int genH = titleH + labH + rowH + vgap + rowH + pad;
+        cardGeneral = right.removeFromTop (genH);
+        {
+            auto c = cardGeneral.reduced (pad);
+            c.removeFromTop (titleH - pad);
+            labStartTab.setBounds (c.removeFromTop (labH));
+            comboStartTab.setBounds (c.removeFromTop (rowH));
+            c.removeFromTop (vgap);
+            btReset.setBounds (c.removeFromTop (rowH));
+        }
+        right.removeFromTop (gap);
+
+        const int devH = titleH + rowH + vgap + 36 + pad;
+        cardDev = right.removeFromTop (devH);
+        {
+            auto c = cardDev.reduced (pad);
+            c.removeFromTop (titleH - pad);
+            devBtn.setBounds (c.removeFromTop (rowH));
+            c.removeFromTop (vgap);
+            labDevHint.setBounds (c.removeFromTop (36));
+        }
     }
     void initProperties()
     {
@@ -379,11 +530,7 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
      //   getAppProps().getUserSettings()->setValue("mySlider", mySlider.getValue());
     }
     std::unique_ptr<XmlElement> tutorialData;
-    TextButton btColBack {TRANS("Background Application color")};
-    TextButton btColAlt {TRANS("Alternate background color")};
-    TextButton btColLab {TRANS("Label background color")};
-    TextButton btColSel {TRANS("Text selected color")};
-    Label labEngine {"","Canal MIDI (Device 1-16 / ALL)"};
+    Label labEngine {"","MIDI channel (Device 1-16 / ALL)"};
     ComboBox comboEngine;
     Label labTheme {"", TRANS("Theme")};
     ComboBox comboTheme;
@@ -392,8 +539,37 @@ struct ConfigPage   : public Component, public ChangeListener, public Button::Li
     std::vector<SyPalette> themes;
     Label labVersion;
 
+    // Carte MIDI : toggle "Suivre le synthé" + sélecteurs d'interface et bouton Bulk Protect
+    // injectés par MidiDemo (cf. attachMidiInterface). Test de connexion + statut.
+    ToggleButton followBtn { TRANS("Follow synth") };
+    Label*      midiInLab  = nullptr;
+    Component*  midiInSel   = nullptr;
+    Label*      midiOutLab = nullptr;
+    Component*  midiOutSel  = nullptr;
+    TextButton* bulkBtn     = nullptr;
+    TextButton  btTestConn { TRANS("Test connection") };
+    Label       labConnStatus;
+    std::function<void()> onTestConnection;       // câblé par MidiDemo : envoie un Identity Request
+
+    // Carte Apparence : langue FR/EN
+    Label    labLang { "", TRANS("Language") };
+    ComboBox comboLang;
+
+    // Carte General : onglet de démarrage + réinitialisation
+    Label      labStartTab { "", TRANS("Startup tab") };
+    ComboBox   comboStartTab;
+    TextButton btReset { TRANS("Default settings") };
+
+    // Carte Développeur
+    ToggleButton devBtn { TRANS("Developer mode") };
+    Label labDevHint;
+    std::function<void(bool)> onDevModeChanged;   // câblé par MidiDemo : ajoute/retire l'onglet "Midi Setting"
+
+    // Cadres des cartes (calculés dans resized, dessinés dans paint).
+    Rectangle<int> cardMachine, cardMidi, cardTheme, cardGeneral, cardDev;
+
     ComboBox    comboModel;
     SysexBusSender sender;  // [2]
-    
+
 };
 

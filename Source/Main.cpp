@@ -130,18 +130,13 @@ class Application    : public JUCEApplication
 {
 public:
     //==============================================================================
-    Application() 
+    Application()
     {
-        
+        // Langue de l'UI : préférence "Language" (réglable dans Settings) ; à défaut, langue système.
+        // "fr" charge French.txt, "en" garde les clés source anglaises. Cf. syApplyLanguage (Config.h).
         Logger::writeToLog( SystemStats::getUserLanguage());
-        if(SystemStats::getUserLanguage()=="fr")
-        {
-            juce::LocalisedStrings *currentMappings = new             juce::LocalisedStrings(String::createStringFromData(BinaryData::French_txt, BinaryData::French_txtSize), false);
-            juce::LocalisedStrings::setCurrentMappings(currentMappings);
- 
-
-        }
-        
+        const String defaultLang = SystemStats::getUserLanguage().startsWith ("fr") ? "fr" : "en";
+        syApplyLanguage (getAppSettings()->getValue ("Language", defaultLang));
     }
 
     const String getApplicationName() override       { return "Sysex77"; }
