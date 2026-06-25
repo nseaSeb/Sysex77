@@ -983,7 +983,9 @@ public:
             
             if (midiOutputs[index]->outDevice.get() == nullptr)
             {
-                DBG ("MidiDemo::openDevice: open output device for index = " << index << " failed!");
+                // Échec d'ouverture du port : visible (Logger, pas DBG strippé en Release) ->
+                // diagnostic quand « le synthé ne répond pas » (le port n'a pas pu s'ouvrir).
+                Logger::writeToLog ("ERREUR : ouverture de la sortie MIDI #" + String (index) + " echouee");
             }
         }
     }
@@ -1326,8 +1328,8 @@ public:
             {
 
                 midiOutput->outDevice->sendMessageNow (msg);
-                Logger::writeToLog("Envoi msg midi");
-                Logger::writeToLog(String(msg.getDescription()) );
+                // (Avant : 2 lignes de log PAR message sortant -> inondait le log lors d'un
+                //  envoi de banque. Retiré du chemin chaud.)
             }
     }
     
@@ -1536,6 +1538,9 @@ public:
     Array<MidiMessage> monitorHistory;
     static constexpr int kMonitorHistoryMax = 2000;
     DemoTabbedComponent tabs;
+    // Active TOUTES les infobulles (setTooltip) de l'app : sans un TooltipWindow vivant,
+    // aucun tooltip ne s'affiche. Un seul suffit pour tout l'arbre.
+    TooltipWindow tooltipWindow { this, 600 };
 
     // Test de connexion (carte MIDI de Settings) : envoi d'une requête + attente de la réponse.
     ConfigPage* configPage      = nullptr;  // page "Setting" (pour publier le statut de connexion)

@@ -164,6 +164,18 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
             myFile.deleteFile();
             FileOutputStream fos (myFile);
 
+            // Échec d'ouverture du flux (disque plein, permissions…) : ne PAS prétendre que la
+            // capture est OK. On signale et on s'arrête (le « Capture OK » était mensonger).
+            if (fos.failedToOpen())
+            {
+                labelInfoLine.setText ("ERREUR : impossible d'ecrire " + myFile.getFileName(),
+                                       dontSendNotification);
+                labelInfoLine.setColour (Label::textColourId, Colours::red);
+                arraySysex.clear();
+                sendChangeMessage();
+                return;
+            }
+
             // Validation du checksum Yamaha À LA RÉCEPTION : on ne prétend PAS que la
             // capture est saine sans l'avoir vérifiée. Chaque message F0…F7 reçu est un
             // bulk dump -> on contrôle son checksum (cf. SyVoice::verifyYamahaBulkChecksum).

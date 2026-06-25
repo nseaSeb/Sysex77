@@ -127,7 +127,7 @@ public:
 
     void setElementNumber ( int element, UndoManager& um) override
     {
-        Logger::writeToLog( "Filter1 setElement");
+        Logger::writeToLog( "Filter2 setElement");
         storedElement = element; lastUm = &um;
         // Groupe 0x09 = Filtre (SY77/TG77 Table 1-10). T2 = ((elem-1)<<5)|fN ; fN=1 (filtre AFM 2,
         // ajouté plus bas sur les DEUX tableaux). Offsets EG conformes spec (FR1-4=03-06,FRR1=07,FL0-4=09-0D,FRS=10).

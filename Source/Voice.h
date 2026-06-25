@@ -251,27 +251,19 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
     {
     Logger::writeToLog("Voice: BroughtToFront");
    
-        editWave1.setVisible(false);
-        editAfm1.setVisible(false);
-        editFilter1.setVisible(false);
-        editPan1.setVisible(false);
-        editPan2.setVisible(false);
-        editPan3.setVisible(false);
-        editPan4.setVisible(false);
-
-        editWave2.setVisible(false);
-        editAfm2.setVisible(false);
-        editFilter2.setVisible(false);
-
-        editWave2.setVisible(false);
-        editAfm2.setVisible(false);
-        editFilter2.setVisible(false);
-
-        editWave2.setVisible(false);
-        editAfm2.setVisible(false);
-        editFilter2.setVisible(false);
-
-        
+        // Ferme TOUS les overlays d'édition des 4 éléments (avant : élément 2 masqué 3× par
+        // copier-coller -> les overlays des éléments 3/4 ne se fermaient pas).
+        WaveVue*   wave[4]   = { &editWave1, &editWave2, &editWave3, &editWave4 };
+        AFMVue*    afm[4]    = { &editAfm1, &editAfm2, &editAfm3, &editAfm4 };
+        FilterVue* filt[4]   = { &editFilter1, &editFilter2, &editFilter3, &editFilter4 };
+        PanVue*    pan[4]    = { &editPan1, &editPan2, &editPan3, &editPan4 };
+        for (int i = 0; i < 4; ++i)
+        {
+            wave[i]->setVisible (false);
+            afm[i]->setVisible (false);
+            filt[i]->setVisible (false);
+            pan[i]->setVisible (false);
+        }
     }
     
     // Sur changement de thème (sendLookAndFeelChange), ré-applique l'accent aux libellés qui

@@ -192,7 +192,7 @@ public:
         
   
 
-        imgAudio =  ImageFileFormat::loadFrom(BinaryData::Audio_png, (size_t) BinaryData::Audio_pngSize);
+        // imgAudio supprimé : la waveform AWM est désormais DESSINÉE (FmWaveView), plus d'image.
         imgAFM = ImageFileFormat::loadFrom(BinaryData::AFM_png,(size_t) BinaryData::AFM_pngSize);
         // (Filter/VCA : la réponse du filtre et l'enveloppe sont DESSINÉES dans paint() —
         //  plus d'images chargées ici, cf. nettoyage des ressources.)
@@ -762,7 +762,6 @@ private:
     int operatorMode;
     bool elementMuted = false;  // MUTE = OUTPUT SELECT off (OUTSEL=0) ; cf. setElementMuted
     
-    Image imgAudio;
     Image imgAFM;
     Pitch pitch;
     ImageButton btWave;
