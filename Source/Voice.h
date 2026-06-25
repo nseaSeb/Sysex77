@@ -274,10 +274,20 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         
     }
     
+    // Sur changement de thème (sendLookAndFeelChange), ré-applique l'accent aux libellés qui
+    // figent leur couleur via setColour (sinon ils gardent l'accent du thème de départ).
+    void lookAndFeelChanged() override
+    {
+        labelOpOn.setColour (Label::ColourIds::textColourId, SYColSelected);
+        labelName.setColour (Label::ColourIds::textColourId, SYColSelected);
+        labelMode.setColour (Label::ColourIds::textColourId, SYColSelected);
+        repaint();
+    }
+
     void changeListenerCallback (ChangeBroadcaster* source) override
     {
-       
-        
+
+
         Logger::writeToLog("Voice: changeListener");
     //    Logger::writeToLog(source);
     //    test.setVisible(true);

@@ -39,6 +39,16 @@ public:
         repaint();
     }
 
+    // Mode AWM : la cellule WAVE dessine une forme d'onde « échantillon » thémée (au lieu du
+    // schéma d'algo AFM). `seed` = index de wave -> tracé varié et stable. Ce composant est
+    // TOUJOURS au-dessus du bouton WAVE -> couvre l'ancienne image PNG (qui ne suivait pas le thème).
+    void setAwm (bool isAwm, int waveSeed)
+    {
+        if (awm == isAwm && seed == waveSeed) return;
+        awm = isAwm; seed = waveSeed;
+        repaint();
+    }
+
     // Conservés pour compat. d'API (appelés depuis updateFmWave) : le schéma
     // d'algorithme ne dépend que du numéro d'algo, ces données ne sont plus utilisées.
     void setWaves  (const int[6])   {}
@@ -48,6 +58,14 @@ public:
     void paint (Graphics& g) override
     {
         auto area = getLocalBounds().toFloat();
+
+        // AWM : forme d'onde échantillon thémée (suit l'accent du thème).
+        if (awm)
+        {
+            SyDraw::drawSampleWave (g, area, SYColSelected, seed);
+            return;
+        }
+
         SyDraw::drawPanel (g, area, SYColSelected);
 
         // Schéma d'algorithme de l'élément (couleurs via rôles de thème dans AlgoDraw).
@@ -65,7 +83,9 @@ public:
     }
 
 private:
-    int algo = 1;
+    int  algo = 1;
+    bool awm  = false;
+    int  seed = 0;
 };
 
 //==============================================================================
@@ -463,18 +483,24 @@ public:
         btGroup2.onClick = [this] { sendOutSel(); };
     }
 
-    // Émet l'octet packé OUTSEL (group 0x03, param 0x08) recomposé depuis les 2 bascules.
-    // b1 = OUTSEL0 (groupe 1), b2 = OUTSEL1 (groupe 2). b0 (MCTEN, micro-tuning) laissé à 0 :
-    // non édité ici (pas de widget). Statut MAP : 🟡 (câblé d'après spec+carte, à confirmer
-    // hardware). L'envoi ne part qu'au CLIC utilisateur (jamais au chargement) -> sécurité.
-    void sendOutSel()
+    // Émet l'octet OUTSEL (group 0x03, param 0x08, addrHi=(él-1)<<5). VÉRIFIÉ HW (dump SY77) :
+    // off=0, grp1=2, grp2=4, both=6 = (outsel1<<2)|(outsel0<<1) (b0 MCTEN laissé 0).
+    void sendOutSelValue (int v)
     {
-        const int outsel0 = btGroup1.getToggleState() ? 1 : 0;   // b1
-        const int outsel1 = btGroup2.getToggleState() ? 1 : 0;   // b2
-        const int v = (outsel1 << 2) | (outsel0 << 1);           // b0 (MCTEN) = 0
         juce::uint8 b[9] = { 0x43, 0x10, 0x34, 0x03, (juce::uint8) outSelAddrHi,
                              0x00, 0x08, 0x00, (juce::uint8) (v & 0x7F) };
         outSelSender.sendParam9 ("/SYSEX", b);
+    }
+
+    // Recompose OUTSEL depuis les 2 bascules G1/G2. Si l'élément est MUTÉ, on force OUTSEL=off
+    // (le mute EST l'output off, cf. setElementMuted) : changer G1/G2 quand muté met à jour le
+    // routage « voulu » mais l'élément reste silencieux jusqu'au unmute. Émis au CLIC seulement.
+    void sendOutSel()
+    {
+        if (elementMuted) { sendOutSelValue (0); return; }
+        const int outsel0 = btGroup1.getToggleState() ? 1 : 0;   // b1
+        const int outsel1 = btGroup2.getToggleState() ? 1 : 0;   // b2
+        sendOutSelValue ((outsel1 << 2) | (outsel0 << 1));
     }
 
    int getOpNumber ()
@@ -482,25 +508,16 @@ public:
         return operatorID;
     }
 
-    // MUTE éditeur de l'élément (pas de vrai param « element on/off » dans la spec SY77 :
-    // seul ELVL « Element Level 0-127 » existe, group 0x03 / addrHi=(élément-1)<<5 / param
-    // 0x00, cf. sy77midi_ocr.txt l.281). OFF = mémorise l'ELVL courant puis force 0 ; ON =
-    // restaure. On passe par sliderVolume (déjà bindé à ELEMENT<n>VOLUME et câblé ELVL en
-    // sysex), donc setValue(...) émet le vrai param-change ELVL (comme le on/off opérateur
-    // via TL). L'émission ne part qu'au CLIC utilisateur (sécurité hardware).
+    // MUTE de l'élément = OUTPUT SELECT à OFF (modèle réel du SY77, identifié par l'utilisateur :
+    // « le mute vient de l'output off »). OFF -> OUTSEL=0 (group 0x03 / param 0x08) ; ON ->
+    // restaure le routage depuis les bascules G1/G2 (sendOutSel). Le routage « voulu » reste
+    // mémorisé dans les bascules (et ELEMENT<n>GROUP1/2), donc rien à sauvegarder. L'émission ne
+    // part qu'au CLIC utilisateur (sécurité hardware). VÉRIFIÉ HW (off=0).
     void setElementMuted (bool muted)
     {
         if (muted == elementMuted) return;
         elementMuted = muted;
-        if (muted)
-        {
-            savedElvl = (int) sliderVolume.getValue();   // mémorise l'ELVL courant
-            sliderVolume.setValue (0, sendNotificationSync); // -> émet ELVL=0
-        }
-        else
-        {
-            sliderVolume.setValue (savedElvl, sendNotificationSync); // restaure l'ELVL
-        }
+        sendOutSel();   // muté -> OUTSEL=0 (off) ; non muté -> valeur des bascules G1/G2
     }
     bool isElementMuted() const { return elementMuted; }
     void setOpMode (int mode)
@@ -514,14 +531,17 @@ public:
     void setWaveMode()
     {
                 btWave.setButtonText("Wave");
- 
+
+        // Bouton transparent : la forme d'onde AWM est DESSINÉE dans paint() (SYColSelected,
+        // suit le thème) au lieu de l'ancienne image PNG orange figée. Reste cliquable.
         btWave.setImages (false, true, true,
-                         imgAudio, 0.7f, Colours::transparentBlack,
-                         imgAudio, 1.0f, Colours::transparentBlack,
-                          imgAudio, 0.6f, Colours::transparentBlack,
+                         Image(), 0.0f, Colours::transparentBlack,
+                         Image(), 0.0f, Colours::transparentBlack,
+                         Image(), 0.0f, Colours::transparentBlack,
                          0.0f);
-        elementFmWave.setVisible (false); // AWM : pas de forme d'onde FM
-        waveNameLabel.setVisible (true);  // AWM : montre le nom de la wave
+        elementFmWave.setAwm (true, (int) waveNameValue.getValue()); // AWM : waveform échantillon thémée
+        elementFmWave.setVisible (true);  // dessinée AU-DESSUS du bouton (couvre l'ancienne image)
+        waveNameLabel.setVisible (true);  // AWM : montre le nom de la wave (par-dessus)
         waveNameLabel.setText (awmWaveName ((int) waveNameValue.getValue(), SYModel == 3), dontSendNotification);
         repaint();
     }
@@ -535,6 +555,7 @@ public:
                           imgAFM, 1.0f, Colours::transparentBlack,
                           imgAFM, 0.6f, Colours::transparentBlack,
                           0.0f);
+        elementFmWave.setAwm (false, 0);  // AFM : schéma d'algorithme
         elementFmWave.setVisible (true);  // AFM : forme d'onde FM (+ n° algo en overlay)
         updateFmWave();
         waveNameLabel.setVisible (false); // AFM : pas de nom de wave
@@ -739,8 +760,7 @@ public:
 private:
     int operatorID;
     int operatorMode;
-    bool elementMuted = false;  // MUTE éditeur (via ELVL) ; cf. setElementMuted
-    int  savedElvl = 0;         // ELVL mémorisé avant mute (restauré au unmute)
+    bool elementMuted = false;  // MUTE = OUTPUT SELECT off (OUTSEL=0) ; cf. setElementMuted
     
     Image imgAudio;
     Image imgAFM;

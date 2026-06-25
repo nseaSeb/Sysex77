@@ -281,6 +281,35 @@ namespace SyDraw
     }
 
     //==============================================================================
+    /** Forme d'onde « échantillon » stylisée (barres symétriques décroissantes), DESSINÉE
+        dans la couleur passée -> suit le thème (remplace l'ancienne image PNG orange figée).
+        `seed` rend le tracé déterministe ET varié selon la wave (pas de scintillement). */
+    inline void drawSampleWave (juce::Graphics& g, juce::Rectangle<float> area,
+                                juce::Colour colour, int seed)
+    {
+        drawPanel (g, area, colour);
+        auto inner = area.reduced (5.0f);
+        if (inner.getWidth() < 6.0f || inner.getHeight() < 6.0f) return;
+
+        const int n = juce::jmax (24, (int) (inner.getWidth() / 3.0f));
+        juce::uint32 s = (juce::uint32) seed * 2654435761u + 0x9e3779b9u;
+        auto rnd = [&s]() { s ^= s << 13; s ^= s >> 17; s ^= s << 5; return (float) (s & 0xffffu) / 65535.0f; };
+
+        const float midY = inner.getCentreY();
+        g.setColour (colour.withAlpha (0.9f));
+        for (int i = 0; i < n; ++i)
+        {
+            const float t   = i / (float) (n - 1);
+            const float env = std::pow (1.0f - t, 0.4f);                  // léger decay façon sample
+            const float a   = (0.12f + 0.88f * rnd()) * env * inner.getHeight() * 0.46f;
+            const float x   = inner.getX() + inner.getWidth() * t;
+            g.drawLine (x, midY - a, x, midY + a, 1.4f);
+        }
+        g.setColour (colour.withAlpha (0.25f));
+        g.drawHorizontalLine ((int) midY, inner.getX(), inner.getRight());
+    }
+
+    //==============================================================================
     // Moteur FM (approché) — Étape 1 : utilise les vraies formes d'onde des opérateurs.
     // Les 16 formes d'onde AFM sont approximées en maths (assez pour un rendu indicatif ;
     // le SY77 a son propre jeu exact). idx 0..15, phase en radians.

@@ -337,7 +337,7 @@ struct ConfigPage   : public Component, public ComboBox::Listener
             for (int i = 0; i < tabs->getNumTabs(); ++i)
                 tabs->setTabBackgroundColour (i, SYColBackground);
         if (auto* top = getTopLevelComponent())
-            top->repaint();
+            top->sendLookAndFeelChange();   // repeint + déclenche lookAndFeelChanged (couleurs figées)
     }
     // Re-scanne le dossier de thèmes (hot-reload) en conservant le thème courant si possible.
     void reloadThemes()
