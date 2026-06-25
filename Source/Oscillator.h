@@ -95,7 +95,7 @@ public:
                                &sliderFreqFine4,&sliderFreqFine5,&sliderFreqFine6 })
             setSliderStyle(*s);
 
-        // Panel zoom : sensibilités, switches, scaling (cachés en mode table, cf. updateZoomVisibility).
+        // Panneau détail : sensibilités, switches, scaling (visibles pour l'op sélectionné, cf. updateSelVisibility).
         for (int o = 0; o < 6; ++o)
         {
             for (MidiSlider* s : { &sensVel[o], &sensAm[o], &sensPm[o] })
@@ -152,14 +152,40 @@ public:
         labelLevel5.attachToComponent(&sliderLevel5, false);
         labelLevel6.attachToComponent(&sliderLevel6, false);
 
-        // Navigation de la vue zoom (masquée en mode table).
-        addChildComponent(btZoomBack);
-        addChildComponent(btZoomPrev);
-        addChildComponent(btZoomNext);
-        btZoomBack.onClick = [this] { setZoomOp(-1); };
-        btZoomPrev.onClick = [this] { if (zoomOp > 0) setZoomOp(zoomOp - 1); };
-        btZoomNext.onClick = [this] { if (zoomOp >= 0 && zoomOp < 5) setZoomOp(zoomOp + 1); };
-        btZoomBack.setTooltip("Retour à la table des 6 opérateurs");
+        // Barre d'onglets « OP1 | … | OP6 » (une seule ligne fine) pour choisir l'op à éditer.
+        // Boutons radio mutuellement exclusifs (même radioGroupId) façon segmented tabs.
+        for (int i = 0; i < 6; ++i)
+        {
+            auto& tab = opTab[i];
+            addAndMakeVisible (tab);
+            tab.setButtonText ("OP" + String (i + 1));
+            tab.setClickingTogglesState (true);
+            tab.setRadioGroupId (1001);
+            tab.setConnectedEdges (  (i > 0 ? Button::ConnectedOnLeft  : 0)
+                                   | (i < 5 ? Button::ConnectedOnRight : 0));
+            tab.setColour (TextButton::buttonOnColourId, SYPal.accent);
+            tab.onClick = [this, i] { setSelOp (i); };
+        }
+        opTab[selOp].setToggleState (true, dontSendNotification);
+
+        // Interrupteurs ON/OFF des 6 opérateurs (à DROITE de la barre, sur la même ligne fine).
+        // MUTE éditeur via le niveau de sortie TL (param 0x1B, déjà câblé sur sliderLevel*) :
+        // la spec AFM (Table 1-7) n'expose AUCUN « operator on/off » dédié (comme sur DX7) — seuls
+        // des switches PEG/VEL existent. OFF = mémorise le TL courant puis force le niveau à 0
+        // (l'envoi sysex TL=0 part via le wiring existant) ; ON = restaure le TL mémorisé.
+        for (int i = 0; i < 6; ++i)
+        {
+            auto& sw = opOn[i];
+            addAndMakeVisible (sw);
+            sw.setButtonText (String (i + 1));
+            sw.setClickingTogglesState (true);
+            sw.setToggleState (true, dontSendNotification);   // défaut : tous ON
+            sw.setColour (TextButton::buttonOnColourId,  SYPal.accent);      // allumé = ON (accent)
+            sw.setColour (TextButton::textColourOnId,    SYPal.background);   // texte lisible sur accent
+            sw.setColour (TextButton::textColourOffId,   SYPal.textMuted);    // atténué = OFF
+            sw.setTooltip ("Active/désactive l'opérateur " + String (i + 1) + " (mute via niveau)");
+            sw.onClick = [this, i] { toggleOpActive (i); };
+        }
 
         // Panneau algorithme (colonne droite), masqué automatiquement en mode zoom.
         addAndMakeVisible(algoPanel);
@@ -559,22 +585,7 @@ public:
 
     }
 
-    // Clic dans la gouttière de gauche (nom OPn) en mode table -> zoom sur cet opérateur.
-    void mouseDown (const MouseEvent& e) override
-    {
-        if (zoomOp >= 0) return;
-        auto area = getLocalBounds();
-        area.removeFromRight (algoPanelWidth());   // exclut la colonne algo (cf. layoutTable)
-        const int headerH = tableHeaderH (area.getHeight());
-        area.removeFromTop (headerH);
-        const int rowH = tableRowH (area.getHeight());
-        const int gutter = (int) (0.05f * (float) area.getWidth());
-        if (e.x >= area.getX() && e.x < area.getX() + gutter && e.y >= area.getY())
-        {
-            const int row = (e.y - area.getY()) / rowH;
-            if (row >= 0 && row < 6) setZoomOp (row);
-        }
-    }
+    // (Sélection désormais gérée par la barre d'onglets opTab[] — plus de clic sur rangée.)
 
     void paint (Graphics& g) override
     {
@@ -586,185 +597,130 @@ public:
         */
 
         g.fillAll (getLookAndFeel().findColour (ResizableWindow::backgroundColourId));
-        if (zoomOp >= 0) paintZoom (g);
-        else             paintTable (g);
-    }
 
-    // Table « façon éditeur SY77 » : un opérateur par ligne, entêtes de colonnes partagés.
-    void paintTable (Graphics& g)
-    {
-        auto area = getLocalBounds();
-        // Réserve (et matérialise) la colonne droite du panneau algo, cohérente avec layoutTable().
-        auto algoArea = area.removeFromRight (algoPanelWidth());
+        // Séparateur de la colonne droite (algo/LFO), cohérent avec layoutMaster().
         g.setColour (SYPal.panelBorder);
-        g.drawVerticalLine (algoArea.getX(), (float) area.getY(), (float) area.getBottom());
-        const int headerH = tableHeaderH (area.getHeight());
-        auto header = area.removeFromTop (headerH);
-        const int rowH = tableRowH (area.getHeight());
-        const int W = area.getWidth();
-        auto cx = [&] (float f) { return area.getX() + (int) (f * (float) W); };
-        auto cw = [&] (float f) { return (int) (f * (float) W); };
+        g.drawVerticalLine (getLocalBounds().getRight() - algoPanelWidth(),
+                            (float) getLocalBounds().getY(), (float) getLocalBounds().getBottom());
 
-        // Entêtes de colonnes (doivent coïncider avec les fractions de resized()).
+        // Mini-libellés distinguant la zone SÉLECTION (gauche) de la zone ACTIF/ON-OFF (droite).
         g.setColour (SYPal.textMuted);
-        g.setFont (Font (FontOptions (12.0f)).boldened());
-        auto head = [&] (float f, float w, const String& t)
-        { g.drawText (t, cx (f), header.getY(), cw (w), headerH, Justification::centred, false); };
-        g.drawText ("OP", area.getX() + 4, header.getY(), cw (0.05f), headerH, Justification::centredLeft, false);
-        head (0.030f, 0.095f, "OUT");
-        head (0.135f, 0.07f,  "SENSIT");
-        head (0.205f, 0.05f,  "WAVE");
-        head (0.265f, 0.075f, "PHASE");
-        head (0.350f, 0.045f, "CRS");
-        head (0.400f, 0.045f, "FINE");
-        head (0.450f, 0.045f, "DET");
-        head (0.500f, 0.060f, "MODE");
-        head (0.580f, 0.155f, "SCALING");
-        head (0.760f, 0.105f, "VEL SW");
-        head (0.875f, 0.115f, "PEG SW");
+        g.setFont (Font (FontOptions (10.0f)).boldened());
+        g.drawText ("EDIT",  editLabelArea,  Justification::centred, false);
+        g.drawText ("ACTIF", onOffLabelArea, Justification::centred, false);
 
+        // Cadre + titre du panneau détail (sous la barre d'onglets). Les contrôles labellisés
+        // sont des composants posés par layoutDetail() ; la barre d'onglets = boutons opTab[].
         g.setColour (SYPal.panelBorder);
-        g.drawHorizontalLine (header.getBottom(), (float) area.getX(), (float) area.getRight());
-
-        for (int i = 0; i < 6; ++i)
-        {
-            const int y = area.getY() + i * rowH;
-            if (i > 0)
-            {
-                g.setColour (SYPal.panelBorder.withAlpha (0.5f));
-                g.drawHorizontalLine (y, (float) area.getX(), (float) area.getRight());
-            }
-            // Nom OPn cliquable (légère pastille pour signaler l'interaction).
-            g.setColour (SYPal.accent);
-            g.setFont (Font (FontOptions ((float) jmin (18, rowH / 2))).boldened());
-            g.drawText ("OP" + String (i + 1), area.getX() + 4, y, cw (0.05f), rowH,
-                        Justification::centredLeft, false);
-        }
-    }
-
-    // Page pleine d'un seul opérateur : juste le titre « OPn » (les contrôles et leurs
-    // légendes sont des composants positionnés par resized()).
-    void paintZoom (Graphics& g)
-    {
+        g.drawHorizontalLine (detailArea.getY(), (float) detailArea.getX(), (float) detailArea.getRight());
         g.setColour (SYPal.accent);
-        g.setFont (Font (FontOptions (22.0f)).boldened());
-        g.drawText ("OP" + String (zoomOp + 1), zoomTitleArea, Justification::centred, false);
+        g.setFont (Font (FontOptions (16.0f)).boldened());
+        g.drawText ("OP" + String (selOp + 1) + " — détail", detailTitleArea,
+                    Justification::centredLeft, false);
+
+        // Étiquettes des 8 barres SCALING (BP1..BP4 / OF1..OF4).
+        g.setColour (SYPal.textMuted);
+        g.setFont (Font (FontOptions (10.0f)));
+        for (auto& t : g_scalingTags)
+            g.drawText (t.text, t.area, Justification::centred, false);
     }
 
     void resized() override
     {
-        updateZoomVisibility();
-        if (zoomOp >= 0) layoutZoom();
-        else             layoutTable();
+        updateSelVisibility();
+        layoutMaster();
+        layoutDetail();
     }
 
-    // Affiche/masque les contrôles selon le mode (table = tout ; zoom = un seul op + nav).
-    void updateZoomVisibility()
+    // Onglets + détail : la barre d'onglets (opTab[]) choisit selOp ; le panneau détail montre
+    // TOUS les contrôles labellisés du seul op sélectionné (les autres op sont masqués).
+    void updateSelVisibility()
     {
-        const bool zoom = zoomOp >= 0;
-        btZoomBack.setVisible (zoom);
-        btZoomPrev.setVisible (zoom);
-        btZoomNext.setVisible (zoom);
-        algoPanel.setVisible (! zoom);   // panneau algo visible seulement en mode table
-        lfoPanel.setVisible (! zoom);    // panneau LFO visible seulement en mode table
-        btZoomPrev.setEnabled (zoomOp > 0);
-        btZoomNext.setEnabled (zoomOp >= 0 && zoomOp < 5);
+        for (int i = 0; i < 6; ++i)
+            opTab[i].setToggleState (i == selOp, dontSendNotification);
+        algoPanel.setVisible (true);   // colonne droite toujours présente
+        lfoPanel.setVisible (true);
 
         GroupComponent* grp[6] = { &groupOP1,&groupOP2,&groupOP3,&groupOP4,&groupOP5,&groupOP6 };
         for (auto* gc : grp) gc->setVisible (false);
 
         for (int i = 0; i < 6; ++i)
         {
-            const bool vis = zoom ? (i == zoomOp) : true;
+            const bool sel = (i == selOp);
             auto c = op (i);
-            c.osc->setVisible (vis); c.lvl->setVisible (vis); c.crs->setVisible (vis); c.fin->setVisible (vis);
-            c.det->setVisible (vis); c.pha->setVisible (vis); c.syn->setVisible (vis); c.mod->setVisible (vis);
-            Label* L[4]; opLabels (i, L);
-            for (auto* l : L) l->setVisible (zoom && i == zoomOp);   // légendes seulement en zoom
+            // Détail (op sélectionné seulement) : TOUS les contrôles de l'opérateur.
+            c.lvl->setVisible (sel); c.osc->setVisible (sel);
+            c.crs->setVisible (sel); c.fin->setVisible (sel);
+            c.det->setVisible (sel); c.pha->setVisible (sel); c.syn->setVisible (sel); c.mod->setVisible (sel);
+            for (MidiSlider* s : { &sensVel[i], &sensAm[i], &sensPm[i] }) s->setVisible (sel);
+            for (int k = 0; k < 4; ++k) { bpScl[i][k].setVisible (sel); offScl[i][k].setVisible (sel); }
+            velSw[i].setVisible (sel); pegSw[i].setVisible (sel);
 
-            // Grille façon SynthWorks : SENSIT/SCALING/switches visibles par op (comme les autres).
-            for (MidiSlider* s : { &sensVel[i], &sensAm[i], &sensPm[i] }) s->setVisible (vis);
-            for (int k = 0; k < 4; ++k) { bpScl[i][k].setVisible (vis); offScl[i][k].setVisible (vis); }
-            velSw[i].setVisible (vis); pegSw[i].setVisible (vis);
+            Label* L[4]; opLabels (i, L);
+            for (auto* l : L) l->setVisible (sel);   // légendes du détail
         }
-        // Légendes de colonnes dessinées dans paintTable() -> labels widgets masqués.
+        // Légendes SENSIT/SCALING/VEL SW/PEG SW du détail.
         for (Label* l : { &lblSensVel,&lblSensAm,&lblSensPm,&lblVelSw,&lblPegSw,&lblScaling })
-            l->setVisible (false);
+            l->setVisible (true);
     }
 
-    // Table : 1 opérateur par ligne. Les fractions doivent coïncider avec paintTable().
-    void layoutTable()
+    // Disposition globale : colonne droite (algo/LFO) ; à gauche une barre fine en haut
+    // (onglets de SÉLECTION à gauche + interrupteurs ON/OFF à droite) ; le reste = détail.
+    void layoutMaster()
     {
         auto content = getLocalBounds();
-        // Colonne droite : ALGORITHM en haut, puis MAIN/SUB LFO dessous (comme SynthWorks).
+        // Colonne droite : ALGORITHM en haut, puis MAIN/SUB LFO dessous (inchangée).
         {
             auto rightCol = content.removeFromRight (algoPanelWidth());
-            // L'algo a besoin de peu de hauteur (slider + schéma compact) ; le LFO prend le reste.
             auto algoArea = rightCol.removeFromTop (jmax (150, rightCol.getHeight() * 42 / 100));
             algoPanel.setBounds (algoArea.reduced (6));
             lfoPanel.setBounds (rightCol.reduced (6, 2));
         }
-        const int headerH = tableHeaderH (content.getHeight());
-        content.removeFromTop (headerH);
-        const int rowH = tableRowH (content.getHeight());   // plafonnée, lignes calées en haut
-        const int W = content.getWidth();
-        auto cx = [&] (float f) { return content.getX() + (int) (f * (float) W); };
-        auto cw = [&] (float f) { return (int) (f * (float) W); };
 
+        // --- Barre fine du haut : GAUCHE = onglets « OP1..OP6 » (édition) ; DROITE = ON/OFF (actif).
+        const int barH = jlimit (26, 34, content.getHeight() / 14);
+        auto bar = content.removeFromTop (barH);
+
+        // Réserve la zone ON/OFF à droite : 6 petits carrés + un mini-libellé « ACTIF » au-dessus.
+        const int swW   = jmax (16, barH - 4);                       // interrupteur ~carré
+        const int lblW  = 44;                                        // libellés « ÉDIT » / « ACTIF »
+        auto onOffZone  = bar.removeFromRight (6 * swW + 8);
+        onOffLabelArea  = bar.removeFromRight (lblW);                // « ACTIF » (dessiné dans paint)
+        bar.removeFromRight (8);
+        for (int i = 0; i < 6; ++i)
+            opOn[i].setBounds (Rectangle<int> (onOffZone.getX() + i * swW, onOffZone.getY(),
+                                               swW, onOffZone.getHeight()).reduced (1, 2));
+
+        // GAUCHE : un mini-libellé « ÉDIT » puis la barre d'onglets sur la place restante.
+        editLabelArea = bar.removeFromLeft (lblW);                   // « ÉDIT » (dessiné dans paint)
+        auto tabs = bar;
+        const int tw = jmax (1, tabs.getWidth() / 6);
         for (int i = 0; i < 6; ++i)
         {
-            auto c = op (i);
-            const int y  = content.getY() + i * rowH;
-            const int ry = y + 4, rh = rowH - 8;
-
-            // Barres horizontales (valeurs) vs verticales (SENSIT/SCALING/PHASE) — façon SynthWorks.
-            for (MidiSlider* sl : { c.lvl, c.crs, c.fin, c.det })
-            { sl->setSliderStyle (Slider::LinearBar);      sl->setTextBoxStyle (Slider::NoTextBox, true, 0, 0); }
-            for (MidiSlider* sl : { c.pha, &sensVel[i],&sensAm[i],&sensPm[i],
-                                    &bpScl[i][0],&bpScl[i][1],&bpScl[i][2],&bpScl[i][3],
-                                    &offScl[i][0],&offScl[i][1],&offScl[i][2],&offScl[i][3] })
-            { sl->setSliderStyle (Slider::LinearVertical); sl->setTextBoxStyle (Slider::NoTextBox, true, 0, 0); }
-
-            auto box  = [&] (float fx, float fw) { return Rectangle<int> (cx (fx), ry, cw (fw), rh); };
-            auto vert = [&] (Component& s, float fx) { s.setBounds (cx (fx), ry, cw (0.016f), rh); };
-
-            c.lvl->setBounds (box (0.030f, 0.095f));                                  // OUT
-            vert (sensVel[i], 0.140f); vert (sensAm[i], 0.160f); vert (sensPm[i], 0.180f); // SENSIT V/A/P
-            auto oc = Rectangle<int> (cx (0.205f), y + 2, cw (0.05f), rowH - 4);      // WAVE (roue)
-            { int s = jmin (oc.getWidth(), oc.getHeight()); c.osc->setBounds (oc.withSizeKeepingCentre (s, s)); }
-            vert (*c.pha, 0.265f);                                                    // PHASE init
-            c.syn->setBounds (box (0.285f, 0.055f));                                  // SYNC
-            c.crs->setBounds (box (0.350f, 0.045f));                                  // CRS
-            c.fin->setBounds (box (0.400f, 0.045f));                                  // FINE
-            c.det->setBounds (box (0.450f, 0.045f));                                  // DET
-            c.mod->setBounds (box (0.500f, 0.060f));                                  // MODE
-            for (int k = 0; k < 4; ++k) vert (bpScl[i][k],  0.580f + (float) k * 0.018f);  // SCALING BP
-            for (int k = 0; k < 4; ++k) vert (offScl[i][k], 0.665f + (float) k * 0.018f);  // SCALING OFFS
-            velSw[i].setBounds (box (0.760f, 0.105f));                                // VEL SW
-            pegSw[i].setBounds (box (0.875f, 0.115f));                                // PEG SW
+            const int x = tabs.getX() + i * tw;
+            const int w = (i == 5) ? (tabs.getRight() - x) : tw;     // dernier onglet -> bord exact
+            opTab[i].setBounds (x, tabs.getY(), w, tabs.getHeight());
         }
+
+        // Tout l'espace restant va au panneau détail (la pièce maîtresse).
+        detailArea = content;
     }
 
-    // Page pleine d'un seul opérateur : nav + grande forme d'onde + champs empilés.
-    void layoutZoom()
+    // Panneau détail (sous les onglets) : TOUS les contrôles de l'op selOp, labellisés et au large.
+    // Reprend la disposition labellisée de l'ancien layoutZoom (potards + SENSIT/SCALING/switches).
+    void layoutDetail()
     {
-        auto c = op (zoomOp);
-        auto area = getLocalBounds().reduced (14);
+        auto c = op (selOp);
+        auto area = detailArea.reduced (14);
 
-        // Barre de nav : [<] OPn [>] ........ [Table]
-        auto nav = area.removeFromTop (jmax (30, area.getHeight() / 11));
-        btZoomBack.setBounds (nav.removeFromRight (120).reduced (3));
-        auto grp = nav.removeFromLeft (jmin (260, nav.getWidth()));
-        btZoomPrev.setBounds (grp.removeFromLeft (52).reduced (3));
-        btZoomNext.setBounds (grp.removeFromRight (52).reduced (3));
-        zoomTitleArea = grp;
-
-        area.removeFromTop (8);
-
-        // Forme d'onde (réduite pour laisser la place au détail complet de l'opérateur).
-        auto waveRow = area.removeFromTop ((int) (area.getHeight() * 0.26f));
-        const int wsz = jmin (waveRow.getHeight(), waveRow.getWidth());
-        c.osc->setBounds (waveRow.withSizeKeepingCentre (wsz, wsz));
+        // Bandeau titre + roue WAVE de l'op sélectionné (le titre est dessiné dans paint()).
+        auto top = area.removeFromTop (jmax (40, area.getHeight() / 5));
+        {
+            auto waveCell = top.removeFromRight (jmin (top.getWidth() / 3, top.getHeight()));
+            const int s = jmin (waveCell.getWidth(), waveCell.getHeight());
+            c.osc->setBounds (waveCell.withSizeKeepingCentre (s, s));
+            detailTitleArea = top;   // zone titre « OPn — détail »
+        }
         area.removeFromTop (8);
 
         // SYNC / MODE en bas.
@@ -775,7 +731,7 @@ public:
 
         const int rowH = jmax (44, area.getHeight() / 3);
 
-        // Rangée 1 : LEVEL / COARSE / FINE / DET / PHASE (potards).
+        // Rangée 1 : LEVEL / COARSE / FINE / DET / PHASE (potards labellisés).
         auto r1 = area.removeFromTop (rowH);
         {
             MidiSlider* knobs[5] = { c.lvl, c.crs, c.fin, c.det, c.pha };
@@ -790,31 +746,50 @@ public:
         }
 
         // Rangée 2 : SENSIT (VEL / AM / PM) + VEL SW + PEG SW.
+        // SENSIT = barres horizontales LinearBar AVEC valeur (lisibles, plus de pavés vides).
         auto r2 = area.removeFromTop (rowH);
         {
+            for (MidiSlider* sl : { &sensVel[selOp],&sensAm[selOp],&sensPm[selOp] })
+            { sl->setSliderStyle (Slider::LinearBar); sl->setTextBoxStyle (Slider::NoTextBox, true, 0, 0); }
             const int w = jmax (1, r2.getWidth() / 5);
-            auto put = [&] (Label& lab, Component& ctl, int i)
+            auto putBar = [&] (Label& lab, Component& ctl, int i)   // libellé au-dessus, barre au milieu
+            {
+                auto cell = Rectangle<int> (r2.getX() + i * w, r2.getY(), w, r2.getHeight());
+                lab.setBounds (cell.removeFromTop (16));
+                ctl.setBounds (cell.withSizeKeepingCentre (cell.getWidth() - 12, jmin (24, cell.getHeight() - 6)));
+            };
+            auto putBtn = [&] (Label& lab, Component& ctl, int i)   // switch : libellé + bouton
             {
                 auto cell = Rectangle<int> (r2.getX() + i * w, r2.getY(), w, r2.getHeight());
                 lab.setBounds (cell.removeFromTop (16));
                 ctl.setBounds (cell.reduced (6, 4));
             };
-            put (lblSensVel, sensVel[zoomOp], 0);
-            put (lblSensAm,  sensAm[zoomOp],  1);
-            put (lblSensPm,  sensPm[zoomOp],  2);
-            put (lblVelSw,   velSw[zoomOp],   3);
-            put (lblPegSw,   pegSw[zoomOp],   4);
+            putBar (lblSensVel, sensVel[selOp], 0);
+            putBar (lblSensAm,  sensAm[selOp],  1);
+            putBar (lblSensPm,  sensPm[selOp],  2);
+            putBtn (lblVelSw,   velSw[selOp],   3);
+            putBtn (lblPegSw,   pegSw[selOp],   4);
         }
 
         // Rangée 3 : SCALING (4 break-points + 4 offsets de niveau).
+        // 8 barres horizontales LinearBar AVEC valeur, libellées BP1..BP4 / OF1..OF4.
         auto r3 = area.removeFromTop (rowH);
         {
+            for (int k = 0; k < 4; ++k)
+                for (MidiSlider* sl : { &bpScl[selOp][k], &offScl[selOp][k] })
+                { sl->setSliderStyle (Slider::LinearBar); sl->setTextBoxStyle (Slider::NoTextBox, true, 0, 0); }
+
             lblScaling.setBounds (r3.removeFromTop (16));
             const int w = jmax (1, r3.getWidth() / 8);
+            g_scalingTags.clear();
             for (int k = 0; k < 4; ++k)
             {
-                bpScl [zoomOp][k].setBounds (Rectangle<int> (r3.getX() + k       * w, r3.getY(), w, r3.getHeight()).reduced (4, 4));
-                offScl[zoomOp][k].setBounds (Rectangle<int> (r3.getX() + (4 + k) * w, r3.getY(), w, r3.getHeight()).reduced (4, 4));
+                auto cellBp = Rectangle<int> (r3.getX() + k       * w, r3.getY(), w, r3.getHeight());
+                auto cellOf = Rectangle<int> (r3.getX() + (4 + k) * w, r3.getY(), w, r3.getHeight());
+                g_scalingTags.add ({ cellBp.removeFromTop (14), "BP" + String (k + 1) });
+                g_scalingTags.add ({ cellOf.removeFromTop (14), "OF" + String (k + 1) });
+                bpScl [selOp][k].setBounds (cellBp.withSizeKeepingCentre (cellBp.getWidth() - 8, jmin (22, cellBp.getHeight() - 4)));
+                offScl[selOp][k].setBounds (cellOf.withSizeKeepingCentre (cellOf.getWidth() - 8, jmin (22, cellOf.getHeight() - 4)));
             }
         }
     }
@@ -921,12 +896,17 @@ private:
     
     Label labelOsc1 {"Op1", "Afm Osc"};
 
-    // ---- Mode zoom : -1 = table 6 lignes ; 0..5 = un opérateur en pleine page ----
-    int zoomOp = -1;
-    TextButton btZoomBack { "Table" };
-    TextButton btZoomPrev { "<" };
-    TextButton btZoomNext { ">" };
-    Rectangle<int> zoomTitleArea;   // zone du titre « OP3 » (dessiné dans paint)
+    // ---- Onglets + détail : selOp = opérateur sélectionné (0..5), jamais -1 (détail jamais vide).
+    int selOp = 0;
+    TextButton opTab[6];   // barre d'onglets « OP1 | … | OP6 » (radioGroup, choix de l'op à éditer)
+    TextButton opOn[6];    // interrupteurs ON/OFF (mute via TL) des 6 op, à droite de la barre
+    int savedLevel[6] = { 0,0,0,0,0,0 };   // niveau TL mémorisé pendant un mute (restauré à ON)
+    // Rectangles calculés par layoutMaster()/layoutDetail(), réutilisés par paint().
+    Rectangle<int> detailArea, detailTitleArea, editLabelArea, onOffLabelArea;
+
+    // Étiquettes BP1..BP4 / OF1..OF4 des barres SCALING (dessinées dans paint, posées par layoutDetail).
+    struct ScalingTag { Rectangle<int> area; String text; };
+    Array<ScalingTag> g_scalingTags;
 
     struct OpCtrls { MidiSlider* osc; MidiSlider* lvl; MidiSlider* crs; MidiSlider* fin;
                      MidiSlider* det; MidiSlider* pha; MidiButton* syn; MidiButton* mod; };
@@ -952,11 +932,33 @@ private:
         out[0] = lv[i]; out[1] = cr[i]; out[2] = dt[i]; out[3] = ph[i];
     }
 
-    void setZoomOp (int o)
+    void setSelOp (int o)
     {
-        zoomOp = jlimit (-1, 5, o);
+        selOp = jlimit (0, 5, o);
         resized();
         repaint();
+    }
+
+    // MUTE éditeur d'un opérateur via le niveau TL (param 0x1B, 0x1B déjà câblé sur sliderLevel*).
+    // PAS de paramètre « on/off » dédié dans la spec AFM (Table 1-7) -> on coupe le niveau :
+    //   OFF -> mémorise le niveau courant puis force la Value de level à 0 (envoi TL=0 via le wiring
+    //          existant ; le potard Level se met aussi à 0, reflétant l'état).
+    //   ON  -> restaure le niveau mémorisé (re-déclenche l'envoi TL + met à jour le potard).
+    // Mute LOCAL à l'éditeur (pas de param hardware dédié) : un (re)chargement de voix remet les
+    // niveaux réels ; il faut alors re-cliquer pour re-muter. Documenté tel quel.
+    void toggleOpActive (int i)
+    {
+        auto* lvl = op (i).lvl;
+        const bool on = opOn[i].getToggleState();
+        if (! on)
+        {
+            savedLevel[i] = (int) lvl->getValue();   // mémorise avant de couper
+            lvl->setValue (0.0, sendNotificationSync);
+        }
+        else
+        {
+            lvl->setValue ((double) savedLevel[i], sendNotificationSync);
+        }
     }
 
     AfmWaveLookAndFeel waveLook;   // formes d'onde des 6 opérateurs (vraie image SY77, teintée au thème)
@@ -1004,16 +1006,9 @@ private:
     // Panneau LFO (Main + Sub) — colonne droite, sous l'algo. Masqué en mode zoom.
     AfmLfo lfoPanel;
 
-    // Largeur réservée au panneau algorithme à droite ; layoutTable() et paintTable()
+    // Largeur réservée au panneau algorithme à droite ; layoutMaster() et paint()
     // doivent utiliser la même valeur pour rester cohérents.
     int algoPanelWidth() const { return jmax (180, getWidth() * 30 / 100); }
-
-    // Hauteur de ligne plafonnée : évite que les potards (roue WAVE) soient étirés quand la
-    // vue est haute. En dessous, la ligne peut rétrécir (scroll à prévoir si trop petit).
-    // layoutTable(), paintTable() et mouseDown() DOIVENT utiliser ces mêmes helpers.
-    static constexpr int kMaxRowH = 60;
-    int tableHeaderH (int totalH) const { return jlimit (18, 28, totalH / 14); }
-    int tableRowH    (int bodyH)  const { return jmin (kMaxRowH, jmax (1, bodyH / 6)); }
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Oscillator)
 };

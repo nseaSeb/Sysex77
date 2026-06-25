@@ -108,14 +108,24 @@ public:
         wireS (slfoPmd,   0x19, 127, "SLFOPMD");
 
         // Combos WAVE : MidiCombo émet (id-1) et reçoit via valueSysexIn.
+        // À l'OUVERTURE de la vue/voix, le combo doit AFFICHER sa valeur liée. Le referTo
+        // synchronise selectedId <- Value, MAIS si la propriété est VIDE (void) — c'est le cas
+        // au démarrage, car voiceBlobToParams OMET le LFO (cf. SysexUtils.h) — selectedId reste
+        // 0 -> combo VIDE. Même garde-fou que comboFoot/comboMod (cf. MidiDemo.h) : si pas de
+        // sélection valide après le referTo, on pose le wave 0 (id 1) -> jamais vide.
+        // (Reliability-first : on ne touche PAS à l'encodage d'envoi, juste l'init d'affichage.)
         {
             int sxM[9] = { 0x43, 0X10, 0x34, 0x05, aH, 0x00, 0x12, 0x00, 0x00 };   // Main wave
             mlfoWave.setMidiSysex (sxM);
             mlfoWave.getSelectedIdAsValue().referTo (P ("MLFOWAVE"));
+            if (mlfoWave.getSelectedItemIndex() < 0)
+                mlfoWave.setSelectedId (1, dontSendNotification);   // wave 0 par défaut
 
             int sxS[9] = { 0x43, 0X10, 0x34, 0x05, aH, 0x00, 0x15, 0x00, 0x00 };   // Sub wave
             slfoWave.setMidiSysex (sxS);
             slfoWave.getSelectedIdAsValue().referTo (P ("SLFOWAVE"));
+            if (slfoWave.getSelectedItemIndex() < 0)
+                slfoWave.setSelectedId (1, dontSendNotification);   // wave 0 par défaut
         }
 
         // Sub LFO Mode : bouton 2 états (delay=0 / decay=1).

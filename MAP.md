@@ -92,6 +92,7 @@ Restant : **drum** (type 10) ; AWM filtre (chargement) + fine/fixed (encodage à
 | EG levels L0-L4 | ✅ | 🟢 | |
 | EG levels RL1, RL2 | ✅ | 🟢 | |
 | **Niveau de sortie (TL)** | ✅ | 🟢 | Track A + aller-retour (6/6) |
+| **OP on/off (mute éditeur)** | ✅* | n/a | *Pas de paramètre « operator on/off » dans la spec AFM (Table 1-7, OCR l.418-444) — comme sur DX7. Implémenté comme **MUTE éditeur via TL** (param 0x1B, déjà ✅) : interrupteurs `opOn[6]` dans `Oscillator.h` — OFF mémorise le niveau (`savedLevel[i]`) puis force la Value de `sliderLevel*` à 0 (envoi TL=0 via le wiring existant) ; ON restaure. Aucune adresse nouvelle. Mute LOCAL (un rechargement de voix remet les niveaux réels → re-cliquer pour re-muter) |
 | Fine (FPF, 0x26) | 🟢 | 🟢 | **CORRIGÉ plage** : colonne FINE (`sliderFreqFine*`) bornée **0..127** (octet brut, display==wire) au lieu de 0..99 — la carte TG77 vérifiée hardware (`FINE OP*`, pNum *038=0x26) borne 0..127. L'ancien 0..99 rendait 100..127 inatteignables et faussait la barre (#3). Chargement : oracle dump `val(0x56,0x26)==46` (Tests.h) |
 | **Coarse (FPC)** | 🟢 | 🟢 | **CORRIGÉ** : envoi octet brut 0..127, AUCUN offset (retrait du `setMidiValueOffset(-1)` qui rendait display 0 → wire 127). Aligné sur l'éditeur TG77 vérifié hardware (`COARSE OP*` display==message 0..127). Oracle dump `val(0x56,0x25)==1` |
 | **Waveform (PWAVE)** | 🟡 | 🟢 | chargé interne 24 / param 0x17 ; **oracle SteelStrng** `val(0x56,0x17)==15` |

@@ -129,6 +129,11 @@ static bool sysexReceiveOmni  = false; // "ALL" : accepte les messages entrants 
 static bool followSynth       = false; // "Suivre le synthé" : ouvre la vue du paramètre reçu
 static bool monitorRaw        = false; // moniteur : false = décodé (G/AH/AL/P/val), true = octets bruts hex
 static bool midiThru          = false; // MIDI Thru : renvoie l'entrée vers la/les sortie(s). OFF par défaut (écrit vers le synthé)
+// Interrupteurs rapides écoute/envoi (bandeau bas) — diagnostic hardware.
+// midiListen OFF : l'app IGNORE tout MIDI entrant (gate handleIncomingMidiMessage).
+// midiSend   OFF : l'app n'émet RIEN vers les sorties (gate sendToOutputs, coupe aussi le Thru).
+static bool midiListen        = true;  // ON par défaut
+static bool midiSend          = true;  // ON par défaut
 static juce::String lastMonitorKey;    // moniteur compact : dédup des param-changes par adresse
 static     float fAngle = -90 * (juce::MathConstants<float>::pi  / 180.0); //Radiant to draw at 90°
 File appDirPath = File::getSpecialLocation(File::userApplicationDataDirectory ).getChildFile("Application Support/Sysex77");
@@ -454,19 +459,37 @@ public:
             resized();
         };
 
-        // Sélecteurs de ports MIDI in/out TOUJOURS VISIBLES (à gauche du toggle clavier).
-        // Réutilisent la gestion de ports existante (cf. showMidiPortMenu) -> cohérence totale
-        // avec l'onglet Midi Setting. Au-dessus des onglets (sinon le clic part dans la barre).
+        // INTERRUPTEURS écoute/envoi TOUJOURS VISIBLES (à gauche du toggle clavier).
+        // Ce ne sont PLUS des menus de choix de périphérique (celui-ci reste dans l'onglet
+        // Midi Setting) : ce sont deux toggles rapides ON/OFF pour DIAGNOSTIQUER.
+        //  - btMidiIn  (« In ») : ON = l'app traite le MIDI entrant ; OFF = ignore tout entrant.
+        //  - btMidiOut (« Out »): ON = l'app émet ; OFF = n'émet RIEN (coupe aussi le Thru).
+        // Allumés (couleur ON du thème) quand actifs, atténués quand coupés. Défaut ON/ON, persistés.
         for (TextButton* b : { &btMidiIn, &btMidiOut })
         {
             addAndMakeVisible (*b);
             b->setAlwaysOnTop (true);
+            b->setClickingTogglesState (true);
             b->setColour (TextButton::ColourIds::buttonOnColourId, SYColSelected);
         }
-        btMidiIn .setTooltip ("Ports MIDI d'entrée (réception du synthé)");
-        btMidiOut.setTooltip ("Ports MIDI de sortie (envoi vers le synthé)");
-        btMidiIn .onClick = [this] { showMidiPortMenu (true,  btMidiIn);  };
-        btMidiOut.onClick = [this] { showMidiPortMenu (false, btMidiOut); };
+        midiListen = getAppSettings()->getBoolValue ("MidiListen", true);
+        midiSend   = getAppSettings()->getBoolValue ("MidiSend",   true);
+        btMidiIn .setToggleState (midiListen, dontSendNotification);
+        btMidiOut.setToggleState (midiSend,   dontSendNotification);
+        btMidiIn .setTooltip ("Écoute MIDI entrant : ON = traité, OFF = ignoré (diagnostic)");
+        btMidiOut.setTooltip ("Envoi MIDI sortant : ON = émis, OFF = rien ne sort (coupe aussi le Thru)");
+        btMidiIn .onClick = [this]
+        {
+            midiListen = btMidiIn.getToggleState();
+            getAppSettings()->setValue ("MidiListen", midiListen);
+            getAppSettings()->saveIfNeeded();
+        };
+        btMidiOut.onClick = [this]
+        {
+            midiSend = btMidiOut.getToggleState();
+            getAppSettings()->setValue ("MidiSend", midiSend);
+            getAppSettings()->saveIfNeeded();
+        };
 
         midiKeyboard.setName ("MIDI Keyboard");
         addAndMakeVisible (midiKeyboard);
@@ -718,8 +741,9 @@ public:
         refreshMidiPortButtons();   // tient à jour le compteur de ports ouverts (hot-plug inclus)
     }
 
-    // Met l'état des ports ouverts dans le libellé des sélecteurs compacts ("In", "In·2"…).
-    // Lit la MÊME source de vérité (midiInputs/midiOutputs) que l'onglet -> toujours cohérent.
+    // Affiche le nombre de ports ouverts DANS le libellé des interrupteurs ("In", "In·2"…),
+    // sans toucher à leur état ON/OFF (qui est désormais le gate écoute/envoi, pas le compte
+    // de ports). Source de vérité partagée avec l'onglet Midi Setting (midiInputs/midiOutputs).
     void refreshMidiPortButtons()
     {
         auto openCount = [] (const ReferenceCountedArray<MidiDeviceListEntry>& devs, bool isInput)
@@ -730,11 +754,8 @@ public:
             return n;
         };
         const int nin = openCount (midiInputs, true), nout = openCount (midiOutputs, false);
-        btMidiIn .setButtonText (nin  > 0 ? "In·"  + String (nin)  : String ("In"));
-        btMidiOut.setButtonText (nout > 0 ? "Out·" + String (nout) : String ("Out"));
-        // Allume le bouton (couleur ON du thème) si au moins un port est ouvert dans ce sens.
-        btMidiIn .setToggleState (nin  > 0, dontSendNotification);
-        btMidiOut.setToggleState (nout > 0, dontSendNotification);
+        btMidiIn .setButtonText (nin  > 0 ? "In "  + String (nin)  : String ("In"));
+        btMidiOut.setButtonText (nout > 0 ? "Out " + String (nout) : String ("Out"));
     }
     
     //==============================================================================
@@ -1061,6 +1082,9 @@ private:
     void handleIncomingMidiMessage (MidiInput* /*source*/, const MidiMessage& message) override
     {
         // This is called on the MIDI thread
+        // Interrupteur « In » (écoute) OFF : on IGNORE tout MIDI entrant -> rien n'est traité
+        // ni affiché ni appliqué aux widgets (utile pour isoler un écho reçu).
+        if (! midiListen) return;
         const ScopedLock sl (midiMonitorLock);
         if(!message.isActiveSense())
         {
@@ -1241,6 +1265,10 @@ private:
 public:
     void sendToOutputs (const MidiMessage& msg)
     {
+        // Interrupteur « Out » (envoi) OFF : l'app n'émet RIEN vers le synthé. Point de coupe
+        // unique -> couvre notes, param-changes/sysex, bulk ET le MIDI Thru (qui passe par ici),
+        // donc OFF = rien ne sort, Thru compris (cohérence demandée).
+        if (! midiSend) return;
         // Anti-écho assuré à la RÉCEPTION par dontSendNotification dans chaque widget Midi*
         // (et par setValue() sans renvoi pour Segment) ; pas de flag global non thread-safe.
         for (auto midiOutput : midiOutputs)
