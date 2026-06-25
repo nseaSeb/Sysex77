@@ -22,64 +22,38 @@
 
 
 //==============================================================================
-/** Vue de la forme d'onde FM (approximée) d'un élément AFM, avec CACHE :
-    les échantillons (normalisés -1..1) ne sont recalculés qu'au changement d'algo
-    (ni à chaque paint, ni au redimensionnement). Prépare le terrain pour un calcul
-    FM exact (plus coûteux). */
+/** Cellule WAVE d'un élément AFM : affiche le SCHÉMA D'ALGORITHME compact de
+    l'élément (topologie des 6 opérateurs) au lieu d'une forme d'onde FM calculée.
+    Demande utilisateur : « l'algo devrait être à la place de la forme d'onde
+    calculée qui est une fausse bonne idée ». Le rendu se fait via le moteur partagé
+    AlgoDraw::drawAlgoGlyph (même que le grand schéma / les mini-schémas de routage).
+    N'est visible qu'en mode AFM (masqué en AWM, cf. Element::setWaveMode). */
 class FmWaveView   : public Component
 {
 public:
     void setAlgo (int a)
     {
-        if (a == algo && ! samples.isEmpty())
+        if (a == algo)
             return;
         algo = a;
-        recompute();   // -> remplit le cache
         repaint();
     }
 
-    // Index des waveforms des 6 opérateurs (AFMELEMENTxOSC1-6).
-    void setWaves (const int w[6])
-    {
-        for (int i = 0; i < 6; ++i) waves[i] = w[i];
-        recompute();
-        repaint();
-    }
-
-    // Ratio de fréquence des 6 opérateurs (AFMELEMENTxOSCFINE1-6, déjà converti).
-    void setRatios (const float r[6])
-    {
-        for (int i = 0; i < 6; ++i) ratios[i] = r[i];
-        recompute();
-        repaint();
-    }
-
-    // Amplitude 0..1 des 6 opérateurs (AFMELEMENTxLEVEL1-6, déjà normalisé).
-    void setLevels (const float l[6])
-    {
-        for (int i = 0; i < 6; ++i) levels[i] = l[i];
-        recompute();
-        repaint();
-    }
+    // Conservés pour compat. d'API (appelés depuis updateFmWave) : le schéma
+    // d'algorithme ne dépend que du numéro d'algo, ces données ne sont plus utilisées.
+    void setWaves  (const int[6])   {}
+    void setRatios (const float[6]) {}
+    void setLevels (const float[6]) {}
 
     void paint (Graphics& g) override
     {
         auto area = getLocalBounds().toFloat();
         SyDraw::drawPanel (g, area, SYColSelected);
 
-        if (samples.size() > 1)
-        {
-            Path p;
-            const int last = samples.size() - 1;
-            for (int i = 0; i <= last; ++i)
-            {
-                const float x = area.getX() + (float) i / (float) last * area.getWidth();
-                const float y = area.getCentreY() - samples[i] * area.getHeight() * 0.40f;
-                if (i == 0) p.startNewSubPath (x, y);
-                else        p.lineTo (x, y);
-            }
-            SyDraw::strokeWave (g, p, area, SYColSelected, 1.6f);
-        }
+        // Schéma d'algorithme de l'élément (couleurs via rôles de thème dans AlgoDraw).
+        auto gly = area.reduced (3.0f);
+        if (gly.getWidth() > 8.0f && gly.getHeight() > 8.0f && algo >= 1 && algo <= 45)
+            AlgoDraw::drawAlgoGlyph (g, algo, gly);
 
         // Numéro d'algorithme en overlay (petit fond contrasté pour la lisibilité).
         g.setFont (Font (11.0f, Font::bold));
@@ -91,37 +65,7 @@ public:
     }
 
 private:
-    // Moteur FM (Étape 1) : chaîne sérielle des 6 opérateurs avec leurs vraies waveforms.
-    void recompute()
-    {
-        samples.clearQuick();
-        const int   n     = 256;
-        const float index = 3.0f;                          // profondeur de modulation FM
-        float fb[6] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
-
-        // 1er passage = chauffe pour stabiliser les feedbacks (algos 19/36/40/41/43/44).
-        for (int i = 0; i <= n; ++i)
-            SyDraw::fmEvalAlgo (waves, ratios, levels, algo,
-                                (float) i / (float) n * MathConstants<float>::twoPi, index, fb);
-
-        float maxAbs = 1.0e-6f;
-        for (int i = 0; i <= n; ++i)
-        {
-            const float p = (float) i / (float) n * MathConstants<float>::twoPi;
-            const float v = SyDraw::fmEvalAlgo (waves, ratios, levels, algo, p, index, fb);
-            samples.add (v);
-            maxAbs = jmax (maxAbs, std::abs (v));
-        }
-        // Normalise : les algos multi-porteuses peuvent dépasser ±1.
-        const float g = 1.0f / maxAbs;
-        for (auto& s : samples) s *= g;
-    }
-
-    Array<float> samples;        // cache (normalisé -1..1)
     int algo = 1;
-    int waves[6] = { 0, 0, 0, 0, 0, 0 };
-    float ratios[6] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
-    float levels[6] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
 };
 
 //==============================================================================
@@ -497,6 +441,28 @@ public:
     {
         return operatorID;
     }
+
+    // MUTE éditeur de l'élément (pas de vrai param « element on/off » dans la spec SY77 :
+    // seul ELVL « Element Level 0-127 » existe, group 0x03 / addrHi=(élément-1)<<5 / param
+    // 0x00, cf. sy77midi_ocr.txt l.281). OFF = mémorise l'ELVL courant puis force 0 ; ON =
+    // restaure. On passe par sliderVolume (déjà bindé à ELEMENT<n>VOLUME et câblé ELVL en
+    // sysex), donc setValue(...) émet le vrai param-change ELVL (comme le on/off opérateur
+    // via TL). L'émission ne part qu'au CLIC utilisateur (sécurité hardware).
+    void setElementMuted (bool muted)
+    {
+        if (muted == elementMuted) return;
+        elementMuted = muted;
+        if (muted)
+        {
+            savedElvl = (int) sliderVolume.getValue();   // mémorise l'ELVL courant
+            sliderVolume.setValue (0, sendNotificationSync); // -> émet ELVL=0
+        }
+        else
+        {
+            sliderVolume.setValue (savedElvl, sendNotificationSync); // restaure l'ELVL
+        }
+    }
+    bool isElementMuted() const { return elementMuted; }
     void setOpMode (int mode)
     {
         operatorMode = mode;
@@ -701,6 +667,8 @@ public:
 private:
     int operatorID;
     int operatorMode;
+    bool elementMuted = false;  // MUTE éditeur (via ELVL) ; cf. setElementMuted
+    int  savedElvl = 0;         // ELVL mémorisé avant mute (restauré au unmute)
     
     Image imgAudio;
     Image imgAFM;

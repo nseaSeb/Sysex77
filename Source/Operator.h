@@ -41,6 +41,13 @@ public:
         addAndMakeVisible(labelAlgo);
         labelAlgo.attachToComponent(&sliderAlgo, false);
 
+        // Affiche le numéro d'algo courant (« ALG 12 ») à droite du libellé, dans la place libre
+        // en haut à droite de la barre. Couleur via rôle de thème (accent).
+        addAndMakeVisible(labelAlgoNum);
+        labelAlgoNum.setJustificationType(Justification::centredRight);
+        labelAlgoNum.setColour(Label::textColourId, SYColSelected);
+        labelAlgoNum.setFont(Font(FontOptions(14.0f)).boldened());
+
         setAlgorythm();
         
     }
@@ -85,7 +92,9 @@ public:
     
     void setAlgorythm()
     {
-        algoFm.setAlgo(sliderAlgo.getValue());
+        const int algo = (int) sliderAlgo.getValue();
+        algoFm.setAlgo(algo);
+        labelAlgoNum.setText("ALG " + String(algo), dontSendNotification);
         repaint();
     }
     void valueChanged (Value&) override   // valeur algo changée (y compris au chargement) -> redraw
@@ -120,6 +129,12 @@ public:
         // Panneau « algorithme » : occupe désormais toute la largeur de son conteneur
         // (intégré comme colonne droite de la vue AFM, à l'image du « ALGORITHM » de l'éditeur Atari).
         sliderAlgo.setBoundsRelative(0.04f, 0.06f, 0.92f, 0.08f);
+        // « ALG n » dans la place libre à droite, sur la ligne du libellé (juste au-dessus de la
+        // barre, là où attachToComponent place « AFM Algorithm » à gauche).
+        labelAlgoNum.setBounds (sliderAlgo.getX(),
+                                jmax (0, sliderAlgo.getY() - 22),
+                                sliderAlgo.getWidth(),
+                                20);
         algoFm.setBoundsRelative(0.04f, 0.18f, 0.92f, 0.78f);
         repaint();
     }
@@ -128,5 +143,6 @@ private:
     AlgoDraw algoFm;
     MidiSlider sliderAlgo;
     Label labelAlgo { "algo", TRANS("AFM Algorithm")};
+    Label labelAlgoNum { "algonum", "ALG 1" };   // numéro d'algo courant (1..45)
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Operator)
 };

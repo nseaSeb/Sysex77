@@ -135,13 +135,15 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         voiceNameVal.addListener (this);
         
     int sysexdata[9] = { 0x43, 0X10, 0x34, 0x0d, 0x00, 0x00, 0x32, 0x00, 0x7f };
-        op1.setMidiSysex(sysexdata);
-        addAndMakeVisible(op1);
-        op1.setTextOnOff("1", "1");
-        
-        addBtAndMakeStyle(op2);
-        addBtAndMakeStyle(op3);
-        addBtAndMakeStyle(op4);
+        // Boutons « 1 2 3 4 » = on/off des 4 ÉLÉMENTS (MUTE éditeur via ELVL).
+        addElementOnOff (op1);
+        addElementOnOff (op2);
+        addElementOnOff (op3);
+        addElementOnOff (op4);
+        op1.onClick = [this] { element1.setElementMuted (! op1.getToggleState()); };
+        op2.onClick = [this] { element2.setElementMuted (! op2.getToggleState()); };
+        op3.onClick = [this] { element3.setElementMuted (! op3.getToggleState()); };
+        op4.onClick = [this] { element4.setElementMuted (! op4.getToggleState()); };
         addLabelStyle(labelOpOn);
         addLabelStyle(labelMode);
         addLabelStyle(labelName);
@@ -252,9 +254,14 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
             editFilter1.isVisible() || editFilter2.isVisible() || editFilter3.isVisible() || editFilter4.isVisible())
             return;
 
+        // L'algo n'est plus dessiné ici (il vit dans les cellules WAVE des éléments AFM,
+        // cf. FmWaveView). Ce panneau ne montre QUE le ROUTAGE : sorties des éléments ->
+        // Reverb Hall/Room -> L/R + OUT. Les boîtes de reverb sont placées au centre du
+        // panneau (espace de l'ex-schéma d'algo réutilisé), pour des lignes plus courtes
+        // et lisibles.
         const float bx0  = (float) algoX;
-        const float boxL = bx0 + algoW * 0.34f;
-        const float boxR = bx0 + algoW * 0.74f;
+        const float boxL = bx0 + algoW * 0.20f;
+        const float boxR = bx0 + algoW * 0.62f;
         const float outX = bx0 + algoW - 16.0f;
         const float aTop = (float) algoY + 22.0f;
         const float aBot = (float) (algoY + algoH) - 14.0f;
@@ -269,20 +276,6 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
             const float ox = b.getRight() - 4.0f;            // sortie pan de l'élément
             const float lY = b.getY() + b.getHeight() * 0.32f;
             const float rY = b.getY() + b.getHeight() * 0.68f;
-
-            // Mini-schéma de l'ALGORITHME AFM de l'élément, dans l'espace libre de la
-            // carte ALGO/ROUTAGE entre la sortie de l'élément et les bus de reverb.
-            // (Même topologie/couleurs que le grand schéma AFM ; AWM = pas d'algo.)
-            if (els[i]->getOpMode() == Element::mode::AFMmono
-                || els[i]->getOpMode() == Element::mode::AFMPoly)
-            {
-                const int algo = (int) valueTreeVoice.getProperty (
-                                     Identifier ("AFMALGOELEMENT" + String (i + 1)), 1);
-                Rectangle<float> gly (ox + 6.0f, b.getY() + 1.0f,
-                                      jmax (0.0f, boxL - ox - 14.0f), b.getHeight() - 2.0f);
-                if (gly.getWidth() > 24.0f && algo >= 1 && algo <= 45)
-                    AlgoDraw::drawAlgoGlyph (g, algo, gly);
-            }
 
             // Routage piloté par les bascules de groupe de l'élément :
             // Groupe 1 -> Reverb Hall, Groupe 2 -> Reverb Room (aucune = non routé).
@@ -547,13 +540,24 @@ void setNombreElements (int nombre)
         nombreElements = nombre;
         // Façon SynthWorks : on affiche toujours les 4 rangées ; les éléments hors du
         // mode courant sont grisés et non interactifs (structure visible en permanence).
-        Element* els[4] = { &element1, &element2, &element3, &element4 };
+        Element*    els[4] = { &element1, &element2, &element3, &element4 };
+        TextButton* ons[4] = { &op1, &op2, &op3, &op4 };
         for (int i = 0; i < 4; ++i)
         {
             const bool active = (i < nombre);
             els[i]->setVisible (true);
             els[i]->setEnabled (active);
             els[i]->setAlpha (active ? 1.0f : 0.35f);
+
+            // Bouton on/off : actif = allumé/cliquable, hors mode courant = grisé/désactivé.
+            ons[i]->setEnabled (active);
+            ons[i]->setAlpha (active ? 1.0f : 0.35f);
+            if (! active)
+            {
+                // Élément absent du type de voix : repli en état « on » (non muté) sans envoi.
+                ons[i]->setToggleState (true, dontSendNotification);
+                els[i]->setElementMuted (false);
+            }
         }
         Logger::writeToLog("setNombre elements");
         resized();
@@ -641,6 +645,14 @@ void setNombreElements (int nombre)
         textButton.setColour(TextButton::ColourIds::buttonOnColourId, Colours::red);
         addAndMakeVisible (textButton);
     }
+    // Bouton on/off d'ÉLÉMENT : toggle ON = élément actif (accent thème), OFF = muté.
+    void addElementOnOff (TextButton& bt)
+    {
+        bt.setClickingTogglesState (true);
+        bt.setToggleState (true, dontSendNotification);  // élément actif par défaut
+        bt.setColour (TextButton::ColourIds::buttonOnColourId, SYColSelected);
+        addAndMakeVisible (bt);
+    }
     void addAndMakePitch ( Slider& slider)
     {
         addAndMakeVisible(slider);
@@ -714,10 +726,12 @@ void setNombreElements (int nombre)
     ComboBox    comboMode;
     TextEditor  editName {TRANS("Edit Name")};
     Value       voiceNameVal; // -> VOICENAME (nom chargé depuis la librairie)
-    MidiButton op1;
+    // Boutons « 1 2 3 4 » (libellé « Operateurs On-Off ») = on/off des 4 ÉLÉMENTS de la voix.
+    // MUTE éditeur via ELVL (cf. Element::setElementMuted) ; pas de vrai param on/off élément.
+    TextButton op1 {"1"};
     TextButton op2 {"2"};
-    TextButton op3{"3"};
-    TextButton op4{"4"};
+    TextButton op3 {"3"};
+    TextButton op4 {"4"};
     
 
     Element element1;
@@ -740,7 +754,7 @@ void setNombreElements (int nombre)
     Label labColPan    { "", "PAN" };
 
     // Colonne droite (façon SynthWorks).
-    GroupComponent grpAlgo     { "grpAlgo",    TRANS ("ALGORITHME / ROUTAGE") };
+    GroupComponent grpAlgo     { "grpAlgo",    TRANS ("ROUTAGE") };
     int algoX = 0, algoY = 0, algoW = 0, algoH = 0; // zone de la matrice (utilisée par paint)
 
     int nombreElements = 1;

@@ -26,6 +26,14 @@ inline juce::String awmWaveName (int index, bool sy99)
     return {};
 }
 
+/** Nom de note MIDI (0..127) au format SY77 : C-2 .. G8 (note 0 = C-2). */
+inline juce::String sy77NoteName (int midi)
+{
+    static const char* names[12] = { "C","C#","D","D#","E","F","F#","G","G#","A","A#","B" };
+    midi = juce::jlimit (0, 127, midi);
+    return juce::String (names[midi % 12]) + juce::String (midi / 12 - 2);
+}
+
 class TableTutorialComponent    : public Component, public Value::Listener,
 public TableListBoxModel
 {
@@ -396,7 +404,7 @@ private:
 };
 /*
  */
-class AWMVue    : public ElementComponent, public TextButton::Listener
+class AWMVue    : public ElementComponent, public TextButton::Listener, public Value::Listener
 {
 public:
     AWMVue()
@@ -407,10 +415,16 @@ public:
     
         addAndMakeVisible(labelFine);
         addAndMakeVisible(labelFixed);
+        addAndMakeVisible(labelNote);
         labelFine.setJustificationType(Justification::centred);
         labelFixed.setJustificationType(Justification::centred);
+        labelNote.setJustificationType(Justification::centred);
         labelFine.attachToComponent(&sliderFine, false);
         labelFixed.attachToComponent(&btFixed, false);
+        labelNote.attachToComponent(&sliderNote, false);
+        // Observe l'état Fixed pour griser/dégriser le contrôle de hauteur fixe (PNOTE).
+        // Enregistré une seule fois ici (setElementNumber peut être rappelé).
+        btFixed.getToggleStateValue().addListener (this);
         addAndMakeVisible(wavesTable);
         wavesTable.setSelection(2, 1);
         
@@ -464,6 +478,35 @@ public:
         btFixed.setMidiSysex(sysexdata);
         btFixed.setTextOnOff("Fixed", "Normal");
         addAndMakeVisible(btFixed);
+
+        // PNOTE : note de hauteur en mode FIXED (group 0x07, param 0x03, 0~127).
+        // Adresse DOCUMENTÉE (sy77midi_ocr.txt : N2 0x03 « PNOTE 0~127 fixed mode note# »).
+        // Câblé via le même pattern que les autres contrôles AWM (setMidiSysex + referTo une
+        // propriété par élément). Envoi NON vérifié hardware -> marqué 🟡 dans MAP.md.
+        sysexdata[6] = 0x03;
+        sliderNote.setMidiSysex(sysexdata);
+        sliderNote.setRangeAndRound(0, 127, 0);
+        // Affiche le NOM de note (C-2..G8) plutôt que le nombre brut.
+        sliderNote.textFromValueFunction = [] (double v) { return sy77NoteName ((int) v); };
+        sliderNote.valueFromTextFunction = [] (const juce::String&) { return 0.0; };
+        sliderNote.setSliderStyle(Slider::LinearBar);
+        sliderNote.setPopupDisplayEnabled(true, true, this);
+        sliderNote.getValueObject().referTo (valueTreeVoice.getPropertyAsValue (
+            Identifier ("ELEMENT" + String (number) + "PNOTE"), &um));
+        addAndMakeVisible(sliderNote);
+        updateNoteEnabled();
+    }
+    void valueChanged (Value&) override   // état Fixed changé -> (dé)grise le contrôle PNOTE
+    {
+        updateNoteEnabled();
+    }
+    // PNOTE n'a de sens qu'en mode FIXED : grisé sinon (mais toujours affiché — 1re version).
+    void updateNoteEnabled()
+    {
+        const bool fixed = (bool) btFixed.getToggleState();
+        sliderNote.setEnabled (fixed);
+        sliderNote.setAlpha (fixed ? 1.0f : 0.5f);
+        labelNote.setEnabled (fixed);
     }
     void paint (Graphics& g) override
     {
@@ -485,8 +528,10 @@ public:
     void resized() override
     {
 
-        sliderFine.setBoundsRelative(0.1f, 0.3f, 0.2f, 0.3f);
-        btFixed.setBoundsRelative(0.1f, 0.7f, 0.2f, 0.1f);
+        sliderFine.setBoundsRelative(0.1f, 0.3f, 0.2f, 0.2f);
+        btFixed.setBoundsRelative(0.1f, 0.62f, 0.2f, 0.08f);
+        // PNOTE sous le bouton Fixed (label « Fixed note » attaché au-dessus via attachToComponent).
+        sliderNote.setBoundsRelative(0.1f, 0.86f, 0.2f, 0.06f);
         wavesTable.setBoundsRelative(0.48f, 0.0f, 0.52f, 1.0f);
         //  int wgrid = getWidth()/5;
         sliderWaveForm.setBounds(0, 30, 20, getHeight()-40);
@@ -501,8 +546,10 @@ private:
     int intElement;
     Label labelFine {"","Fine tune"};
     Label labelFixed {"","Fixed tune"};
+    Label labelNote {"","Fixed note"};
     MidiSlider sliderWaveForm;
     MidiSlider  sliderFine;
+    MidiSlider  sliderNote;   // PNOTE : hauteur de note en mode Fixed (0..127, C-2..G8)
     MidiButton  btFixed;
 
     TableTutorialComponent  wavesTable;

@@ -69,6 +69,7 @@ Restant : **drum** (type 10) ; AWM filtre (chargement) + fine/fixed (encodage à
 | Type / mode de voix | 🟡 | 🟢 | offset 32 |
 | **Volume voix** | 🟡 | 🟢 | dump @95 ; group 0x02 / param 0x3F ; oracle SteelStrng `val(0x02,0x3F)==60` (Tests.h:238) |
 | **Niveau élément (ELVL)** | 🟡 | 🟢 | dump @98+9·e ; group 0x03 / param 0x00 ; oracle SteelStrng `val(0x03,0x00)==1` (Tests.h:239) |
+| **On/off élément (1 2 3 4)** | 🟡 | — | **CÂBLÉ (A)** : boutons « Operateurs On-Off » (Voice.h) = on/off des 4 ÉLÉMENTS via **MUTE éditeur** sur ELVL (pas de vrai param on/off dans la spec — seul ELVL existe, OCR l.281). OFF = mémorise l'ELVL courant puis force 0 (émis par sliderVolume = group 0x03 / param 0x00) ; ON = restaure. `Element::setElementMuted`. Boutons des éléments hors mode courant grisés/désactivés (source = `nombreElements`). Envoi au CLIC seulement ; non vérifié hardware |
 | Pan, niveaux d'envoi (rev/cho/var) | 🟡 | ⬜ | — |
 | **Groupe de sortie (OUTSEL, 0x08 b1/b2)** | 🟡 | ⬜ | **CÂBLÉ (#2)** : btGroup1/btGroup2 (Element.h) émettent l'octet PACKÉ group 0x03 / param 0x08 par élément (addrHi=(el-1)<<5). b1=OUTSEL0 (grp1), b2=OUTSEL1 (grp2), b0=MCTEN laissé 0. Avant : « rendu/état seul » → aucun envoi (les boutons ne faisaient rien). Spec OCR l.292-294 + carte `out sel@08`. Envoi au CLIC seulement ; non vérifié hardware |
 
@@ -142,7 +143,7 @@ sur le type mixte 8.
 | Niveau élément (ELVL) | 🟡 | 🟢 | commun, cf. Voice Common ; oracle TARKUSCYMB `val(0x03,0,0x00)==127` (Tests.h:314) |
 | Fine / Fixed / PARS (s/m) / filtre AWM | 🟡 | ⬜ | encodage à lever → NON chargé (filtre AWM câblé édition seulement) |
 | **PPM (Fixed mode, 0x02)** | 🟡 | ⬜ | câblé `btFixed` (AWMVue.h) group 0x07 N2 0x02 ; spec OCR l.487 ; non vérifié hardware |
-| **PNOTE (fixed note#, 0x03)** | ❓ | ⬜ | **PAS de contrôle** dans l'éditeur (group 0x07 N2 0x03, 0~127, OCR l.488). La trace `07/2n/03` en mode fixed = note de hauteur fixe ; à exposer après confirmation hardware (#4) |
+| **PNOTE (fixed note#, 0x03)** | 🟡 | ⬜ | **CÂBLÉ (#E)** : `sliderNote` (AWMVue.h) group 0x07 N2 0x03, plage 0~127, octet brut (display = nom de note C-2..G8 via `sy77NoteName`). Grisé hors mode Fixed (observe `btFixed`). Propriété `ELEMENT<n>PNOTE`. Adresse DOCUMENTÉE (OCR l.488) ; **envoi non vérifié hardware** |
 | **PPF (fine, 0x04, o/b)** | ⚠️ | ⬜ | câblé `sliderFine` (AWMVue.h) N2 0x04, mais via le chemin **boolNegative/boolInvert** (s/m-like) alors que la spec dit **offset-binary** (`-64~+63 (o/b)`, OCR l.489) → encodage de l'envoi à CONFIRMER hardware (#4). Non modifié (pas de devinette) |
 
 ---

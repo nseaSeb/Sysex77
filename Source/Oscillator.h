@@ -18,7 +18,7 @@
 //==============================================================================
 /*
 */
-class Oscillator    : public ElementComponent, public TextButton::Listener
+class Oscillator    : public ElementComponent, public TextButton::Listener, public Value::Listener
 {
 public:
     Oscillator()
@@ -110,6 +110,18 @@ public:
         }
         for (Label* l : { &lblSensVel,&lblSensAm,&lblSensPm,&lblVelSw,&lblPegSw,&lblScaling })
         { addChildComponent(*l); l->setJustificationType(Justification::centredLeft); }
+
+        // Libellé de la forme d'onde de l'op sélectionné, sous le glyphe (roue waveLook).
+        // Aucune liste de noms des 16 formes AFM dans le projet/spec (PWAVE 0~15, OCR l.429) ->
+        // « Wave N » (N = 1..16, cohérent avec le display 1-indexé de setOscSliderStyle).
+        addChildComponent(lblWave);
+        lblWave.setJustificationType(Justification::centred);
+        lblWave.setColour(Label::textColourId, SYPal.accent);
+        lblWave.setFont(Font(FontOptions(12.0f)).boldened());
+        // Suit la valeur PWAVE de chaque op : referTo (dans setElementNumber) change la source mais
+        // garde la liste d'écouteurs du Value -> on s'abonne une fois ici (cf. Operator::sliderAlgo).
+        for (MidiSlider* s : { &sliderOsc1,&sliderOsc2,&sliderOsc3,&sliderOsc4,&sliderOsc5,&sliderOsc6 })
+            s->getValueObject().addListener (this);
 
        // addAndMakeVisible(labelOsc1);
        // labelOsc1.attachToComponent(&sliderOsc1, false);
@@ -662,6 +674,9 @@ public:
         // Légendes SENSIT/SCALING/VEL SW/PEG SW du détail.
         for (Label* l : { &lblSensVel,&lblSensAm,&lblSensPm,&lblVelSw,&lblPegSw,&lblScaling })
             l->setVisible (true);
+        // Libellé de forme d'onde : toujours visible (détail = un seul op), texte synchronisé.
+        lblWave.setVisible (true);
+        updateWaveLabel();
     }
 
     // Disposition globale : colonne droite (algo/LFO) ; à gauche une barre fine en haut
@@ -717,6 +732,9 @@ public:
         auto top = area.removeFromTop (jmax (40, area.getHeight() / 5));
         {
             auto waveCell = top.removeFromRight (jmin (top.getWidth() / 3, top.getHeight()));
+            // Réserve une bande sous le glyphe pour le libellé « Wave N ».
+            auto labelStrip = waveCell.removeFromBottom (16);
+            lblWave.setBounds (labelStrip);
             const int s = jmin (waveCell.getWidth(), waveCell.getHeight());
             c.osc->setBounds (waveCell.withSizeKeepingCentre (s, s));
             detailTitleArea = top;   // zone titre « OPn — détail »
@@ -758,11 +776,15 @@ public:
                 lab.setBounds (cell.removeFromTop (16));
                 ctl.setBounds (cell.withSizeKeepingCentre (cell.getWidth() - 12, jmin (24, cell.getHeight() - 6)));
             };
-            auto putBtn = [&] (Label& lab, Component& ctl, int i)   // switch : libellé + bouton
+            auto putBtn = [&] (Label& lab, Component& ctl, int i)   // switch : libellé + bouton COMPACT
             {
                 auto cell = Rectangle<int> (r2.getX() + i * w, r2.getY(), w, r2.getHeight());
                 lab.setBounds (cell.removeFromTop (16));
-                ctl.setBounds (cell.reduced (6, 4));
+                // Bouton toggle de taille normale (gabarit ~Sync/Mode, ~26px de haut), centré dans
+                // la cellule — au lieu d'un énorme rectangle qui remplissait toute la rangée.
+                const int bh = jmin (26, cell.getHeight() - 6);
+                const int bw = jmin (cell.getWidth() - 12, 96);
+                ctl.setBounds (cell.withSizeKeepingCentre (jmax (40, bw), jmax (18, bh)));
             };
             putBar (lblSensVel, sensVel[selOp], 0);
             putBar (lblSensAm,  sensAm[selOp],  1);
@@ -895,6 +917,7 @@ private:
     MidiButton  btPhase6;
     
     Label labelOsc1 {"Op1", "Afm Osc"};
+    Label lblWave { "wave", "Wave 1" };   // forme d'onde de l'op sélectionné, sous le glyphe (PWAVE)
 
     // ---- Onglets + détail : selOp = opérateur sélectionné (0..5), jamais -1 (détail jamais vide).
     int selOp = 0;
@@ -936,7 +959,22 @@ private:
     {
         selOp = jlimit (0, 5, o);
         resized();
+        updateWaveLabel();
         repaint();
+    }
+
+    // Met à jour le libellé de forme d'onde sous le glyphe (op sélectionné). PWAVE 0..15 affiché
+    // 1-indexé « Wave 1..16 » (pas de noms des formes AFM dans la spec/projet -> numéro).
+    void updateWaveLabel()
+    {
+        const int w = (int) op (selOp).osc->getValue() + 1;   // 0..15 -> 1..16
+        lblWave.setText ("Wave " + String (w), dontSendNotification);
+    }
+
+    // Une valeur PWAVE a changé (drag ou chargement de voix) : si c'est l'op affiché, rafraîchir.
+    void valueChanged (Value&) override
+    {
+        updateWaveLabel();
     }
 
     // MUTE éditeur d'un opérateur via le niveau TL (param 0x1B, 0x1B déjà câblé sur sliderLevel*).
