@@ -198,7 +198,7 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         auto setupMix = [this] (MidiButton& b, const Identifier& id, int n2, const String& txt)
         {
             addAndMakeVisible (b);
-            b.setButtonText (txt);
+            b.setTextOnOff (txt, txt);   // libellé conservé on ET off (sinon vidé au clic)
             b.setClickingTogglesState (true);
             b.getToggleStateValue().referTo (valueTreeVoice.getPropertyAsValue (id, &undoManager));
             int sx[9] = { 0x43, 0x10, 0x34, 0x08, 0x00, 0x00, n2, 0x00, 0x00 };
