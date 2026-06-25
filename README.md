@@ -21,7 +21,6 @@ Inspiré, côté fonctionnalités, de l'éditeur *SynthWorks SY77*.
 - **Rendu de la forme d'onde FM** reproduisant la topologie réelle des **45 algorithmes** du SY77.
 - **Édition à la souris des graphes** : glisser sur la réponse du **filtre** (cutoff/résonance) et
   sur les nœuds des **enveloppes** (niveau + rate) — vignettes d'élément et éditeurs complets.
-- **Groupes de sortie** par élément reliés au schéma de **routage** (→ Reverb Hall / Room).
 - **Onglet Effets** : Effect Mode + 2 unités Modulation + 2 unités Reverb.
 - **Librairie de banques** (`.SYX`) : dump, et **ouverture d'un preset dans l'éditeur** par
   double-clic (envoi au synthé + bascule sur l'éditeur).
@@ -30,7 +29,7 @@ Inspiré, côté fonctionnalités, de l'éditeur *SynthWorks SY77*.
 - Synchronisation **tout-MIDI** bidirectionnelle (un seul *device number* global).
 
 > ⚠️ Certaines éditions (effets, groupes, enveloppes…) sont pour l'instant en **rendu/état seul**
-> côté éditeur ; l'envoi sysex complet vers le synthé est en cours de fiabilisation.
+> côté éditeur ; l'envoi sysex complet vers le synthé est en cours de fiabilisation. Tous n'est pas implémenté.
 
 📋 **État de validation paramètre par paramètre** (envoi → synthé / ouverture dump → éditeur) :
 voir **[MAP.md](MAP.md)**.
@@ -142,10 +141,6 @@ create a custom theme; hit **Reload** in *Setting* to pick it up without restart
 - La spec Yamaha *SY77 MIDI Data Format* et les captures SynthWorks sont sous `docs/` (non versionné).
 
 ## Soutien & remerciements
-
-Cette application est et restera **libre**. Pour m'encourager : écoutez un de mes titres
-(*Sebastien Portrait* sur Spotify/Deezer — ex. *Ocean Beach Club*).
-https://open.spotify.com/artist/3qPhbBJMJSF3AYbvzll5Zm
 
 Un grand merci au **forum JUCE**, en particulier : Daniel, Jules, McMartin, matkatmusic, Xenakios, dqthebt.
 
