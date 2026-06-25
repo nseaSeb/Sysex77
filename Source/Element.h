@@ -132,6 +132,9 @@ public:
         addAndMakeVisible(groupFilter);
         addAndMakeVisible(groupVolume);
         addAndMakeVisible(groupPan);
+        // Le cadre « Pan » ne doit PAS capter la souris : sinon il avale le clic destiné à la
+        // carte PAN (-> l'éditeur ne s'ouvrait pas). Les clics traversent jusqu'au mouseUp.
+        groupPan.setInterceptsMouseClicks (false, false);
         addAndMakeVisible(btWave);
         // Mini-vue de l'algo FM par-dessus le bouton WAVE (n'intercepte pas la souris :
         // le bouton dessous reste cliquable pour ouvrir l'éditeur d'opérateurs).
@@ -597,13 +600,17 @@ public:
             getPanEg (lv, w);
             SyDraw::drawEnvelope (g, pc, lv, w, 63.0f, SYColSelected, {}, false);
 
+            // Bordure accent nette (comme les cartes FILTER/VOLUME).
+            g.setColour (SYColSelected);
+            g.drawRoundedRectangle (pc.reduced (0.5f), 6.0f, 1.5f);
+
             // Ligne centrale (pan au milieu).
             g.setColour (SYColLabel.withAlpha (0.35f));
             const float cy = pc.getBottom() - (32.0f / 63.0f) * pc.getHeight();
             g.drawHorizontalLine ((int) cy, pc.getX(), pc.getRight());
 
             // Nom de la table (bandeau haut lisible).
-            auto nameBar = pc.reduced (2.0f).withHeight (16.0f);
+            auto nameBar = pc.reduced (3.0f).withHeight (15.0f);
             g.setColour (SYColBackground.withAlpha (0.6f));
             g.fillRect (nameBar);
             g.setColour (SYColBackground.contrasting());

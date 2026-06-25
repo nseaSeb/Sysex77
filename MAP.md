@@ -72,7 +72,7 @@ Restant : **drum** (type 10) ; AWM filtre (chargement) + fine/fixed (encodage à
 | **On/off élément (1 2 3 4)** | 🟡 | — | **CÂBLÉ (A)** : boutons « Operateurs On-Off » (Voice.h) = on/off des 4 ÉLÉMENTS via **MUTE éditeur** sur ELVL (pas de vrai param on/off dans la spec — seul ELVL existe, OCR l.281). OFF = mémorise l'ELVL courant puis force 0 (émis par sliderVolume = group 0x03 / param 0x00) ; ON = restaure. `Element::setElementMuted`. Boutons des éléments hors mode courant grisés/désactivés (source = `nombreElements`). Envoi au CLIC seulement ; non vérifié hardware |
 | **Pan — sélecteur de table (PANNM, 0x07)** | 🟡 | ⬜ | **CÂBLÉ (#P)** : colonne PAN = sélecteur de table de pan (façon SynthWorks « PAN JOBS »), édité dans l'overlay `PanEg`. Envoi group 0x03 / param 0x07 / T2=(el-1)<<5, valeur 0..95. Propriété `ELEMENT<n>PANNM` ; la carte (Element.h) n'affiche que la table (clic→éditeur). Spec OCR l.290. Envoi au CLIC ; **non vérifié hardware**. Libellés 0-7 = amorce SynthWorks (mapping index↔nom **à confirmer**) ; offset bulk PANNM **inconnu** (chargement dump non branché) |
 | **Pan — EG de table (group 0x0A)** | 🟡 | ⬜ | **CÂBLÉ (#P)** : éditeur `PanEg`/`PanVue` (overlay, 1/élément). group 0x0A / T2=table PANNM / N2 : PNSCSEL 0x00, PNSCDPT 0x01, PNDT(hold) 0x02, PNR1-4 0x03-06, PNRR1-2 0x07-08, PNL0-4 0x09-0D, PNRL1-2 0x0E-0F, PNSLP 0x10, nom PNNAM0-9 0x11-1A. Niveaux o/b **offset 32** (`panLevelTo*`, Tests.h, centre octet 32 — distinct du 64 des EG pitch/filtre). Spec OCR l.543-584. **T2 (=mémoire de table), centre o/b, longueur nom (10 vs 11), codes PNSCSEL, sens L/R : NON vérifiés HW** (à lever par diff single-param). Table = ressource GLOBALE (INT 1..32) présentée par élément ; pas dans le dump de voix (dump Pan séparé non parsé) |
-| **Groupe de sortie (OUTSEL, 0x08 b1/b2)** | 🟡 | ⬜ | **CÂBLÉ (#2)** : btGroup1/btGroup2 (Element.h) émettent l'octet PACKÉ group 0x03 / param 0x08 par élément (addrHi=(el-1)<<5). b1=OUTSEL0 (grp1), b2=OUTSEL1 (grp2), b0=MCTEN laissé 0. Avant : « rendu/état seul » → aucun envoi (les boutons ne faisaient rien). Spec OCR l.292-294 + carte `out sel@08`. Envoi au CLIC seulement ; non vérifié hardware |
+| **Groupe de sortie (OUTSEL, 0x08 b1/b2)** | 🟢 | ⬜ | **CÂBLÉ + VÉRIFIÉ HW (#2)** : btGroup1/btGroup2 (Element.h) émettent l'octet PACKÉ group 0x03 / param 0x08 par élément (addrHi=(el-1)<<5). b1=OUTSEL0 (grp1), b2=OUTSEL1 (grp2), b0=MCTEN laissé 0. **Dump SY77 confirme l'encodage : off=0, grp1=2, grp2=4, both=6** (= `(grp2<<2)|(grp1<<1)`, ce que l'app envoie). Le modèle synthé = sélecteur 4 états off/grp1/grp2/both par élément. Spec OCR l.292-294 + carte `out sel@08`. NB : le synthé émet AUSSI G=08/P=00 (effect mode ?) à chaque changement — couplage à élucider. Envoi au CLIC seulement |
 
 ## AFM — Élément commun (élément 1)
 
@@ -126,7 +126,9 @@ Restant : **drum** (type 10) ; AWM filtre (chargement) + fine/fixed (encodage à
 
 | Paramètre | Envoi → synthé | Ouverture dump | Notes |
 |---|:---:|:---:|---|
-| Effect mode, Chorus 1/2, Reverb 1/2 | ❓ | ⬜ | adresses « plausibles » (group 0x08), non vérifiées |
+| **Effect Mode (EFMODE, 0x08/0x00, 0-3)** | 🟢 | ⬜ | **VÉRIFIÉ HW** (dump + écran SY77). 0=bypass ; 1: g1=mod1→rev1, g2=mod2→rev2 ; 2: g1=mod1→rev1→rev2, g2=mod2 ; 3: g1=(mod1∥mod2)→rev1→rev2, g2=direct. (mod1/2 = Chorus1/2, rev1/2 = Reverb1/2.) Topologies rendues dans le diagramme de routage (Voice.h). Le synthé ré-émet cet octet en naviguant l'output select mais le mode affiché ne change pas. |
+| **Stereo Mix 1/2 (0x08/0x1B-0x1C, on/off)** | 🟢 | ⬜ | **VÉRIFIÉ HW** : St Mix 1 = 0x08/0x1B (dump val 0/1). Injecte du signal direct (pas de dosage, juste on/off). St Mix 2 = 0x1C. |
+| Chorus 1/2, Reverb 1/2 (type/bal/lvl/prm) | 🟡 | ⬜ | adresses group 0x08 (Effects.h) plausibles ; types/params non vérifiés (le spec ne nomme pas les types) |
 
 ## Éléments 2-4 (AFM) — adressage par élément
 

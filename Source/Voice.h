@@ -176,14 +176,35 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
             addAndMakeVisible (*l);
         }
 
-        // Cadres décoratifs de la colonne droite (transparents, ne captent pas la souris).
-        for (auto* gp : { &grpAlgo })
+        // La carte ROUTAGE (contour accent + titre) est dessinée À LA MAIN dans
+        // paintOverChildren : le LookAndFeel du thème dessine drawGroupComponentOutline en
+        // SYPal.panelBorder (gris) en DUR et ignore outlineColourId -> impossible d'obtenir
+        // l'accent via GroupComponent. grpAlgo n'est donc plus affiché (gardé pour les bornes).
+
+        // Sélecteur d'Effect Mode (radio 0-3) en haut-droite du routage : change EFFECTMODE
+        // (group 0x08 / param 0x00) directement -> le diagramme de topologie se redessine.
+        addAndMakeVisible (radioMode);
+        radioMode.addRadio ("0", 7777);
+        radioMode.addRadio ("1", 7777);
+        radioMode.addRadio ("2", 7777);
+        radioMode.addRadio ("3", 7777);
         {
-            gp->setColour (GroupComponent::textColourId,    SYColLabel);
-            gp->setColour (GroupComponent::outlineColourId, SYColLabel);
-            gp->setInterceptsMouseClicks (false, false);
-            addAndMakeVisible (*gp);
+            int sx[9] = { 0x43, 0x10, 0x34, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00 };
+            radioMode.setMidiSysex (sx);
         }
+        radioMode.getValueObject().referTo (valueTreeVoice.getPropertyAsValue (IDs::EFFECTMODE, &undoManager));
+
+        // Stereo Mix 1/2 on/off (group 0x08 / 0x1B-0x1C) : injecte le signal direct (dry).
+        auto setupMix = [this] (MidiButton& b, const Identifier& id, int n2, const String& txt)
+        {
+            addAndMakeVisible (b);
+            b.setButtonText (txt);
+            b.setClickingTogglesState (true);
+            b.getToggleStateValue().referTo (valueTreeVoice.getPropertyAsValue (id, &undoManager));
+            int sx[9] = { 0x43, 0x10, 0x34, 0x08, 0x00, 0x00, n2, 0x00, 0x00 };
+            b.setMidiSysex (sx);
+        };
+        setupMix (mixBtn1, IDs::STMIX1, 0x1B, "Stereo Mix");
         labelMode.setVisible (false); // remplacé par le cadre "VOICE"
 
         
@@ -279,21 +300,55 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
             editPan1.isVisible()    || editPan2.isVisible()    || editPan3.isVisible()    || editPan4.isVisible())
             return;
 
-        // L'algo n'est plus dessiné ici (il vit dans les cellules WAVE des éléments AFM,
-        // cf. FmWaveView). Ce panneau ne montre QUE le ROUTAGE : sorties des éléments ->
-        // Reverb Hall/Room -> L/R + OUT. Les boîtes de reverb sont placées au centre du
-        // panneau (espace de l'ex-schéma d'algo réutilisé), pour des lignes plus courtes
-        // et lisibles.
-        const float bx0  = (float) algoX;
-        const float boxL = bx0 + algoW * 0.20f;
-        const float boxR = bx0 + algoW * 0.62f;
-        const float outX = bx0 + algoW - 16.0f;
-        const float aTop = (float) algoY + 22.0f;
-        const float aBot = (float) (algoY + algoH) - 14.0f;
-        const float hallY = aTop + (aBot - aTop) * 0.30f;
-        const float roomY = aTop + (aBot - aTop) * 0.70f;
-        const float boxH  = jmin ((aBot - aTop) * 0.26f, 40.0f);
+        // Carte ROUTAGE : contour ACCENT + titre, dessinés à la main (le LnF ignore l'accent
+        // sur GroupComponent, cf. constructeur).
+        Rectangle<float> algoArea ((float) algoX, (float) algoY, (float) algoW, (float) algoH);
+        g.setColour (SYColSelected);
+        g.drawRoundedRectangle (algoArea.reduced (1.0f), 8.0f, 1.5f);
+        g.setColour (SYColLabel);
+        g.setFont (Font (13.0f, Font::bold));
+        g.drawText ("ROUTAGE", (int) algoX + 12, (int) algoY + 4, 160, 16, Justification::left);
 
+        // ROUTAGE FIDÈLE (façon SynthWorks voice-routing) : chaque GROUPE de sortie a 2 unités
+        // d'effet EN SÉRIE (Chorus/Mod -> Reverb) puis -> L/R. Les types affichés sont les VRAIS
+        // (lus dans valueTreeVoice, édités dans l'onglet Effects) ; le spec ne les nomme pas ->
+        // on affiche l'unité + le n° de type (« CHORUS 1 / t3 »). Group 1 = Chorus1->Reverb1,
+        // Group 2 = Chorus2->Reverb2. Les lignes éléments->groupe suivent les bascules G1/G2.
+        // ⚠️ La topologie exacte dépend de EFMODE (4 modes serial/parallel, non décrits au spec) :
+        // on montre la chaîne série + l'étiquette « MODE n » (topologie inter-groupe approchée).
+        const float bx0  = (float) algoX;
+        const float inX  = bx0 + algoW * 0.11f;     // entrée des groupes
+        const float outX = bx0 + algoW - 48.0f;     // sorties (marge pour les labels)
+        const float aTop = (float) algoY + 30.0f;
+        const float aBot = (float) (algoY + algoH) - 16.0f;
+        const float g1Y  = aTop + (aBot - aTop) * 0.26f;
+        const float g2Y  = aTop + (aBot - aTop) * 0.74f;
+        const float boxH = jmin ((aBot - aTop) * 0.20f, 34.0f);
+
+        auto eff = [this] (const Identifier& id) { return (int) valueTreeVoice.getProperty (id, 0); };
+        const int mode = eff (IDs::EFFECTMODE);
+
+        // Topologies des 4 EFMODE (RELEVÉES SUR LE SY77). Unités : 0=Chorus1(Mod1),
+        // 1=Chorus2(Mod2), 2=Reverb1, 3=Reverb2. Chaque groupe = suite d'ÉTAGES ; un étage =
+        // 1 unité (série) ou 2 (parallèle ∥). Liste d'étages vide = sortie DIRECTE (sans effet).
+        //   1: g1=mod1->rev1              g2=mod2->rev2
+        //   2: g1=mod1->rev1->rev2        g2=mod2
+        //   3: g1=(mod1∥mod2)->rev1->rev2 g2=direct
+        //   0: bypass (les deux directes)
+        Array<Array<int>> chain1, chain2;
+        auto stg = [] (std::initializer_list<int> u) { return Array<int> (u); };
+        switch (mode)
+        {
+            case 1: chain1.add (stg ({ 0 })); chain1.add (stg ({ 2 }));
+                    chain2.add (stg ({ 1 })); chain2.add (stg ({ 3 })); break;
+            case 2: chain1.add (stg ({ 0 })); chain1.add (stg ({ 2 })); chain1.add (stg ({ 3 }));
+                    chain2.add (stg ({ 1 }));                            break;
+            case 3: chain1.add (stg ({ 0, 1 })); chain1.add (stg ({ 2 })); chain1.add (stg ({ 3 }));
+                    /* chain2 = direct */                                break;
+            default: break;   // 0 = bypass
+        }
+
+        // Lignes éléments -> entrée du groupe (matrice, pilotée par les bascules G1/G2).
         Element* els[4] = { &element1, &element2, &element3, &element4 };
         for (int i = 0; i < nombreElements && i < 4; ++i)
         {
@@ -301,31 +356,115 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
             const float ox = b.getRight() - 4.0f;            // sortie pan de l'élément
             const float lY = b.getY() + b.getHeight() * 0.32f;
             const float rY = b.getY() + b.getHeight() * 0.68f;
-
-            // Routage piloté par les bascules de groupe de l'élément :
-            // Groupe 1 -> Reverb Hall, Groupe 2 -> Reverb Room (aucune = non routé).
-            const bool g1 = (bool) valueTreeVoice.getProperty (Identifier ("ELEMENT" + String (i + 1) + "GROUP1"), false);
-            const bool g2 = (bool) valueTreeVoice.getProperty (Identifier ("ELEMENT" + String (i + 1) + "GROUP2"), false);
+            const bool eg1 = (bool) valueTreeVoice.getProperty (Identifier ("ELEMENT" + String (i + 1) + "GROUP1"), false);
+            const bool eg2 = (bool) valueTreeVoice.getProperty (Identifier ("ELEMENT" + String (i + 1) + "GROUP2"), false);
             g.setColour (SYColSelected);
-            if (g1) g.drawLine (ox, lY, boxL, hallY, 1.3f);  // -> Reverb Hall (groupe 1)
-            if (g2) g.drawLine (ox, rY, boxL, roomY, 1.3f);  // -> Reverb Room (groupe 2)
+            if (eg1) g.drawLine (ox, lY, inX, g1Y, 1.3f);
+            if (eg2) g.drawLine (ox, rY, inX, g2Y, 1.3f);
         }
 
-        g.setColour (SYColLabel);
-        auto box = [&] (float cy, const String& t)
+        // Une unité d'effet = CARTE cliquable (-> onglet Effects, cf. mouseUp/fxBoxes).
+        fxBoxes.clearQuick();
+        auto unitName = [] (int u) { static const char* const n[4] = { "CHORUS 1", "CHORUS 2", "REVERB 1", "REVERB 2" }; return String (n[u & 3]); };
+        auto unitType = [&] (int u) { const Identifier ids[4] = { IDs::CHR1TYPE, IDs::CHR2TYPE, IDs::REV1TYPE, IDs::REV2TYPE }; return eff (ids[u & 3]); };
+        const float bw = algoW * 0.15f;
+        const float uh = jmin (boxH, 30.0f);
+        auto drawUnitBox = [&] (Rectangle<float> r, int u)
         {
-            Rectangle<float> r (boxL, cy - boxH * 0.5f, boxR - boxL, boxH);
-            g.drawRect (r, 1.0f);
-            g.drawFittedText (t, r.toNearestInt(), Justification::centred, 2);
+            SyDraw::drawPanel (g, r, SYColSelected);
+            g.setColour (SYColBackground.contrasting());
+            g.setFont (11.0f);
+            g.drawFittedText (unitName (u) + "\nt" + String (unitType (u)), r.toNearestInt().reduced (3), Justification::centred, 2);
+            fxBoxes.add (r);
         };
-        box (hallY, "REVERB\nHALL");
-        box (roomY, "REVERB\nROOM");
 
-        g.drawLine (boxR, hallY, outX, aTop, 1.0f);          // -> L
-        g.drawLine (boxR, roomY, outX, aBot, 1.0f);          // -> R
-        g.drawText ("L", (int) outX, (int) aTop - 8, 14, 14, Justification::left);
-        g.drawText ("R", (int) outX, (int) aBot - 6, 14, 14, Justification::left);
+        // Chaîne d'un groupe (étages série/parallèle) -> sa sortie (1 point). `mixOn` = Stereo
+        // Mix : injecte le signal DIRECT (dry) du pan en BYPASS des effets (tracé pointillé).
+        auto drawChain = [&] (float y, const Array<Array<int>>& stages, bool mixOn)
+        {
+            g.setColour (SYColSelected);
+            g.fillEllipse (inX - 2.5f, y - 2.5f, 5.0f, 5.0f);
+            float prevX = inX;
+            for (int s = 0; s < stages.size(); ++s)
+            {
+                const auto& st = stages[s];
+                const float cx = inX + (outX - inX) * (s + 0.5f) / (float) stages.size();
+                const float x0 = cx - bw * 0.5f, x1 = cx + bw * 0.5f;
+                g.setColour (SYColSelected);
+                g.drawLine (prevX, y, x0, y, 1.2f);
+                if (st.size() <= 1)
+                {
+                    drawUnitBox ({ x0, y - uh * 0.5f, bw, uh }, st[0]);
+                }
+                else  // étage parallèle : fork à l'entrée, merge à la sortie
+                {
+                    const float off = uh * 0.66f;
+                    for (int k = 0; k < st.size() && k < 2; ++k)
+                    {
+                        const float uy = y + (k == 0 ? -off : off);
+                        g.setColour (SYColSelected);
+                        g.drawLine (x0, y, x0, uy, 1.0f);
+                        g.drawLine (x1, uy, x1, y, 1.0f);
+                        drawUnitBox ({ x0, uy - uh * 0.5f, bw, uh }, st[k]);
+                    }
+                }
+                prevX = x1;
+            }
+            g.setColour (SYColSelected);
+            g.drawLine (prevX, y, outX, y, 1.2f);
+            g.fillEllipse (outX - 3.0f, y - 3.0f, 6.0f, 6.0f);    // sortie du groupe (1 point)
+
+            // Stereo Mix ON : signal direct (dry) injecté en bypass des effets -> ligne
+            // pointillée de l'entrée à la sortie, décalée sous la chaîne.
+            if (mixOn)
+            {
+                const float yd = y + boxH * 0.62f;
+                g.setColour (SYColSelected.withAlpha (0.55f));
+                g.drawLine (inX, y, inX, yd, 1.0f);
+                const float dash[] = { 5.0f, 3.0f };
+                Line<float> ln (inX, yd, outX, yd);
+                g.drawDashedLine (ln, dash, 2, 1.0f);
+                g.drawLine (outX, yd, outX, y, 1.0f);
+            }
+        };
+
+        g.setColour (SYColLabel);
+        g.setFont (11.0f);
+        g.drawText ("GROUP 1", (int) inX - 6, (int) (g1Y - boxH * 0.5f - 24), 80, 13, Justification::left);
+        g.drawText ("GROUP 2", (int) inX - 6, (int) (g2Y - boxH * 0.5f - 24), 80, 13, Justification::left);
+        drawChain (g1Y, chain1, (bool) eff (IDs::STMIX1));
+        drawChain (g2Y, chain2, false);   // un seul Stereo Mix sur le SY77 (groupe 1)
+
+        // « Mode » : libellé près du sélecteur radio (top-right, posé dans resized).
+        g.setColour (SYColLabel);
+        g.setFont (11.0f);
+        g.drawText ("Mode", radioMode.getX() - 44, radioMode.getY() + 2, 40, 16, Justification::right);
     }
+
+    // Clic sur une boîte d'effet du routage -> ouvre l'onglet Effects pour l'éditer.
+    void mouseUp (const MouseEvent& e) override
+    {
+        if (e.eventComponent != this || ! e.mouseWasClicked()) return;
+        for (auto& r : fxBoxes)
+            if (r.contains (e.position)) { openEffectsTab(); return; }
+    }
+    // Curseur « main » au survol d'une boîte d'effet (affordance : c'est cliquable).
+    void mouseMove (const MouseEvent& e) override
+    {
+        bool over = false;
+        for (auto& r : fxBoxes) if (r.contains (e.position)) over = true;
+        setMouseCursor (over ? MouseCursor::PointingHandCursor : MouseCursor::NormalCursor);
+    }
+    void openEffectsTab()
+    {
+        if (auto* tabs = findParentComponentOfClass<TabbedComponent>())
+        {
+            const auto names = tabs->getTabNames();
+            for (int i = 0; i < names.size(); ++i)
+                if (names[i] == TRANS ("Effects")) { tabs->setCurrentTabIndex (i); return; }
+        }
+    }
+
     void valueChanged(Value & value) override
     {
         // Nom de voix chargé depuis la librairie -> reflète dans le champ d'édition.
@@ -688,6 +827,9 @@ void setNombreElements (int nombre)
         algoW = rightW;
         algoH = jmax (60, getHeight() - topElem - 4);
         grpAlgo.setBounds (algoX, algoY, algoW, algoH);
+        // Sélecteur d'Effect Mode (radio) + toggles Stereo Mix en haut-droite de la carte routage.
+        radioMode.setBounds (algoX + algoW - 156, algoY + 3, 148, 20);
+        mixBtn1.setBounds (algoX + algoW - 156, algoY + 26, 148, 18);
     }
     void addBtAndMakeStyle (TextButton& textButton)
     {
@@ -812,6 +954,9 @@ void setNombreElements (int nombre)
     // Colonne droite (façon SynthWorks).
     GroupComponent grpAlgo     { "grpAlgo",    TRANS ("ROUTAGE") };
     int algoX = 0, algoY = 0, algoW = 0, algoH = 0; // zone de la matrice (utilisée par paint)
+    Array<Rectangle<float>> fxBoxes; // unités d'effet dessinées (cliquables -> onglet Effects)
+    MidiRadio radioMode;             // sélecteur d'Effect Mode 0-3 (group 0x08/0x00) dans le routage
+    MidiButton mixBtn1;              // Stereo Mix on/off (group 0x08 / 0x1B) — sur le groupe 1
 
     int nombreElements = 1;
     SysexBusSender sender;  // [2]
