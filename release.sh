@@ -2,7 +2,9 @@
 # =============================================================================
 # Sysex77 — publication d'une release GitHub (asset .app zippé) pour la MAJ in-app.
 #
-# Usage :  ./release.sh 1.3.0  [ -- notes de release libres ]
+# Usage :  ./release.sh [patch|minor|major|X.Y.Z]  [ -- notes de release libres ]
+#   défaut = patch (+0.0.1, correctifs). « minor » (+0.1.0) si une feature est ajoutée.
+#   La version est calculée depuis la DERNIÈRE release GitHub (pas depuis la version -dev locale).
 #
 # Étapes :
 #   1) fige Source/Version.h sur la version donnée (release, sans -dev) ;
@@ -18,14 +20,38 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="${1:-}"
-shift || true
+# Choix de la version :
+#   ./release.sh            -> patch +0.0.1 (correctifs)        [défaut]
+#   ./release.sh minor      -> mineur +0.1.0 (feature ajoutée), patch remis à 0
+#   ./release.sh major      -> majeur +1.0.0
+#   ./release.sh X.Y.Z      -> version explicite (gros jalon)
+#   ... [ -- "notes libres" ]
+BUMP="patch"
+VERSION=""
+case "${1:-}" in
+    patch|minor|major)        BUMP="$1"; shift ;;
+    [0-9]*.[0-9]*.[0-9]*)     VERSION="$1"; shift ;;
+esac
+[[ "${1:-}" == "--" ]] && shift || true
 NOTES="${*:-}"
 
+if [[ -z "$VERSION" ]]; then
+    LAST="$(gh release view --json tagName -q .tagName 2>/dev/null | sed 's/^v//')"
+    [[ "$LAST" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] || { LAST="0.0.0"; [[ "0.0.0" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; }
+    MA="${BASH_REMATCH[1]}"; MI="${BASH_REMATCH[2]}"; PA="${BASH_REMATCH[3]}"
+    case "$BUMP" in
+        patch) PA=$((PA + 1)) ;;
+        minor) MI=$((MI + 1)); PA=0 ;;
+        major) MA=$((MA + 1)); MI=0; PA=0 ;;
+    esac
+    VERSION="$MA.$MI.$PA"
+fi
+
 if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "Usage : ./release.sh X.Y.Z [notes...]   (ex. ./release.sh 1.3.0)" >&2
+    echo "Version invalide. Usage : ./release.sh [patch|minor|major|X.Y.Z] [-- notes]" >&2
     exit 1
 fi
+echo "==> Version cible : $VERSION (bump: ${BUMP})"
 TAG="v$VERSION"
 VERSION_FILE="Source/Version.h"
 APP="build/Sysex77_artefacts/Release/Sysex77.app"

@@ -12,10 +12,15 @@ in-app la voit (`Source/Updater.h` lit `…/releases/latest`).
 ⚠️ **Action publique et difficile à défaire** (release visible sur GitHub). Demander/confirmer le
 numéro de version avant de lancer si l'utilisateur ne l'a pas donné explicitement.
 
-## Argument
-- **Version** `X.Y.Z` (SemVer figé, ex. `1.4.0`). Si absent : demander. Choisir un numéro
-  **supérieur à la dernière release** (`gh release view --json tagName`), pas à la version `-dev`
-  locale (le dev grimpe vite et dépasse normalement la release — c'est attendu).
+## Incrément de version (SemVer-lite, calculé depuis la DERNIÈRE release)
+- **patch +0.0.1** (défaut) : correctifs / petits ajustements.
+- **minor +0.1.0** : dès qu'une **feature** est ajoutée (patch remis à 0).
+- **major +1.0.0** : refonte majeure / rupture.
+- `release.sh` calcule le numéro depuis `gh release view --json tagName` (PAS depuis la version
+  `-dev` locale, qui grimpe à chaque build et dépasse normalement la release — attendu).
+- **Décider patch vs minor** : examiner `git log --oneline "$(git describe --tags --abbrev=0)"..HEAD` ;
+  s'il y a une nouvelle fonctionnalité visible → `minor`, sinon → `patch`. Pour un numéro précis, le
+  passer explicitement. En cas de doute, demander à l'utilisateur.
 
 ## Pré-vol
 1. Être sur `master`, arbre git **propre** (committer/push le travail en cours d'abord).
@@ -37,8 +42,10 @@ numéro de version avant de lancer si l'utilisateur ne l'a pas donné explicitem
 ## Étape 2 — Publier
 Lancer (depuis la racine du repo) :
 ```bash
-./release.sh X.Y.Z            # notes auto (gh --generate-notes)
-# ou : ./release.sh X.Y.Z -- "Notes de release libres (FR)"
+./release.sh                 # patch +0.0.1 (défaut, correctifs) — notes auto
+./release.sh minor           # +0.1.0 si une feature a été ajoutée
+./release.sh major           # +1.0.0
+./release.sh X.Y.Z -- "Notes libres (FR)"   # version explicite + notes
 ```
 `release.sh` enchaîne : fige `Source/Version.h`, `build.sh --no-bump --test` (build Release + tests),
 copie dans `dist/Sysex77.app` + signature ad-hoc (arm64), zip `ditto -c -k --keepParent`,
