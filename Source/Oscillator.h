@@ -199,15 +199,11 @@ public:
             sw.onClick = [this, i] { toggleOpActive (i); };
         }
 
-        // 3 COLONNES scrollables (détail op | algo | LFO) : chaque colonne « lourde » est dans
-        // un VIEWPORT à scroll vertical -> l'éditeur peut être réduit sans rien couper.
-        // Algo (éditeur d'algorithme) : viewport, hauteur de contenu fixe (cf. layoutMaster).
-        addAndMakeVisible (algoView);
-        algoView.setViewedComponent (&algoPanel, false);
-        algoView.setScrollBarsShown (true, false);
-        algoPanel.setVisible (true);
-        // LFO (Main + Sub) : viewport, contenu hauteur fixe (14 lignes) -> Sub LFO Mode toujours
-        // atteignable (scroll si la colonne est courte).
+        // Colonne 2 = ALGO posé DIRECTEMENT (responsive, il se comprime). PAS de viewport :
+        // mis dans un Viewport il devenait INOPÉRANT (clics non transmis à l'éditeur).
+        addAndMakeVisible (algoPanel);
+        // Colonne 3 = LFO dans un viewport (contenu hauteur fixe 14 lignes) -> Sub LFO Mode
+        // toujours atteignable (scroll si la colonne est courte). (Le LFO fonctionnait déjà ainsi.)
         addAndMakeVisible (lfoView);
         lfoView.setViewedComponent (&lfoPanel, false);
         lfoView.setScrollBarsShown (true, false);
@@ -727,8 +723,7 @@ public:
 
         detailArea = detailCol;   // le détail (responsive, cf. layoutDetail) remplit sa colonne
 
-        algoView.setBounds (algoCol.reduced (4));
-        algoPanel.setSize (jmax (60, algoView.getWidth() - algoView.getScrollBarThickness()), 440);
+        algoPanel.setBounds (algoCol.reduced (4));   // direct (responsive), pas de viewport
 
         lfoView.setBounds (lfoCol.reduced (4, 2));
         lfoPanel.setSize (jmax (60, lfoView.getWidth() - lfoView.getScrollBarThickness()), 390);
@@ -1057,7 +1052,6 @@ private:
     // Panneau LFO (Main + Sub) — colonne droite, sous l'algo. Masqué en mode zoom.
     AfmLfo   lfoPanel;
     Viewport lfoView;   // scroll vertical du panneau LFO (cf. constructeur + layoutMaster)
-    Viewport algoView;  // scroll vertical de l'éditeur d'algo (colonne 2)
     int colAlgoX = 0, colLfoX = 0;   // x des séparateurs de colonnes (cf. paint)
 
     // Largeur réservée au panneau algorithme à droite ; layoutMaster() et paint()
