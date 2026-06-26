@@ -177,6 +177,36 @@ struct SysexUtilsTests : public juce::UnitTest
             expect (! SyVoice::verifyYamahaBulkChecksum (nullptr, 0));
         }
 
+        beginTest ("retargetVoiceToEditBuffer met memtype=$7F, mem#=0 et recalcule le checksum");
+        {
+            // Bulk voix synthétique (>= 34 octets) : F0 43 0n 7A cMSB cLSB "LM  8101VC" ... ck F7.
+            // Offsets 30 = Memory type, 31 = Memory#. On part d'un slot interne (type 0, mem# 5).
+            juce::uint8 blk[40] = { 0 };
+            blk[0] = 0xF0; blk[1] = 0x43; blk[2] = 0x10; blk[3] = 0x7A;
+            blk[4] = 0x00; blk[5] = (juce::uint8) (sizeof (blk) - 8);   // count data factice
+            const char* id = "LM  8101VC";
+            for (int i = 0; i < 10; ++i) blk[6 + i] = (juce::uint8) id[i];
+            blk[30] = 0x00;   // Memory type = internal
+            blk[31] = 0x05;   // Memory# = un slot quelconque
+            blk[sizeof (blk) - 1] = 0xF7;
+            // Checksum initial cohérent (pour partir d'un bloc valide).
+            blk[sizeof (blk) - 2] = SyVoice::yamahaChecksum (blk + 6, (int) sizeof (blk) - 8);
+            expect (SyVoice::verifyYamahaBulkChecksum (blk, (int) sizeof (blk)));
+
+            SyVoice::retargetVoiceToEditBuffer (blk, (int) sizeof (blk));
+            expectEquals ((int) blk[30], 0x7F);     // -> Edit Buffer
+            expectEquals ((int) blk[31], 0x00);     // Memory# remis à 0
+            // Le checksum a été recalculé -> le bloc reste valide.
+            expect (SyVoice::verifyYamahaBulkChecksum (blk, (int) sizeof (blk)));
+
+            // No-op si pas un bulk voix (octet [3] != 0x7A) : rien n'est modifié.
+            juce::uint8 notVoice[40] = { 0 };
+            notVoice[0] = 0xF0; notVoice[1] = 0x43; notVoice[3] = 0x7E; notVoice[30] = 0x11;
+            notVoice[sizeof (notVoice) - 1] = 0xF7;
+            SyVoice::retargetVoiceToEditBuffer (notVoice, (int) sizeof (notVoice));
+            expectEquals ((int) notVoice[30], 0x11);   // inchangé
+        }
+
         beginTest ("splitSysexMessages splits successive F0..F7 blocks");
         {
             const juce::uint8 syx[] = {

@@ -58,7 +58,9 @@ juce_add_binary_data(Sysex77Data SOURCES
     Ressources/SY77Waves.xml
     Ressources/SY99Waves.xml
     Ressources/InterRegular.ttf
-    Ressources/InterSemiBold.ttf)
+    Ressources/InterSemiBold.ttf
+    # Collection de banques « SY77 AllTheWeb » embarquée -> BinaryData::SY77_AllTheWeb_zip
+    "Ressources/SY77_AllTheWeb.zip")
 
 target_compile_features(Sysex77 PRIVATE cxx_std_17)
 

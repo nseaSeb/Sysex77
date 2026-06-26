@@ -361,6 +361,36 @@ namespace SyVoice
     }
 
     //==============================================================================
+    /** Réécrit un bloc bulk voix SY77 pour qu'il soit reçu dans l'EDIT BUFFER plutôt
+        que dans son slot mémoire interne d'origine.
+
+        Le bulk voix porte (cf. spec « SY77 MIDI Data Format », Table 2 « Voice Bulk Dump ») :
+          - offset 30 : Memory type — $00 internal / $02 preset1 / $03 preset2 / $7F Edit Buffer ;
+          - offset 31 : Memory#     — slot de destination (A1..D16) quand type ≠ $7F.
+        Les banques stockent leurs voix avec Memory type = internal -> envoyées telles quelles,
+        elles ÉCRASENT la voix du slot correspondant (et ne sont pas auditionnées si le synthé
+        est sur une autre voix). En forçant Memory type = $7F (Memory# ignoré en réception), la
+        voix est chargée dans l'edit buffer : le SY77 l'affiche/joue immédiatement SANS toucher
+        à la mémoire. Le checksum Yamaha est RECALCULÉ (offsets 30/31 sont dans la zone couverte).
+
+        Pure et testable (cf. Tests.h). No-op si le bloc n'est pas un bulk voix bien cadré. */
+    inline void retargetVoiceToEditBuffer (juce::uint8* block, int size)
+    {
+        if (block == nullptr || size < 34)                 return;  // besoin des offsets 30/31 + checksum
+        if (block[0] != 0xF0 || block[size - 1] != 0xF7)   return;
+        if (block[1] != 0x43 || block[3] != 0x7A)          return;  // bulk voix Yamaha
+
+        block[30] = 0x7F;   // Memory type = Edit Buffer
+        block[31] = 0x00;   // Memory# (ignoré en réception pour l'edit buffer)
+
+        const int checksumIndex = size - 2;
+        const int dataStart     = 6;
+        const int dataCount     = checksumIndex - dataStart;
+        if (dataCount <= 0) return;
+        block[checksumIndex] = yamahaChecksum (block + dataStart, dataCount);
+    }
+
+    //==============================================================================
     /** Message Sysex paramétrique court (9 octets) du SY77/TG77.
         Correspond au format { 0x43, ch, 0x34, group, addrHi, addrLo, param, dataHi, dataLo }.
     */

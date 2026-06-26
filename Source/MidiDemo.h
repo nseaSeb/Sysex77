@@ -162,6 +162,7 @@ int intTabIndex;
 #include "Effects.h"
 #include "DumpDiffView.h"   // outil RE : comparer 2 dumps .syx
 #include "MidiObjects.h"
+#include "BankSendProgress.h"   // fenêtre de progression de l'envoi de banque
 
 //==============================================================================
 struct MidiDeviceListEntry : ReferenceCountedObject

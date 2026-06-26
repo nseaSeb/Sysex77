@@ -178,3 +178,51 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
   et on ne forwarde QUE l'entrée reçue (jamais les propres émissions de l'app) → aucune boucle
   créée par l'app. Seul un soft-thru du synthé pourrait boucler (assumé en activant Thru, OFF par
   défaut). Build 695/695 tests.
+- **2026-06-26 (LIB) — Collection de banques du web embarquée (FAIT).** Une collection de banques
+  SY77 (récupérées sur le net) est **embarquée dans le binaire** : `Ressources/SY77_AllTheWeb.zip`
+  ajouté à `juce_add_binary_data` (`CMakeLists.txt`) → `BinaryData::SY77_AllTheWeb_zip`. Le zip a été
+  **curé** une fois (validation bloc-par-bloc : chaque message F0…F7 doit avoir `byte[3]∈{0x7A,0x7E}`
+  + checksum Yamaha correct) → **231 banques retenues, 4 rejetées** (corrompues/tronquées). Les 78
+  banques `DX7patch/` sont incluses : patches DX7 **déjà convertis au format SY77** (bulk 0x7A), pas
+  du SysEx DX7 natif, donc jouables sur le SY77. L'import (`LibrairiePage::importWebBanksFromBinary`,
+  `Librairie.h`) décompresse le zip dans `~/Library/Application Support/Sysex77/SY77 (web)/`
+  (`uncompressTo(dest, overwrite=true)` → idempotent) puis rafraîchit la librairie. Déclencheur
+  d'accès **volontairement non documenté ici** (surprise à préserver). N'écrit QUE des fichiers
+  locaux, jamais vers le synthé ([[feedback-hardware-safety]]).
+- **2026-06-26 (MIDI) — Envoi banque/preset corrigé + fenêtre de progression (FAIT).**
+  **(1) Envoi de banque** : le handler `adresseOscSendBank` (`MidiSysex.h`) reconstruisait
+  `appDirPath + nom de fichier` → échouait pour toute banque en SOUS-DOSSIER (banques importées).
+  Il réutilise maintenant `currentBankData` (déjà chargé à la sélection, même source que l'envoi
+  d'une voix). **(2) Débit** : nouvelle `BankSendProgressWindow` (`BankSendProgress.h`,
+  ThreadWithProgressWindow) — l'envoi throttlé tourne sur un thread d'arrière-plan (UI fluide, barre
+  + Annuler, fermeture auto). Le délai inter-message est **proportionnel à la taille** (≈ temps-fil
+  31250 bauds, `taille/3 ms`) + marge `baseDelayMs` (défaut 60) : sans ça `sendMessageNow` empile
+  tout et le SY77 sature. **(3) Envoi d'UN preset = audition** : `SyVoice::retargetVoiceToEditBuffer`
+  (`SysexUtils.h`, pure + test) réécrit le bulk voix en **Memory type $7F (Edit Buffer)** (offset 30)
+  + Memory# 0 (offset 31) + checksum recalculé → le SY77 affiche/joue la voix envoyée SANS écraser
+  la mémoire interne (avant : écrit dans le slot d'origine, non auditionné). Build 900/900 tests.
+
+## Vision « librairie multi-synthés » (PLAN, non implémenté)
+
+Idée (utilisateur, 2026-06-26) : faire de la librairie un gestionnaire de SysEx **multi-synthés**,
+pas seulement SY77. Quatre briques, toutes faisables, à livrer par incréments :
+
+1. **Détection auto du synthé** depuis l'en-tête SysEx — fonction PURE dans `SysexUtils.h`
+   (+ test `Tests.h`, cf. contrat « toute logique pure → SysexUtils »). `byte[1]` = fabricant
+   (0x43 Yamaha, 0x41 Roland, 0x42 Korg…) ; pour Yamaha, `byte[3]` = format/modèle (0x7A = SY77/
+   TG77 bulk, formats DX7 natifs distincts, etc.). Réutilise le découpage par bloc F0…F7 déjà
+   éprouvé (cf. `verifyYamahaBulkChecksum`). Renvoie un enum `SynthKind { SY77, DX7, RolandX, … }`.
+2. **Filtre dans la librairie** — `ComboBox` « Tous / SY77 / DX7 / … » au-dessus de la liste ;
+   `BankTableModel::loadBank` applique le filtre via le détecteur (1). Changement localisé à
+   `BankTableModel.h` + `Librairie.h`.
+3. **Index de métadonnées** — un `.syx` n'a aucun champ libre → **index central** unique
+   (ex. `library.json` dans le dossier lib) reliant `fichier → {synthé, tags, auteur, notes,
+   favori}`. Plus simple qu'un sidecar par fichier ; réutilise l'emplacement de l'ancien
+   `Bank.xml` (aujourd'hui mort). Permet tri/recherche/favoris « aux petits oignons ».
+4. **Envoi cross-synthé (garde-fou)** — ⚠️ [[feedback-hardware-safety]] : n'autoriser SEND que
+   vers le synthé **correspondant au type détecté** ; jamais d'envoi silencieux d'un dump SY77
+   vers un autre synthé (SEND se grise / avertit en cas de mismatch). Les évolutions « envoi vers
+   d'autres synthés » se feront unité par unité, chacune vérifiée HW avant activation.
+
+Ordre conseillé : (1) détecteur + tests → (2) filtre UI → (3) index métadonnées → (4) envois
+multi-synthés gardés. Étapes 1-3 sont 100 % locales (sans risque matériel).

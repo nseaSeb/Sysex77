@@ -107,14 +107,32 @@ void oscMessageReceived (const OSCMessage& message)
     }
     if (address.matches(adresseOscSendBank))
     {
-        File file {(appDirPath.getFullPathName() + "/" + message[0].getString())};
-        MemoryBlock mb;
-        if(file.loadFileAsData(mb))
+        // Envoi de la banque SÉLECTIONNÉE. On réutilise currentBankData (déjà chargé à la
+        // sélection, MÊME source que l'envoi d'une voix) au lieu de reconstruire
+        // appDirPath + nom de fichier : cette reconstruction échouait pour toute banque rangée
+        // en SOUS-DOSSIER (ex. les banques importées dans "SY77 (web)/", dont bankSelected ne
+        // porte que le nom de fichier) -> l'envoi de banque ne partait jamais pour celles-ci.
+        if (currentBankData.getSize() > 1)
         {
-            const uint8* const data = (const uint8*) mb.getData();
-            sendBankThrottled (data, mb.getSize());
+            auto blocks = SyVoice::splitSysexMessages ((const uint8*) currentBankData.getData(),
+                                                       currentBankData.getSize());
+            if (blocks.isEmpty())
+            {
+                // Pas de cadrage F0…F7 reconnu -> envoi brut (comportement d'avant).
+                sendRaw (currentBankData.getData(), (long) currentBankData.getSize());
+            }
+            else
+            {
+                // Fenêtre de progression modale (barre + Annuler), envoi throttlé sur un thread
+                // d'arrière-plan -> plus d'« envoi en aveugle » ni de gel de l'UI. Se ferme à la fin.
+                Logger::writeToLog ("Send BANK : " + String (blocks.size()) + " messages");
+                BankSendProgressWindow w (std::move (blocks),
+                                          [this] (const MidiMessage& m) { sendToOutputs (m); });
+                w.runThread();
+            }
         }
-
+        else
+            Logger::writeToLog ("Send BANK : aucune banque chargee");
     }
     if (address.matches (adresseOscRequestDump))
     {
@@ -140,6 +158,10 @@ void oscMessageReceived (const OSCMessage& message)
                                                  message[0].getInt32());
             if (block.getSize() > 1)
             {
+                // AUDITION : on redirige la voix vers l'EDIT BUFFER ($7F) au lieu de son slot
+                // mémoire d'origine -> le SY77 l'affiche/joue tout de suite, SANS écraser une
+                // voix stockée. getVoiceBlock renvoie une COPIE : currentBankData reste intact.
+                SyVoice::retargetVoiceToEditBuffer ((uint8*) block.getData(), (int) block.getSize());
                 sendRaw (block.getData(), (long) block.getSize());
 
                 // Ouvre aussi la voix dans l'éditeur : on décode ce qui est FIABLE
@@ -202,32 +224,6 @@ void sendSysex(const OSCMessage& message, uint8 sysexdata[0])
         sendToOutputs (m);
     }
     
-}
-// Envoi d'une banque DÉCOUPÉE en messages F0…F7 individuels, avec un petit délai
-// inter-message (~10 ms, calqué sur l'outil RE) pour ne pas saturer le buffer d'entrée
-// du SY77 (un seul gros MidiMessage risquait de le déborder). User-triggered (bouton SEND).
-void sendBankThrottled (const void* sysexData, const long dataSize)
-{
-    if (dataSize <= 1)
-    {
-        Logger::writeToLog ("Error Send BANK (empty)");
-        return;
-    }
-    const auto blocks = SyVoice::splitSysexMessages ((const uint8*) sysexData, (size_t) dataSize);
-    if (blocks.isEmpty())
-    {
-        // Pas de cadrage F0…F7 reconnu -> on retombe sur l'envoi brut (comportement d'avant).
-        sendRaw (sysexData, dataSize);
-        return;
-    }
-    Logger::writeToLog ("Send BANK : " + String (blocks.size()) + " messages");
-    for (auto& b : blocks)
-    {
-        MidiMessage m (b.getData(), (int) b.getSize());
-        m.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
-        sendToOutputs (m);
-        juce::Thread::sleep (10);   // throttle inter-message
-    }
 }
 void sendRaw(const void* sysexData, const long dataSize)
 {

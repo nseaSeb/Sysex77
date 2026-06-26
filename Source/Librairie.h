@@ -27,11 +27,16 @@
 #include "VoicesTableModel.h"
 
 
-struct LibrairiePage   : public Component,public Button::Listener, private Timer,public ChangeListener, public ChangeBroadcaster
+struct LibrairiePage   : public Component,public Button::Listener, private Timer,public ChangeListener, public ChangeBroadcaster, public KeyListener
 {
     LibrairiePage()
     {
         setOpaque(false);
+        // Easter-egg : Cmd+Alt+X (quand la page Librairie est visible) -> dialogue
+        // (code « sysex ») -> import des banques web embarquées. Le KeyListener est
+        // attaché au composant de plus haut niveau (cf. parentHierarchyChanged) :
+        // c'est le seul point qui reçoit les touches quel que soit le composant focus.
+        setWantsKeyboardFocus(true);
         addBtAndMakeStyle(btVoice);
         addBtAndMakeStyle(btMulti);
         btMulti.setEnabled(false);
@@ -96,8 +101,54 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         btStop.removeListener(this);
         btReceive.removeListener(this);
         bankList.removeChangeListener(this);
+        if (keyHost != nullptr)
+            keyHost->removeKeyListener (this);
         stopTimer();
-        
+
+    }
+
+    // On attache le KeyListener au composant de PLUS HAUT NIVEAU (et non à la page) :
+    // c'est le seul point qui reçoit toutes les touches non consommées, quel que soit le
+    // composant qui a le focus -> Cmd+Alt+X marche sans devoir cliquer la page d'abord.
+    // Appelé à chaque (dé)rattachement de la hiérarchie ; idempotent.
+    void parentHierarchyChanged() override
+    {
+        auto* top = getTopLevelComponent();
+        if (top == keyHost.getComponent())
+            return;
+        if (keyHost != nullptr)
+            keyHost->removeKeyListener (this);
+        keyHost = top;
+        if (keyHost != nullptr)
+            keyHost->addKeyListener (this);
+    }
+
+    //==============================================================================
+    // Easter-egg caché : Cmd+Alt+X ouvre un dialogue ; saisir « sysex » (insensible à
+    // la casse) lance l'import des banques web embarquées dans la librairie locale.
+    // N'écrit QUE des fichiers locaux — jamais vers le synthé (sûreté matérielle).
+    bool keyPressed (const KeyPress& key, Component* /*origin*/) override
+    {
+        // Listener global (top-level) : ne réagir que lorsque l'onglet Librairie est affiché.
+        if (! isShowing())
+            return false;
+
+        const auto mods = key.getModifiers();
+        if (mods.isCommandDown() && mods.isAltDown()
+            && (key.getKeyCode() == 'X' || key.getKeyCode() == 'x'))
+        {
+            AlertWindow w (TRANS("Sysex77"), TRANS("Code :"), AlertWindow::QuestionIcon);
+            w.addTextEditor ("code", String());
+            w.addButton (TRANS("OK"),      1, KeyPress (KeyPress::returnKey));
+            w.addButton (TRANS("Annuler"), 0, KeyPress (KeyPress::escapeKey));
+
+            if (w.runModalLoop() == 1
+                && w.getTextEditorContents ("code").trim().equalsIgnoreCase ("sysex"))
+                importWebBanksFromBinary();
+
+            return true;
+        }
+        return false;
     }
     void mouseDown (const MouseEvent& e) override
     {
@@ -254,6 +305,9 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
     
 private:
     //       LibrairiePage& owner;
+    // Composant top-level sur lequel le KeyListener de l'easter-egg est posé (cf.
+    // parentHierarchyChanged). SafePointer : se nullifie si le top-level est détruit avant nous.
+    Component::SafePointer<Component> keyHost;
     ToggleButton toggleButton;
     
     
@@ -266,6 +320,44 @@ private:
         textButton.setRadioGroupId(77);
         textButton.setColour(TextButton::ColourIds::buttonOnColourId, Colours::red);
         addAndMakeVisible (textButton);
+    }
+
+    //==============================================================================
+    // Import des banques « SY77 AllTheWeb » embarquées (BinaryData::SY77_AllTheWeb_zip).
+    // Le zip est DÉJÀ curé (231 banques SY77 valides, vérifiées bloc par bloc lors de sa
+    // génération) -> simple décompression dans appDirPath/"SY77 (web)", sans filtre runtime.
+    // overwrite=true rend l'easter-egg idempotent (rejouer ne duplique pas).
+    // N'écrit QUE des fichiers locaux — jamais vers le synthé (sûreté matérielle).
+    void importWebBanksFromBinary()
+    {
+        File destDir = appDirPath.getChildFile ("SY77 (web)");
+        destDir.createDirectory();
+
+        ZipFile zip (new MemoryInputStream (BinaryData::SY77_AllTheWeb_zip,
+                                            (size_t) BinaryData::SY77_AllTheWeb_zipSize, false),
+                     true);
+        if (zip.uncompressTo (destDir, true).failed())
+        {
+            labelInfoLine.setText ("ERREUR : decompression des banques web echouee",
+                                   dontSendNotification);
+            labelInfoLine.setColour (Label::textColourId, Colours::red);
+            return;
+        }
+
+        // Comptage (le système de fichiers macOS est insensible à la casse : "*.syx" couvre
+        // aussi les ".SYX", comme le loadBank de la librairie).
+        Array<File> syxFiles;
+        destDir.findChildFiles (syxFiles, File::TypesOfFileToFind::findFiles, true, "*.syx");
+
+        // Rafraîchissement de l'UI (cf. fin de filesDropped). Synchrone : le
+        // changeListenerCallback recharge les 4 colonnes de voix ET réécrit labelInfoLine ;
+        // on l'exécute d'abord pour pouvoir afficher notre bilan ensuite.
+        bankList.loadBank();
+        bankList.sendSynchronousChangeMessage();
+        labelInfoLine.removeColour (Label::textColourId);
+        labelInfoLine.setText (String (syxFiles.size()) + " banques web disponibles dans la librairie",
+                               dontSendNotification);
+        repaint();
     }
     Label labelInfoLine {"","Test Info Line -- -- -- -- -- -- -- -- -- -- --"};
     TextButton btSend {TRANS("SEND BANK->")};
