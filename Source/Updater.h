@@ -129,8 +129,9 @@ public:
         Renvoie après lancement du helper (l'app va se fermer). */
     void downloadAndInstall (const Info& info)
     {
-        auto zip = juce::File::getSpecialLocation (juce::File::tempDirectory)
-                       .getChildFile ("Sysex77-update.zip");
+        // /tmp (et NON ~/Library/Caches = File::tempDirectory) : le helper d'install tourne sous
+        // launchd, qui n'a pas accès à ~/Library/Caches (TCC) -> le swap échouait silencieusement.
+        auto zip = juce::File ("/tmp/Sysex77-update.zip");
 
         DownloadWindow dl (info.assetUrl, zip);
         if (! dl.runThread() || ! dl.ok)      // annulé / échec
@@ -157,13 +158,23 @@ private:
 
         void run() override
         {
+            juce::File ("/tmp/sysex77-update.log").appendText (
+                juce::Time::getCurrentTime().toString (true, true) + "  download: " + url + "\n");
             juce::WebInputStream in (juce::URL (url), false);
-            if (! in.connect (nullptr)) return;
+            if (! in.connect (nullptr))
+            {
+                juce::File ("/tmp/sysex77-update.log").appendText ("  connect FAILED\n");
+                return;
+            }
 
             const auto total = in.getTotalLength();
             dest.deleteFile();
             juce::FileOutputStream out (dest);
-            if (out.failedToOpen()) return;
+            if (out.failedToOpen())
+            {
+                juce::File ("/tmp/sysex77-update.log").appendText ("  output open FAILED\n");
+                return;
+            }
 
             juce::HeapBlock<char> buffer (1 << 16);
             juce::int64 done = 0;
@@ -178,6 +189,9 @@ private:
             }
             out.flush();
             ok = (! threadShouldExit()) && done > 0;
+            juce::File ("/tmp/sysex77-update.log").appendText (
+                "  download done=" + juce::String (done) + " total=" + juce::String (total)
+                + " ok=" + juce::String ((int) ok) + "\n");
         }
     };
 
@@ -185,7 +199,7 @@ private:
     void installAndRelaunch (const juce::File& zip)
     {
        #if JUCE_MAC
-        auto tmp = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("Sysex77-update");
+        auto tmp = juce::File ("/tmp/Sysex77-update");   // /tmp accessible par le job launchd (cf. download)
         tmp.deleteRecursively();
         tmp.createDirectory();
 
@@ -197,44 +211,85 @@ private:
 
         auto newApp = tmp.getChildFile ("Sysex77.app");
         auto oldApp = juce::File::getSpecialLocation (juce::File::currentApplicationFile); // .app en cours
+
+        auto logf = juce::File ("/tmp/sysex77-update.log");
+        auto log  = [&logf] (const juce::String& m)
+        { logf.appendText (juce::Time::getCurrentTime().toString (true, true) + "  " + m + "\n"); };
+        log ("--- install: zip=" + zip.getFullPathName());
+        log ("newApp=" + newApp.getFullPathName() + " exists=" + juce::String ((int) newApp.exists()));
+        log ("oldApp=" + oldApp.getFullPathName() + " exists=" + juce::String ((int) oldApp.exists()));
+
         if (! newApp.exists() || ! oldApp.exists())
         {
-            if (onMessage) onMessage ("Mise a jour : archive invalide");
+            log ("ABORT: archive invalide");
+            if (onMessage) onMessage ("Mise a jour : archive invalide (voir /tmp/sysex77-update.log)");
             return;
         }
 
-        // Emplacement non inscriptible (ex. /Applications sans droits) -> repli Finder.
-        if (! oldApp.getParentDirectory().hasWriteAccess())
+        // App Translocation : si l'app tourne depuis une copie en lecture seule (quarantaine non
+        // levée), currentApplicationFile pointe une copie aléatoire -> on ne peut pas remplacer
+        // l'original. Repli : révéler la nouvelle app dans le Finder.
+        const bool translocated = oldApp.getFullPathName().contains ("/AppTranslocation/");
+        const bool writable     = oldApp.getParentDirectory().hasWriteAccess();
+        log ("translocated=" + juce::String ((int) translocated) + " parentWritable=" + juce::String ((int) writable));
+
+        if (translocated || ! writable)
         {
             newApp.revealToUser();
-            if (onMessage) onMessage ("Glissez la nouvelle app dans Applications (emplacement protege)");
+            log ("FALLBACK Finder (translocated/non inscriptible)");
+            if (onMessage) onMessage (translocated
+                ? "MAJ : l'app tourne depuis une copie protegee (translocation). Glissez la nouvelle app revelee dans Applications."
+                : "MAJ : emplacement protege. Glissez la nouvelle app revelee dans Applications.");
             return;
         }
 
-        // Helper détaché : attend la fermeture, échange (.bak réversible), nettoie la quarantaine, relance.
+        // Helper : attend la fermeture de l'app, échange le bundle (.bak réversible), nettoie la
+        // quarantaine, relance. Une instruction par ligne + TRACE dans le log.
+        // CRUCIAL : écrire en fins de ligne LF ("\n"). replaceWithText utilise CRLF PAR DÉFAUT, et
+        // bash ne sait pas parser un script CRLF (le \r se colle à fi/then/done -> erreur de syntaxe,
+        // exit 2) — c'était LA cause de l'échec silencieux de l'auto-install.
         auto script = tmp.getChildFile ("swap.sh");
         script.replaceWithText (
             "#!/bin/bash\n"
-            "PID=\"$1\"; OLD=\"$2\"; NEW=\"$3\"\n"
+            "PID=\"$1\"; OLD=\"$2\"; NEW=\"$3\"; LOG=/tmp/sysex77-update.log\n"
+            "echo \"$(date +%T)  swap start PID=$PID\" >> \"$LOG\"\n"
             "while kill -0 \"$PID\" 2>/dev/null; do sleep 0.3; done\n"
+            "echo \"$(date +%T)  app exited\" >> \"$LOG\"\n"
             "sleep 0.5\n"
-            "if mv \"$OLD\" \"$OLD.bak\"; then\n"
-            "  if mv \"$NEW\" \"$OLD\"; then rm -rf \"$OLD.bak\"; else mv \"$OLD.bak\" \"$OLD\"; fi\n"
+            "rm -rf \"$OLD.bak\"\n"
+            "mv \"$OLD\" \"$OLD.bak\"\n"
+            "if ditto \"$NEW\" \"$OLD\"; then\n"
+            "  rm -rf \"$OLD.bak\"\n"
+            "  echo \"$(date +%T)  swap OK\" >> \"$LOG\"\n"
+            "else\n"
+            "  rm -rf \"$OLD\"\n"
+            "  mv \"$OLD.bak\" \"$OLD\"\n"
+            "  echo \"$(date +%T)  ditto FAIL -> restore\" >> \"$LOG\"\n"
             "fi\n"
             "xattr -dr com.apple.quarantine \"$OLD\" 2>/dev/null\n"
-            "open \"$OLD\"\n");
+            "echo \"$(date +%T)  reopening\" >> \"$LOG\"\n"
+            "open \"$OLD\"\n"
+            // Se désinscrire de launchd EN DERNIER : sinon launchd, voyant le job se terminer vite,
+            // le relance toutes les ~10 s (boucle de ré-ouverture).
+            "launchctl remove com.sysex77.update 2>/dev/null\n",
+            false, false, "\n");   // <-- LF explicite (sinon CRLF -> bash casse)
 
-        const juce::String inner =
-            "nohup /bin/bash " + script.getFullPathName().quoted()
-            + " " + juce::String ((int) getpid())
-            + " " + oldApp.getFullPathName().quoted()
-            + " " + newApp.getFullPathName().quoted()
-            + " >/dev/null 2>&1 &";
+        // DÉTACHEMENT FIABLE : on confie le helper à launchd via `launchctl submit`. Un processus
+        // simplement backgroundé (nohup / setsid / std::system) mourait à la fermeture de l'app GUI
+        // (groupe/session détruits par launchd) ; un job launchd, lui, est totalement indépendant.
+        const juce::String label = "com.sysex77.update";
+        { juce::ChildProcess rm; rm.start (juce::StringArray { "/bin/launchctl", "remove", label });
+          rm.waitForProcessToFinish (3000); }                       // nettoie un éventuel job précédent
 
-        juce::ChildProcess launcher;
-        launcher.start (juce::StringArray { "/bin/bash", "-c", inner });
+        juce::ChildProcess lc;
+        lc.start (juce::StringArray { "/bin/launchctl", "submit", "-l", label, "--",
+                                      "/bin/bash", script.getFullPathName(),
+                                      juce::String ((int) getpid()),
+                                      oldApp.getFullPathName(), newApp.getFullPathName() });
+        const bool submitted = lc.waitForProcessToFinish (5000);
+        log ("launchctl submit ok=" + juce::String ((int) submitted));
 
-        juce::JUCEApplicationBase::quit();   // l'app se ferme -> le helper swap puis rouvre
+        juce::JUCEApplicationBase::quit();   // l'app se ferme -> le job launchd swap puis rouvre
        #else
         juce::ignoreUnused (zip);
         if (onMessage) onMessage ("Auto-install non disponible sur cette plateforme");
