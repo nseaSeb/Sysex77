@@ -88,17 +88,33 @@ public:
         cbDst.onChange = [this] { onRouteEdited ("OUT", cbDst.getSelectedId() - 1); };
         cbAcc.onChange = [this] { onAccEdited(); };
 
-        for (auto* l : { &lblIn0, &lblIn1, &lblDst, &lblAcc, &lblOp })
+        for (auto* l : { &lblIn0, &lblIn1, &lblDst, &lblAcc, &lblOp, &lblLvl })
         {
             addAndMakeVisible (*l);
             l->setColour (Label::textColourId, SYColLabel);
             l->setFont (Font (FontOptions (11.0f)));
         }
+
+        // Titre de section : rappelle quel opérateur on édite (les combos/niveau ci-dessous).
+        addAndMakeVisible (lblOpHdr);
+        lblOpHdr.setColour (Label::textColourId, SYColSelected);
+        lblOpHdr.setFont (Font (FontOptions (12.0f)).boldened());
+
+        // Niveau (TL) de l'op sélectionné : barre éditable. autoSend OFF -> n'émet pas elle-même ;
+        // elle partage la valeur AFMELEMENT<e>LEVEL<op> du slider Level du détail, qui émet le 0x1B.
+        addAndMakeVisible (sliderLevel);
+        sliderLevel.setSliderStyle (Slider::LinearBar);
+        sliderLevel.setTextBoxStyle (Slider::TextBoxRight, false, 34, 16);
+        sliderLevel.setRange (0, 127, 1);
+        sliderLevel.setColour (Slider::trackColourId, SYColSelected);
+        sliderLevel.setAutoSend (false);
+        sliderLevel.setPopupDisplayEnabled (true, true, this);
     }
 
     void setElementNumber (int element, UndoManager& um) override
     {
         elem = jlimit (1, 4, element);
+        undo = &um;
 
         int sx[9] = { 0x43, 0X10, 0x34, 0x05, (int) SyVoice::elementAddrHi (elem - 1), 0x00, 0x00, 0x00, 0x00 };
         sliderAlgo.setMidiSysex (sx);
@@ -139,7 +155,11 @@ public:
           for (int i = 0; i < 6; ++i) opTab[i]->setBounds (row.removeFromLeft (w).reduced (1)); }
         r.removeFromTop (2);
 
-        // Combos (label gauche, contrôle droite).
+        // Titre de section (« Operateur N ») : ce que les champs ci-dessous éditent.
+        lblOpHdr.setBounds (r.removeFromTop (line));
+        r.removeFromTop (2);
+
+        // Champs de l'op (label gauche, contrôle droite) : entrées 1/2, sortie, accum, NIVEAU.
         auto field = [&] (Label& l, Component& c)
         {
             auto row = r.removeFromTop (line); r.removeFromTop (2);
@@ -150,6 +170,7 @@ public:
         field (lblIn1, cbIn1);
         field (lblDst, cbDst);
         field (lblAcc, cbAcc);
+        field (lblLvl, sliderLevel);
     }
 
 private:
@@ -165,10 +186,13 @@ private:
         sliderAlgo.setEnabled (! free);
         btFree.setToggleState (free, dontSendNotification);
 
+        // Les contrôles d'édition restent TOUJOURS actifs : éditer un code bascule
+        // automatiquement en mode libre (ensureFree). Plus de « gate Free » à cliquer
+        // d'abord (qui rendait l'éditeur inopérant tant que Free n'était pas armé).
         for (auto* c : { &cbIn0, &cbIn1, &cbDst, &cbAcc })
-            c->setEnabled (free);
-        for (int i = 0; i < 6; ++i) opTab[i]->setEnabled (free);
-        btDerive.setEnabled (free);
+            c->setEnabled (true);
+        for (int i = 0; i < 6; ++i) opTab[i]->setEnabled (true);
+        btDerive.setEnabled (true);
 
         if (free)
         {
@@ -195,6 +219,14 @@ private:
         const int a0 = def.acc0[selOp], a1 = def.acc1[selOp];
         const int accItem = (a0 && ! a1) ? 1 : (a0 && a1) ? 2 : (! a0 && a1) ? 3 : 4;
         cbAcc.setSelectedId (accItem, dontSendNotification);
+
+        lblOpHdr.setText ("Operateur " + String (selOp + 1), dontSendNotification);
+
+        // Niveau (TL) : partage la valeur du slider Level du détail (AFMELEMENT<e>LEVEL<op>),
+        // qui porte l'envoi 0x1B. Re-referTo à CHAQUE changement d'op.
+        if (undo != nullptr)
+            sliderLevel.getValueObject().referTo (valueTreeVoice.getPropertyAsValue (
+                Identifier ("AFMELEMENT" + String (elem) + "LEVEL" + String (selOp + 1)), undo));
     }
 
     void onPresetChanged()
@@ -212,49 +244,56 @@ private:
         if (wantFree && ! SyAlgo::hasCustomAlgo (elem))
             SyAlgo::seedCustomFromPreset (elem, presetNum());   // amorce depuis le preset courant
         freeValue.setValue (wantFree);        // -> valueChanged -> refreshAll
-        if (wantFree) sendFreeAlgo();         // ALGNUM=127 + routage
-        else          sendPreset();           // ré-arme le preset
+        if (wantFree) sendFreeAlgoFull();      // ALGNUM=127 + établissement des 6 op (une fois)
+        else          sendPreset();            // ré-arme le preset
     }
 
     void deriveFromPreset()
     {
         SyAlgo::seedCustomFromPreset (elem, presetNum());
         refreshAll();
-        sendFreeAlgo();
+        sendFreeAlgoFull();
     }
 
     void onRouteEdited (const char* field, int code)
     {
-        ensureFree();
+        const bool entered = ensureFree();
         valueTreeVoice.setProperty (SyAlgo::algoId (elem, field, selOp + 1), jmax (0, code), nullptr);
-        afterEdit();
+        afterEdit (entered);
     }
 
     void onAccEdited()
     {
-        ensureFree();
+        const bool entered = ensureFree();
         const int item = cbAcc.getSelectedId();   // 1=Init 2=Sum 3=Keep 4=Reset
         const int a0 = (item == 1 || item == 2) ? 1 : 0;
         const int a1 = (item == 2 || item == 3) ? 1 : 0;
         valueTreeVoice.setProperty (SyAlgo::algoId (elem, "ACCA", selOp + 1), a0, nullptr);
         valueTreeVoice.setProperty (SyAlgo::algoId (elem, "ACCB", selOp + 1), a1, nullptr);
-        afterEdit();
+        afterEdit (entered);
     }
 
     // Bascule en free au 1er édit d'un code (en amorçant depuis le preset si vierge).
-    void ensureFree()
+    // Retourne TRUE si on vient JUSTE de basculer (-> il faudra un établissement complet).
+    bool ensureFree()
     {
-        if (isFree()) return;
+        if (isFree()) return false;
         if (! SyAlgo::hasCustomAlgo (elem))
             SyAlgo::seedCustomFromPreset (elem, presetNum());
         freeValue.setValue (true);
+        return true;
     }
 
-    void afterEdit()
+    // Après une édition : redraw + envoi MINIMAL. À l'ENTRÉE en free -> établissement complet
+    // (ALGNUM=127 + 6 op, une seule fois) ; ensuite -> SEULEMENT l'op édité (1-2 octets).
+    // Évite le flood « 19 messages + ALGNUM à chaque clic » qui re-déclenchait le recalcul
+    // d'algo du synthé et le faisait râler.
+    void afterEdit (bool enteredFree)
     {
         algoFm.setCustomAlgo (SyAlgo::buildCustomAlgo (elem));
         repaint();
-        sendFreeAlgo();
+        if (enteredFree) sendFreeAlgoFull();
+        else             sendOneOp (selOp);
     }
 
     // Envoi 9-octets (param-change SY77). V1=[7], V2=[8] (octets PACKÉS pour le free-algo).
@@ -265,17 +304,36 @@ private:
         algoSender.sendParam9 ("/SYSEX", b);
     }
 
+    // Groupe param-change de l'opérateur (VÉRIFIÉ HW, cf. Oscillator.h FINE/COARSE) :
+    // OP1=0x56 … OP6=0x06. op = 0..5 (op 0 = OP1).
+    static int opGroup (int op) { static const int g[6] = { 0x56,0x46,0x36,0x26,0x16,0x06 }; return g[op]; }
+
     // Sortie du mode free : ré-arme le preset (ALGNUM = preset-1, 0-indexé).
     void sendPreset()
     {
         send9 (0x05, (elem - 1) << 5, 0x00, 0x00, presetNum() - 1);
     }
 
-    // Envoi du ROUTAGE LIBRE : ALGNUM=127 puis, par op, les octets bit-packés ALGSRC/ALGDST/
-    // OACSRC/SHIFT. 🟡 BIT-PACKING + mapping acc0/acc1->OACSRC LUS À L'OCR, NON VÉRIFIÉS HW :
-    // à confirmer par diff (DumpDiffView) sur un vrai SY77 ; l'utilisateur teste et on corrige.
-    // Émis au CLIC/édition seulement. Spec OCR : group (op<<4)|6 (op0=OP6), N2 0x13/0x14/0x15.
-    void sendFreeAlgo()
+    // Routage d'UN opérateur (0x13 ALGSRC + 0x14 ALGDST/OAC). Pas d'ALGNUM, pas de SHIFT :
+    // c'est l'envoi par édition (minimal). Adresses/packing = spec OCR Table 1-7 (sysex-specialist) :
+    //   0x13 : V1=ALGSRC1 b0 ; V2=((ALGSRC1>>1)&7)<<4 | (ALGSRC0&0xF)
+    //   0x14 : V2=(OACSRC1&1)<<4 | (OACSRC0&3)<<2 | (ALGDST&3)
+    // 🟡 reste à valider par dump : la légende des codes d'entrée 0..10 (cf. AlgoModel.h).
+    void sendOneOp (int op)
+    {
+        if (! isFree()) return;
+        const int aH = (elem - 1) << 5, g = opGroup (op);
+        const SyDraw::AlgoDef def = SyAlgo::buildCustomAlgo (elem);
+        const int in0 = def.in0[op] & 0x0F, in1 = def.in1[op] & 0x0F;
+        const int dst = def.outd[op] & 0x03;
+        const int oac0 = def.acc0[op] & 0x03, oac1 = def.acc1[op] & 0x01;
+        send9 (g, aH, 0x13, (in1 & 1), (((in1 >> 1) & 7) << 4) | in0);
+        send9 (g, aH, 0x14, 0x00, ((oac1 & 1) << 4) | ((oac0 & 3) << 2) | dst);
+    }
+
+    // Établissement COMPLET du routage libre : ALGNUM=127 (le synthé recalcule -> AVANT les
+    // routages) puis 0x13/0x14/0x15 pour les 6 op. Émis UNE fois, à l'entrée en free / dérive.
+    void sendFreeAlgoFull()
     {
         if (! isFree()) return;
         const int aH = (elem - 1) << 5;
@@ -283,21 +341,17 @@ private:
 
         send9 (0x05, aH, 0x00, 0x00, 127);   // ALGNUM = 127 (free)
 
-        for (int op = 0; op < 6; ++op)
+        for (int op = 0; op < 6; ++op)        // op = 0 -> OP1
         {
-            const int g  = ((op & 0x0F) << 4) | 0x06;   // afmOperatorGroup(op) ; op0 = OP6
+            const int g   = opGroup (op);
             const int in0 = def.in0[op] & 0x0F, in1 = def.in1[op] & 0x0F;
             const int dst = def.outd[op] & 0x03;
             const int sh0 = (int) valueTreeVoice.getProperty (SyAlgo::algoId (elem, "SHA", op + 1), 0) & 7;
             const int sh1 = (int) valueTreeVoice.getProperty (SyAlgo::algoId (elem, "SHB", op + 1), 0) & 7;
-            // Mapping acc0/acc1 -> OACSRC (best-effort, À VÉRIFIER) : OACSRC0=acc0, OACSRC1=acc1.
             const int oac0 = def.acc0[op] & 0x03, oac1 = def.acc1[op] & 0x01;
 
-            // N2 0x13 : V1 = ALGSRC1 b0 ; V2 = ((ALGSRC1>>1)&7)<<4 | (ALGSRC0&0xF).
             send9 (g, aH, 0x13, (in1 & 1), (((in1 >> 1) & 7) << 4) | in0);
-            // N2 0x14 : V2 = (OACSRC1&1)<<4 | (OACSRC0&3)<<2 | (ALGDST&3).
             send9 (g, aH, 0x14, 0x00, ((oac1 & 1) << 4) | ((oac0 & 3) << 2) | dst);
-            // N2 0x15 : V2 = (SHIFT0&7)<<3 | (SHIFT1&7).
             send9 (g, aH, 0x15, 0x00, (sh0 << 3) | sh1);
         }
     }
@@ -315,10 +369,15 @@ private:
     OwnedArray<TextButton> opTab;
     ComboBox   cbIn0, cbIn1, cbDst, cbAcc;
     Label labelAlgo { "", TRANS ("AFM Algorithm") }, labelAlgoNum { "", "ALG 1" };
-    Label lblOp { "", "Op" }, lblIn0 { "", "In 0" }, lblIn1 { "", "In 1" },
-          lblDst { "", "Dest" }, lblAcc { "", "Accum" };
+    // Entrées FM 1-indexées (In 1 / In 2), sortie = registre cible, Accum = accumulateur, Niveau = TL.
+    Label lblOp { "", "Op" }, lblIn0 { "", "In 1" }, lblIn1 { "", "In 2" },
+          lblDst { "", "Sortie" }, lblAcc { "", "Accum" }, lblLvl { "", "Niveau" };
+    Label lblOpHdr { "", "Operateur 1" };   // titre de section « ce que vous editez »
+    MidiSlider sliderLevel;                 // niveau (TL) de l'op selectionne ; autoSend OFF
+                                            // (l'envoi 0x1B passe par le slider Level du detail).
     Value freeValue;
     SysexBusSender algoSender;   // envoi ALGNUM + routage free (cf. send9/sendFreeAlgo)
+    UndoManager* undo = nullptr; // pour referTo du niveau (sliderLevel) au changement d'op
     int  elem = 1;
     int  selOp = 0;
 

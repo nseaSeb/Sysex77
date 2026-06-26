@@ -199,11 +199,44 @@ public:
             sw.onClick = [this, i] { toggleOpActive (i); };
         }
 
-        // Colonne 2 = ALGO posé DIRECTEMENT (responsive, il se comprime). PAS de viewport :
-        // mis dans un Viewport il devenait INOPÉRANT (clics non transmis à l'éditeur).
-        addAndMakeVisible (algoPanel);
-        // Colonne 3 = LFO dans un viewport (contenu hauteur fixe 14 lignes) -> Sub LFO Mode
-        // toujours atteignable (scroll si la colonne est courte). (Le LFO fonctionnait déjà ainsi.)
+        // --- Les 3 colonnes scrollent : on REPARENTE le détail dans detailContent, puis chaque
+        // bloc est posé dans un Viewport à hauteur de contenu FIXE (cf. layoutMaster + kXxxContentH).
+        // Les libellés attachés (Level/Coarse/Detune/Phase) suivent automatiquement leur slider
+        // (Label::componentParentHierarchyChanged se réabonne au nouveau parent).
+        for (int i = 0; i < 6; ++i)
+        {
+            auto c = op (i);
+            for (Component* comp : { (Component*) c.osc, (Component*) c.lvl, (Component*) c.crs,
+                                     (Component*) c.fin, (Component*) c.det, (Component*) c.pha,
+                                     (Component*) c.syn, (Component*) c.mod })
+                detailContent.addChildComponent (comp);
+            for (Component* comp : { (Component*) &sensVel[i], (Component*) &sensAm[i], (Component*) &sensPm[i] })
+                detailContent.addChildComponent (comp);
+            for (int k = 0; k < 4; ++k)
+            { detailContent.addChildComponent (bpScl[i][k]); detailContent.addChildComponent (offScl[i][k]); }
+            detailContent.addChildComponent (velSw[i]);
+            detailContent.addChildComponent (pegSw[i]);
+        }
+        for (Component* l : { (Component*) &lblWave, (Component*) &lblSensVel, (Component*) &lblSensAm,
+                              (Component*) &lblSensPm, (Component*) &lblVelSw, (Component*) &lblPegSw,
+                              (Component*) &lblScaling })
+            detailContent.addChildComponent (l);
+
+        // Colonne 1 = DÉTAIL (Viewport).
+        addAndMakeVisible (detailView);
+        detailView.setViewedComponent (&detailContent, false);
+        detailView.setScrollBarsShown (true, false);
+        detailContent.onPaint = [this] (Graphics& g) { paintDetailContent (g); };
+        detailContent.setVisible (true);
+
+        // Colonne 2 = ALGO (Viewport). NB : l'éditeur était « inopérant » à cause du verrou Free,
+        // pas du viewport (cf. AlgoEditor.h refreshAll) -> on peut le rendre scrollable sans risque.
+        addAndMakeVisible (algoView);
+        algoView.setViewedComponent (&algoPanel, false);
+        algoView.setScrollBarsShown (true, false);
+        algoPanel.setVisible (true);
+
+        // Colonne 3 = LFO (Viewport) -> Sub LFO Mode toujours atteignable.
         addAndMakeVisible (lfoView);
         lfoView.setViewedComponent (&lfoPanel, false);
         lfoView.setScrollBarsShown (true, false);
@@ -626,8 +659,14 @@ public:
         g.drawText ("EDIT",  editLabelArea,  Justification::centred, false);
         g.drawText ("ACTIF", onOffLabelArea, Justification::centred, false);
 
-        // Cadre + titre du panneau détail (sous la barre d'onglets). Les contrôles labellisés
-        // sont des composants posés par layoutDetail() ; la barre d'onglets = boutons opTab[].
+        // (Le cadre/titre du détail + les étiquettes SCALING sont peints DANS detailContent —
+        //  cf. paintDetailContent() — pour défiler avec le contenu de la colonne 1.)
+    }
+
+    // Peinture du contenu scrollable de la colonne DÉTAIL (coords locales à detailContent).
+    void paintDetailContent (Graphics& g)
+    {
+        // Cadre + titre du panneau détail. Les contrôles labellisés sont posés par layoutDetail().
         g.setColour (SYPal.panelBorder);
         g.drawHorizontalLine (detailArea.getY(), (float) detailArea.getX(), (float) detailArea.getRight());
         g.setColour (SYPal.accent);
@@ -721,10 +760,18 @@ public:
         colLfoX = content.getX();
         auto lfoCol = content;
 
-        detailArea = detailCol;   // le détail (responsive, cf. layoutDetail) remplit sa colonne
+        // Colonne 1 : détail dans son Viewport. Contenu à hauteur FIXE (kDetailContentH) -> scroll.
+        detailView.setBounds (detailCol);
+        const int dW = jmax (120, detailView.getWidth() - detailView.getScrollBarThickness());
+        detailContent.setSize (dW, jmax (kDetailContentH, detailView.getHeight()));
+        detailArea = detailContent.getLocalBounds();   // layoutDetail() dispose dans le contenu
 
-        algoPanel.setBounds (algoCol.reduced (4));   // direct (responsive), pas de viewport
+        // Colonne 2 : algo dans son Viewport (hauteur fixe -> scroll si réduit).
+        algoView.setBounds (algoCol.reduced (4, 2));
+        algoPanel.setSize (jmax (120, algoView.getWidth() - algoView.getScrollBarThickness()),
+                           jmax (kAlgoContentH, algoView.getHeight()));
 
+        // Colonne 3 : LFO dans son Viewport.
         lfoView.setBounds (lfoCol.reduced (4, 2));
         lfoPanel.setSize (jmax (60, lfoView.getWidth() - lfoView.getScrollBarThickness()), 390);
     }
@@ -1045,14 +1092,30 @@ private:
         packedSender.sendParam9 ("/SYSEX", b);
     }
 
-    // Panneau algorithme embarqué (colonne droite) — réutilise toute la logique d'Operator
-    // (sélecteur 1..45, schéma AlgoDraw, sysex ALGNUM avec offset -1). Masqué en mode zoom.
-    AlgoEditorView algoPanel;
+    // Conteneur scrollable générique : un Component avec un hook de peinture, posé comme
+    // viewed-component d'un Viewport (hauteur de contenu FIXE confortable -> scroll si réduit).
+    struct ScrollContent : public Component
+    {
+        std::function<void (Graphics&)> onPaint;
+        void paint (Graphics& g) override { if (onPaint) onPaint (g); }
+    };
 
-    // Panneau LFO (Main + Sub) — colonne droite, sous l'algo. Masqué en mode zoom.
+    // Colonne 1 = DÉTAIL op, dans un Viewport (contenu hauteur fixe) -> scroll vertical si réduit.
+    ScrollContent detailContent;
+    Viewport      detailView;
+
+    // Panneau algorithme embarqué (colonne 2) — sélecteur 1..45, schéma AlgoDraw, édition free.
+    AlgoEditorView algoPanel;
+    Viewport       algoView;   // scroll vertical de l'algo (contenu hauteur fixe)
+
+    // Panneau LFO (Main + Sub) — colonne 3. Scrollable (Sub LFO Mode toujours atteignable).
     AfmLfo   lfoPanel;
     Viewport lfoView;   // scroll vertical du panneau LFO (cf. constructeur + layoutMaster)
     int colAlgoX = 0, colLfoX = 0;   // x des séparateurs de colonnes (cf. paint)
+
+    // Hauteurs de contenu fixes (confort de lecture ; au-delà -> scroll). Cf. layoutMaster().
+    static constexpr int kDetailContentH = 380;
+    static constexpr int kAlgoContentH   = 500;   // + titre op + barre Niveau
 
     // Largeur réservée au panneau algorithme à droite ; layoutMaster() et paint()
     // doivent utiliser la même valeur pour rester cohérents.

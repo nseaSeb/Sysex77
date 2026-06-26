@@ -1203,10 +1203,10 @@ private:
             return false; // sysex 9 octets non-SY77 : pas de description brute en mode décodé
         }
 
-        // Bruit filtré pour la RE : CC data-entry, horloge, active-sense, transport.
-        if (message.isController() || message.isMidiClock() || message.isActiveSense()
-            || message.isMidiStart() || message.isMidiContinue() || message.isMidiStop()
-            || message.isSongPositionPointer())
+        // Bruit filtré pour la RE : CC data-entry, program change, horloge, active-sense, transport.
+        if (message.isController() || message.isProgramChange() || message.isMidiClock()
+            || message.isActiveSense() || message.isMidiStart() || message.isMidiContinue()
+            || message.isMidiStop() || message.isSongPositionPointer())
             return false;
 
         out << message.getDescription() << "\n";

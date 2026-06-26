@@ -67,12 +67,13 @@ public:
     {
         bool edge[6][6], fb[6], car[6];
         SyDraw::afmTopology (def, edge, fb, car);
-        drawTopo (g, edge, fb, car, area, labels);
+        drawTopo (g, edge, fb, car, area, labels, &def);   // &def -> tags AWM/Noise par op
     }
 
     // Cœur de dessin partagé : à partir de la topologie DÉJÀ calculée (edge/fb/carrier).
+    // srcDef (optionnel) : permet de SYMBOLISER les entrées externes AWM/Noise d'un op.
     static void drawTopo (Graphics& g, bool edge[6][6], bool fb[6], bool car[6],
-                          Rectangle<float> area, bool labels)
+                          Rectangle<float> area, bool labels, const SyDraw::AlgoDef* srcDef = nullptr)
     {
         int   row[6];        // 0 = porteuse (bas) ; profondeur croissante vers le haut
         float colF[6];       // colonne fractionnaire (centroïde) avant normalisation
@@ -162,6 +163,36 @@ public:
             {
                 g.setColour (car[o] ? carCol : SYPal.textPrimary);
                 g.drawText (String (o + 1), b, Justification::centred);
+            }
+        }
+
+        // --- 5) Entrées EXTERNES (AWM / Noise) symbolisées à GAUCHE de l'op concerné. ---
+        // Codes d'entrée (cf. AlgoModel.h) : 2 = AWM, 10 = Noise. Petit badge + connecteur
+        // dans le bord gauche de la boîte (zone libre : les stubs modulateur viennent du haut/bas).
+        if (srcDef != nullptr)
+        {
+            const float fs = jmax (6.0f, boxS * 0.34f);
+            g.setFont (Font (fs, Font::bold));
+            for (int o = 0; o < 6; ++o)
+            {
+                const bool awm = (srcDef->in0[o] == 2  || srcDef->in1[o] == 2);
+                const bool nz  = (srcDef->in0[o] == 10 || srcDef->in1[o] == 10);
+                if (! awm && ! nz) continue;
+
+                String tag = awm ? String ("AWM") : String();
+                if (nz) tag = tag.isEmpty() ? String ("NZ") : tag + "+NZ";
+
+                auto b = boxOf (o);
+                const float tw = jmax (boxS * 0.9f, fs * (float) tag.length() * 0.72f + 6.0f);
+                const float th = jmax (fs + 3.0f, boxS * 0.5f);
+                Rectangle<float> tagR (b.getX() - 6.0f - tw, b.getCentreY() - th * 0.5f, tw, th);
+
+                g.setColour (SYPal.surfaceAlt);
+                g.fillRoundedRectangle (tagR, 2.0f);
+                g.setColour (SYPal.accent);
+                g.drawRoundedRectangle (tagR, 2.0f, jmax (0.8f, lw * 0.8f));
+                g.drawLine (tagR.getRight(), b.getCentreY(), b.getX(), b.getCentreY(), lw * 0.8f);   // connecteur
+                g.drawText (tag, tagR, Justification::centred);
             }
         }
     }
