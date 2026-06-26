@@ -263,3 +263,7 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
   fermeture de l'app), avec **auto-retrait du job** (sinon relance en boucle ~10 s). swap.sh réécrit
   + garde App Translocation + log `/tmp/sysex77-update.log`. Vérifié bout en bout (1.3.1→1.3.2,
   swap unique). NB : les builds ≤1.3.2 ont l'updater cassé → MAJ manuelle une fois vers ≥1.3.3.
+- **2026-06-26 (UI) — Éditeurs d'EG : sliders à taille fixe (FIX).** Wave EG + Pitch EG : les sliders
+  L0…RR2 et Slope utilisaient `setBoundsRelative` (largeur = 0,04 × largeur fenêtre → ils enflaient) ;
+  le Slope (`y=0.92`) chevauchait le clavier. Désormais largeur fixe 26 px + hauteur plafonnée, et
+  Slope juste au-dessus du clavier. (Filter/Pan EG non touchés — layouts différents.)
