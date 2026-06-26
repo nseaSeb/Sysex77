@@ -157,12 +157,13 @@ int intTabIndex;
 #include "LookAndFeel.h"
 #include "Controller.h"
 #include "Config.h"
+#include "BankSendProgress.h"      // fenêtre de progression de l'envoi de banque
+#include "BankReceiveProgress.h"   // fenêtre de progression de la réception de banque
 #include "Voice.h"
 #include "Librairie.h"
 #include "Effects.h"
 #include "DumpDiffView.h"   // outil RE : comparer 2 dumps .syx
 #include "MidiObjects.h"
-#include "BankSendProgress.h"   // fenêtre de progression de l'envoi de banque
 
 //==============================================================================
 struct MidiDeviceListEntry : ReferenceCountedObject

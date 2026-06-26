@@ -346,31 +346,53 @@ struct SourceItemListboxContents  : public ListBoxModel, public ChangeBroadcaste
     
     void loadBank()
     {
-        arrayBank.clear();
-        BankFiles.clear();
         if(!appDirPath.exists())
         {
             appDirPath.createDirectory();
-            
             Logger::writeToLog("Creation du dossier de presets");
             Logger::writeToLog(appDirPath.getFullPathName());
-            
         }
- 
-        //  appDirPath.findChildFiles(BankFiles, TypeOfFileToFind::findFiles, true, "someName");
-        
-        appDirPath.findChildFiles(BankFiles, File::TypesOfFileToFind::findFiles
-                                  , true,"*.syx");
-        numRows = BankFiles.size();
 
-        // La liste affichée s'appuie sur arrayBank (et BankFiles). L'ancienne
-        // construction d'un Bank.xml n'était jamais relue -> supprimée (code mort).
-        for (int i = 0; i < numRows; ++i)
-            arrayBank.add (BankFiles[i].getFileName());
+        // Liste MAÎTRE complète (tous les .syx, sous-dossiers compris). arrayBank/BankFiles
+        // (la liste AFFICHÉE) en est une VUE FILTRÉE construite par applyFilter() -> le mapping
+        // ligne→fichier reste 1:1, la sélection/renommage/suppression restent corrects.
+        bankFilesAll.clear();
+        bankNamesAll.clear();
+        appDirPath.findChildFiles(bankFilesAll, File::TypesOfFileToFind::findFiles, true, "*.syx");
+        for (auto& f : bankFilesAll)
+            bankNamesAll.add (f.getFileName());
 
+        applyFilter();
     }
-    
+
+    // Construit la vue filtrée (arrayBank/BankFiles) à partir de la liste maître + filterText.
+    void applyFilter()
+    {
+        arrayBank.clear();
+        BankFiles.clear();
+        for (int i = 0; i < bankFilesAll.size(); ++i)
+            if (filterText.isEmpty() || bankNamesAll[i].containsIgnoreCase (filterText))
+            {
+                BankFiles.add (bankFilesAll[i]);
+                arrayBank.add (bankNamesAll[i]);
+            }
+        numRows = BankFiles.size();
+        sourceListBox.updateContent();
+        repaint();
+    }
+
+    // Filtre de recherche (appelé par le champ de recherche de LibrairiePage).
+    void setFilter (const String& f)
+    {
+        filterText = f.trim();
+        sourceListBox.deselectAllRows();   // pas de sélection résiduelle sur une ligne masquée
+        applyFilter();
+    }
+
         bool somethingIsBeingDraggedOver = false;
+    Array<File> bankFilesAll;   // liste maître (non filtrée)
+    StringArray bankNamesAll;
+    String      filterText;
     ListBox sourceListBox  { "D+D source", nullptr };
     GroupComponent  groupDrop;
     SourceItemListboxContents sourceModel;

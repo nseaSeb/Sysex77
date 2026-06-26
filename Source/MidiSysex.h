@@ -136,16 +136,15 @@ void oscMessageReceived (const OSCMessage& message)
     }
     if (address.matches (adresseOscRequestDump))
     {
-        // Dump request USER-TRIGGERED (bouton RECEIVE) : demande au SY77 d'émettre son
-        // bulk dump de voix. On boucle sur les 64 mémoires internes (banques A..D, 16 voix)
-        // avec le même throttle ~10 ms que l'outil RE -> les réponses sont captées par le
-        // chemin de réception bulk existant (handleIncomingMidiMessage, requestSysex==true).
+        // Dump request USER-TRIGGERED (bouton RECEIVE) : demande au SY77 d'émettre le bulk
+        // d'UNE voix interne (numéro de mémoire passé en argument). Le pacing requête→réponse
+        // est piloté par BankReceiveProgressWindow (envoyer les 64 d'un coup saturait le SY77).
+        // Les réponses sont captées par handleIncomingMidiMessage (requestSysex==true).
         // FIABILITÉ : seul ce bouton déclenche un envoi vers le synthé (jamais au démarrage).
-        for (int mem = 0; mem < 64; ++mem)
+        if (message.size() == 1 && message[0].isInt32())
         {
-            sendToOutputs (SyVoice::voiceDumpRequest (sysexDeviceNumber, 0x00,
-                                                      (uint8) mem));
-            juce::Thread::sleep (10);
+            const int mem = juce::jlimit (0, 63, message[0].getInt32());
+            sendToOutputs (SyVoice::voiceDumpRequest (sysexDeviceNumber, 0x00, (uint8) mem));
         }
     }
     if (address.matches(adresseOscSendVoice))

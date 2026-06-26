@@ -56,6 +56,12 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         btReceive.addListener(this);
         addAndMakeVisible(bankList);
         bankList.addChangeListener(this);
+
+        // Champ de recherche : filtre la liste des banques (devenue longue). Filtre par
+        // sous-chaîne insensible à la casse, appliqué à la vue de bankList.
+        addAndMakeVisible (searchBox);
+        searchBox.setTextToShowWhenEmpty (TRANS("Rechercher une banque..."), Colours::grey);
+        searchBox.onTextChange = [this] { bankList.setFilter (searchBox.getText()); };
         
         addAndMakeVisible(voicesListA);
         addAndMakeVisible(voicesListB);
@@ -184,87 +190,114 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         voicesListC.setBounds(tableWidth + 36 + tableWidth+ tableWidth, 44, tableWidth, getHeight()-44);
         voicesListD.setBounds(tableWidth + 46 + tableWidth+ tableWidth + tableWidth, 44, tableWidth, getHeight()-44);
         
-        bankList.setBounds(8, 10, tableWidth, getHeight()-20);
+        searchBox.setBounds(8, 10, tableWidth, 22);
+        bankList.setBounds(8, 36, tableWidth, getHeight()-46);
 
         // Info-line : dans l'espace libre de la barre du haut (entre les onglets et RECEIVE).
         const int infoX = tableWidth + 240;
         labelInfoLine.setBounds (infoX, 10, jmax (0, getWidth() - 150 - infoX), 24);
     }
     //==============================================================================
-    void timerCallback() override   // Timer of Sysex DUMP (receive sysex)
-    {
-        Logger::writeToLog("Timer : " + String(timeOut));
-        timeOut ++;
-        if(timeOut >20)
-        {
-            saveDump();
-        }
-    }
-    void saveDump()  //When Sysex is dumped
+    void timerCallback() override   // (plus utilisé pour la réception — gardé pour compat Timer)
     {
         stopTimer();
-        btReceive.setEnabled(true);
-        btSend.setEnabled(true);
-        newMessage = false;
-        requestSysex = false;
-        btStop.setVisible(false);
-        
-        if (arraySysex[0].isSysEx())
-        {
-            File myFile {(appDirPath.getFullPathName() + "/UNNAMED.syx")};
-            myFile.deleteFile();
-            FileOutputStream fos (myFile);
+    }
 
-            // Échec d'ouverture du flux (disque plein, permissions…) : ne PAS prétendre que la
-            // capture est OK. On signale et on s'arrête (le « Capture OK » était mensonger).
-            if (fos.failedToOpen())
+    // Demande un nom puis écrit la banque capturée. Appelé à la fin de RECEIVE (après la
+    // fenêtre de progression), pour proposer le nom AVANT d'écrire (plus de « UNNAMED.syx »
+    // à renommer ensuite).
+    void saveCapturedBankWithPrompt()
+    {
+        if (arraySysex.isEmpty() || ! arraySysex[0].isSysEx())
+        {
+            labelInfoLine.setText ("Aucune voix recue (synthe muet ou non branche ?)",
+                                   dontSendNotification);
+            labelInfoLine.setColour (Label::textColourId, Colours::orange);
+            return;
+        }
+
+        AlertWindow w (TRANS("Banque recue"), TRANS("Nom de la banque :"),
+                       AlertWindow::QuestionIcon);
+        w.addTextEditor ("name", "INTERNAL");
+        w.addButton (TRANS("Enregistrer"), 1, KeyPress (KeyPress::returnKey));
+        w.addButton (TRANS("Annuler"),     0, KeyPress (KeyPress::escapeKey));
+
+        if (w.runModalLoop() != 1)
+        {
+            arraySysex.clear();
+            labelInfoLine.setText ("Reception annulee", dontSendNotification);
+            return;
+        }
+
+        String name = w.getTextEditorContents ("name").trim();
+        if (name.isEmpty()) name = "INTERNAL";
+        if (! name.endsWithIgnoreCase (".syx")) name += ".syx";
+
+        File target = appDirPath.getChildFile (File::createLegalFileName (name));
+        if (target.existsAsFile())
+        {
+            // Nom déjà pris : demander confirmation avant d'écraser (pas d'écrasement silencieux).
+            if (! AlertWindow::showOkCancelBox (AlertWindow::WarningIcon, TRANS("Fichier existant"),
+                    target.getFileName() + TRANS(" existe deja. L'ecraser ?"),
+                    TRANS("Ecraser"), TRANS("Annuler")))
             {
-                labelInfoLine.setText ("ERREUR : impossible d'ecrire " + myFile.getFileName(),
-                                       dontSendNotification);
-                labelInfoLine.setColour (Label::textColourId, Colours::red);
                 arraySysex.clear();
-                sendChangeMessage();
+                labelInfoLine.setText ("Enregistrement annule", dontSendNotification);
                 return;
             }
-
-            // Validation du checksum Yamaha À LA RÉCEPTION : on ne prétend PAS que la
-            // capture est saine sans l'avoir vérifiée. Chaque message F0…F7 reçu est un
-            // bulk dump -> on contrôle son checksum (cf. SyVoice::verifyYamahaBulkChecksum).
-            // Les blocs invalides sont quand même écrits (on n'altère pas la capture brute)
-            // mais signalés (log + retour visuel), pour ne pas masquer une transmission
-            // corrompue. « Fiabilité d'abord » : signaler plutôt que faire semblant.
-            int total = 0, bad = 0;
-            for (auto& m : arraySysex)
-            {
-                Logger::writeToLog(m.getDescription());
-                fos.write(m.getRawData(), m.getRawDataSize());
-
-                ++total;
-                if (! SyVoice::verifyYamahaBulkChecksum ((const uint8*) m.getRawData(),
-                                                         m.getRawDataSize()))
-                {
-                    ++bad;
-                    Logger::writeToLog ("Checksum INVALIDE (bloc " + String (total) + ")");
-                }
-            }
-            fos.flush();
-            arraySysex.clear();
-
-            labelInfoLine.setText (bad == 0
-                                     ? "Capture OK : " + String (total) + " blocs, checksum valide"
-                                     : "ATTENTION : " + String (bad) + "/" + String (total)
-                                         + " blocs au checksum INVALIDE",
-                                   dontSendNotification);
-            if (bad > 0)
-                labelInfoLine.setColour (Label::textColourId, Colours::red);
-            else
-                labelInfoLine.removeColour (Label::textColourId);
-
-            loadBankRequest = true; //Make a better code later!
-            sendChangeMessage();
-            repaint();
-
         }
+
+        writeCapturedBank (target);
+    }
+
+    void writeCapturedBank (const File& target)
+    {
+        target.deleteFile();   // écriture propre (sinon FileOutputStream ajoute à la fin)
+        FileOutputStream fos (target);
+
+        // Échec d'ouverture du flux (disque plein, permissions…) : ne PAS prétendre que la
+        // capture est OK. On signale et on s'arrête (le « Capture OK » était mensonger).
+        if (fos.failedToOpen())
+        {
+            labelInfoLine.setText ("ERREUR : impossible d'ecrire " + target.getFileName(),
+                                   dontSendNotification);
+            labelInfoLine.setColour (Label::textColourId, Colours::red);
+            arraySysex.clear();
+            sendChangeMessage();
+            return;
+        }
+
+        // Validation du checksum Yamaha À LA RÉCEPTION : on ne prétend PAS que la capture est
+        // saine sans l'avoir vérifiée. Chaque message F0…F7 reçu est un bulk dump -> on contrôle
+        // son checksum (cf. SyVoice::verifyYamahaBulkChecksum). Les blocs invalides sont quand
+        // même écrits (on n'altère pas la capture brute) mais signalés. « Fiabilité d'abord ».
+        int total = 0, bad = 0;
+        for (auto& m : arraySysex)
+        {
+            fos.write (m.getRawData(), m.getRawDataSize());
+            ++total;
+            if (! SyVoice::verifyYamahaBulkChecksum ((const uint8*) m.getRawData(),
+                                                     m.getRawDataSize()))
+            {
+                ++bad;
+                Logger::writeToLog ("Checksum INVALIDE (bloc " + String (total) + ")");
+            }
+        }
+        fos.flush();
+        arraySysex.clear();
+
+        labelInfoLine.setText ((bad == 0
+                                  ? "Recu : " + String (total) + " voix (checksum OK) -> "
+                                  : "ATTENTION : " + String (bad) + "/" + String (total)
+                                      + " blocs checksum INVALIDE -> ")
+                                 + target.getFileName(),
+                               dontSendNotification);
+        if (bad > 0) labelInfoLine.setColour (Label::textColourId, Colours::red);
+        else         labelInfoLine.removeColour (Label::textColourId);
+
+        loadBankRequest = true;
+        sendChangeMessage();
+        repaint();
     }
     void buttonClicked (Button* button) override
     {
@@ -284,22 +317,26 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         {
             btReceive.setEnabled(false);
             btSend.setEnabled(false);
-            newMessage = false;
-            requestSysex = true;
-            timeOut=0;
-            startTimer(500);
-            btStop.setVisible(true);
 
-            // On ouvre d'abord la fenêtre de capture (requestSysex=true + timer ci-dessus),
-            // PUIS on émet le dump request : le synthé répond par son bulk dump, capté par
-            // le chemin de réception existant. User-triggered (jamais au démarrage) — c'est
-            // le seul effet « écriture vers le synthé » du bouton RECEIVE (il LIT la banque).
-            if (! sender.send (adresseOscRequestDump))
-                Logger::writeToLog ("OSC erreur (RequestDump)");
-        }
-        else if(button == &btStop)
-        {
-            saveDump(); //la fonction save dump vérifie la presence de sysex
+            // Capture fraîche : on vide AVANT d'armer (handleIncomingMidiMessage n'ajoute que
+            // si requestSysex==true, donc clear pendant qu'il est false est sûr).
+            arraySysex.clear();
+            requestSysex = true;
+
+            // Pacing requête→réponse piloté par la fenêtre : pour chaque voix, on émet le dump
+            // request PUIS on attend sa réponse avant la suivante (rafale = SY77 saturé -> dump
+            // tronqué). User-triggered : seul effet « écriture vers le synthé » (il LIT la banque).
+            BankReceiveProgressWindow w (64,
+                [] { return arraySysex.size(); },
+                [this] (int mem) { sender.send (adresseOscRequestDump, mem); });
+            w.runThread();   // modal, animé ; se ferme quand complet / Annuler
+
+            requestSysex = false;
+            btReceive.setEnabled(true);
+            btSend.setEnabled(true);
+
+            // Propose un nom puis écrit la banque (ou signale « aucune voix reçue »).
+            saveCapturedBankWithPrompt();
         }
     }
     
@@ -375,6 +412,7 @@ private:
     BankVoicesTable voicesListC { 32, "Bank C" };
     BankVoicesTable voicesListD { 48, "Bank D" };
     BankTableModel bankList;
+    TextEditor searchBox;
     
     int rowSelected;
     

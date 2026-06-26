@@ -201,7 +201,16 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
   (`SysexUtils.h`, pure + test) réécrit le bulk voix en **Memory type $7F (Edit Buffer)** (offset 30)
   + Memory# 0 (offset 31) + checksum recalculé → le SY77 affiche/joue la voix envoyée SANS écraser
   la mémoire interne (avant : écrit dans le slot d'origine, non auditionné). Build 900/900 tests.
-
+- **2026-06-26 (LIB/MIDI) — Réception de banque + recherche (FAIT).**
+  **(1) RECEIVE robuste** : la réception (`Librairie.h` + `BankReceiveProgress.h`) passe en pacing
+  REQUÊTE→RÉPONSE (handler `adresseOscRequestDump` = 1 dump request par mémoire) : on demande la
+  voix `mem`, on attend sa réponse, puis la suivante. Envoyer les 64 d'un coup saturait le buffer du
+  SY77 (dump tronqué). Fenêtre de progression (barre + Annuler). Vérifié : 64/64 slots reçus, aucun
+  manquant (les « trous » à l'écran = voix init/nom vide sur le synthé). **(2) Nommage** : à la fin,
+  on **demande le nom** avant d'écrire (plus de `UNNAMED.syx`) ; si le nom existe → **confirmation
+  d'écrasement** (sinon annulation). Checksum de chaque bloc validé à l'écriture.
+  **(3) Recherche** : champ de filtre au-dessus de la liste des banques (`BankTableModel` garde une
+  liste maître ; `arrayBank`/`BankFiles` = vue filtrée, mapping ligne→fichier conservé). Build 900/900.
 ## Vision « librairie multi-synthés » (PLAN, non implémenté)
 
 Idée (utilisateur, 2026-06-26) : faire de la librairie un gestionnaire de SysEx **multi-synthés**,
