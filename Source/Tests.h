@@ -228,6 +228,16 @@ struct SysexUtilsTests : public juce::UnitTest
             expect (SyVoice::detectSynthKind (nullptr, 0) == SyVoice::SynthKind::Unknown);
         }
 
+        beginTest ("isNewerVersion compare en ignorant 'v' et le suffixe -dev");
+        {
+            expect (  SyVoice::isNewerVersion ("1.3.0", "1.2.72-dev"));
+            expect (  SyVoice::isNewerVersion ("v1.3.0", "1.2.99"));
+            expect (  SyVoice::isNewerVersion ("2.0.0", "1.9.9"));
+            expect (! SyVoice::isNewerVersion ("1.2.72", "1.2.72-dev"));   // égales (suffixe ignoré)
+            expect (! SyVoice::isNewerVersion ("1.2.5", "1.2.5"));
+            expect (! SyVoice::isNewerVersion ("1.2.0", "1.3.0"));
+        }
+
         beginTest ("splitSysexMessages splits successive F0..F7 blocks");
         {
             const juce::uint8 syx[] = {

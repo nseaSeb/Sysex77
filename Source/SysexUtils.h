@@ -346,6 +346,29 @@ namespace SyVoice
         }
     }
 
+    //==============================================================================
+    /** Compare deux numéros de version « MAJ.MIN.PATCH ». Le préfixe « v » et tout suffixe
+        de pré-release (« -dev », « -rc1 »…) sont ignorés. Renvoie true si `remote` est
+        STRICTEMENT plus récente que `local`. Pure et testable (cf. Tests.h, mise à jour in-app). */
+    inline bool isNewerVersion (const juce::String& remote, const juce::String& local)
+    {
+        auto parse = [] (juce::String v) -> std::array<int, 3>
+        {
+            v = v.trim();
+            if (v.startsWithIgnoreCase ("v")) v = v.substring (1);
+            v = v.upToFirstOccurrenceOf ("-", false, false);          // retire -dev / -rc…
+            auto parts = juce::StringArray::fromTokens (v, ".", "");
+            std::array<int, 3> out { { 0, 0, 0 } };
+            for (int i = 0; i < 3 && i < parts.size(); ++i)
+                out[(size_t) i] = parts[i].getIntValue();
+            return out;
+        };
+        const auto r = parse (remote), l = parse (local);
+        for (size_t i = 0; i < 3; ++i)
+            if (r[i] != l[i]) return r[i] > l[i];
+        return false;
+    }
+
     /** Libellé court d'affichage / clé stockée dans library.json. */
     inline juce::String synthKindLabel (SynthKind k)
     {

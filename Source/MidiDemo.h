@@ -50,6 +50,7 @@
 #include "SysexBus.h"
 #include "SysexUtils.h"   // SyVoice:: (builder sysex, device, helpers) — visible par tous les widgets
 #include "LibraryIndex.h" // index librairie (métadonnées/tags/recherche, library.json)
+#include "Updater.h"      // mise à jour in-app depuis GitHub Releases
 #include "Version.h"      // Sysex77::kVersion / versionString()
 #include "AppSettings.h"  // getAppSettings() — persistance partagée (devices MIDI, fenêtre…)
 
@@ -403,6 +404,15 @@ public:
         LibraryIndex::get().load();
         juce::Thread::launch ([] { LibraryIndex::get().reconcile(); });
 
+        // Mise à jour in-app : vérif GitHub au démarrage (non bloquante, throttlée, opt-out).
+        Updater::get().onUpdateAvailable = [this] (Updater::Info i) { showUpdateDialog (i); };
+        Updater::get().onMessage = [] (juce::String m)
+        {
+            juce::NativeMessageBox::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon,
+                                                         TRANS("Mise a jour"), m);
+        };
+        Updater::get().checkAsync (false);
+
         // (Images de fond Sysex77/99.png supprimées : jamais dessinées — nettoyage des ressources.)
         addAndMakeVisible (tabs);
   
@@ -676,11 +686,29 @@ public:
         startTimer (500);
     }
     
+    // Dialogue « mise à jour disponible » (sur le thread message). Récursif via « Notes ».
+    void showUpdateDialog (Updater::Info info)
+    {
+        juce::AlertWindow w (TRANS("Mise a jour disponible"),
+            "Sysex77 " + info.tag + TRANS(" est disponible (vous avez v") + Sysex77::kVersion + ").\n\n"
+                + info.notes.substring (0, 500),
+            juce::MessageBoxIconType::InfoIcon);
+        w.addButton (TRANS("Installer"),               1, juce::KeyPress (juce::KeyPress::returnKey));
+        w.addButton (TRANS("Notes"),                   2);
+        w.addButton (TRANS("Plus tard"),               3, juce::KeyPress (juce::KeyPress::escapeKey));
+        w.addButton (TRANS("Ignorer cette version"),   4);
+
+        const int r = w.runModalLoop();
+        if (r == 1)      Updater::get().downloadAndInstall (info);
+        else if (r == 2) { juce::URL (info.htmlUrl).launchInDefaultBrowser(); showUpdateDialog (info); }
+        else if (r == 4) Updater::get().skipVersion (info.tag);
+    }
+
     ~MidiDemo()
     {
         stopTimer();
-  
-        
+        Updater::get().onUpdateAvailable = nullptr;
+        Updater::get().onMessage = nullptr;
 
         midiInputs .clear();
         midiOutputs.clear();

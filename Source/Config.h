@@ -11,6 +11,7 @@
 #pragma once
 
 #include "AppSettings.h"
+#include "Updater.h"
 #include "Themes.h"
 #include "ThemeBuilder.h"
 
@@ -87,6 +88,19 @@ struct ConfigPage   : public Component, public ComboBox::Listener
         labDevHint.setFont (Font (FontOptions (12.0f)));
         labDevHint.setMinimumHorizontalScale (1.0f);
         labDevHint.setJustificationType (Justification::topLeft);
+
+        // Mise à jour in-app (GitHub Releases) : vérif manuelle + opt-out du check au démarrage.
+        addAndMakeVisible (btCheckUpdate);
+        btCheckUpdate.onClick = [] { Updater::get().checkAsync (true); };
+        addAndMakeVisible (updateStartupBtn);
+        updateStartupBtn.setToggleState (getAppSettings()->getBoolValue ("CheckUpdatesOnStartup", true),
+                                         dontSendNotification);
+        updateStartupBtn.setColour (ToggleButton::tickColourId, SYColSelected);
+        updateStartupBtn.onClick = [this]
+        {
+            getAppSettings()->setValue ("CheckUpdatesOnStartup", updateStartupBtn.getToggleState());
+            getAppSettings()->saveIfNeeded();
+        };
 
         // Langue FR/EN : pilote les mappings LocalisedStrings (clés source = anglais, French.txt
         // traduit en français). Le changement s'applique pleinement au prochain démarrage.
@@ -406,6 +420,7 @@ struct ConfigPage   : public Component, public ComboBox::Listener
         paintCard (g, cardTheme,   TRANS("Appearance"));
         paintCard (g, cardGeneral, TRANS("General"));
         paintCard (g, cardDev,     TRANS("Developer"));
+        paintCard (g, cardUpdate,  TRANS("Mise a jour"));
     }
     void resized() override
     {
@@ -494,6 +509,17 @@ struct ConfigPage   : public Component, public ComboBox::Listener
             c.removeFromTop (vgap);
             labDevHint.setBounds (c.removeFromTop (36));
         }
+        right.removeFromTop (gap);
+
+        const int updH = titleH + rowH + vgap + rowH + pad;
+        cardUpdate = right.removeFromTop (updH);
+        {
+            auto c = cardUpdate.reduced (pad);
+            c.removeFromTop (titleH - pad);
+            btCheckUpdate.setBounds (c.removeFromTop (rowH).removeFromLeft (240));
+            c.removeFromTop (vgap);
+            updateStartupBtn.setBounds (c.removeFromTop (rowH));
+        }
     }
     void initProperties()
     {
@@ -566,7 +592,9 @@ struct ConfigPage   : public Component, public ComboBox::Listener
     std::function<void(bool)> onDevModeChanged;   // câblé par MidiDemo : ajoute/retire l'onglet "Midi Setting"
 
     // Cadres des cartes (calculés dans resized, dessinés dans paint).
-    Rectangle<int> cardMachine, cardMidi, cardTheme, cardGeneral, cardDev;
+    TextButton   btCheckUpdate { TRANS("Verifier les mises a jour") };
+    ToggleButton updateStartupBtn { TRANS("Verifier au demarrage") };
+    Rectangle<int> cardMachine, cardMidi, cardTheme, cardGeneral, cardDev, cardUpdate;
 
     ComboBox    comboModel;
     SysexBusSender sender;  // [2]

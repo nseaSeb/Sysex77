@@ -24,6 +24,7 @@ set -euo pipefail
 
 BUILD_TYPE="Release"
 RUN_TESTS=0
+NO_BUMP=0
 BUILD_DIR="build"
 
 for arg in "$@"; do
@@ -31,6 +32,7 @@ for arg in "$@"; do
         --debug)   BUILD_TYPE="Debug" ;;
         --release) BUILD_TYPE="Release" ;;
         --test)    RUN_TESTS=1 ;;
+        --no-bump) NO_BUMP=1 ;;        # ne pas auto-incrémenter la version (releases : release.sh)
         -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
         *) echo "Argument inconnu : $arg" >&2; exit 1 ;;
     esac
@@ -45,7 +47,7 @@ fi
 # affichée (barre de titre / onglet Setting) corresponde toujours au binaire compilé
 # -> on parle toujours du même build (1.2.0-dev -> 1.2.1-dev -> ...). Cf. ROADMAP.
 VERSION_FILE="Source/Version.h"
-if [[ -f "$VERSION_FILE" ]] && command -v perl >/dev/null 2>&1; then
+if [[ "$NO_BUMP" -eq 0 ]] && [[ -f "$VERSION_FILE" ]] && command -v perl >/dev/null 2>&1; then
     perl -i -pe 's{(kVersion\s*=\s*"\d+\.\d+\.)(\d+)(.*?")}{ $1 . ($2 + 1) . $3 }e' "$VERSION_FILE"
     NEWVER="$(perl -ne 'print $1 if /kVersion\s*=\s*"([^"]+)"/' "$VERSION_FILE")"
     echo "==> Version : ${NEWVER:-?} (auto-bump)"

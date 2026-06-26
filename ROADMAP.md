@@ -233,3 +233,15 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
   (banque + preset) ; l'info preset n'écrase plus le header (elle est dans l'inspecteur/footer), le
   header garde l'info de la banque. Build 905/905.
   RESTE : envoi VERS d'autres synthés (Roland/Korg…) = chantier futur, unité par unité, vérifié HW.
+- **2026-06-26 (APP) — Mise à jour in-app depuis GitHub (FAIT).** `Source/Updater.h` (singleton) :
+  vérif au démarrage (non bloquante, fail-silent, throttle 24 h, opt-out `CheckUpdatesOnStartup`)
+  de `…/releases/latest` (`juce::URL` sans curl + `juce::JSON`, header User-Agent obligatoire pour
+  l'API GitHub) → `SyVoice::isNewerVersion` (pur + test) → dialogue (Installer / Notes / Plus tard /
+  Ignorer cette version). Téléchargement de l'asset `.app` zippé (fenêtre de progression
+  `WebInputStream`), puis **auto-install macOS** : `ditto -x` + helper `swap.sh` détaché (attend la
+  fermeture, `mv` avec `.bak` réversible, `xattr` quarantaine, `open`) + `quit`. UI : carte « Mise à
+  jour » dans Setting (bouton « Vérifier » + case « au démarrage »). Garde-fous : confirmation avant
+  install, repli Finder si emplacement non inscriptible, plateforme non-macOS = ouvre la page release.
+  **Procédure release (`release.sh X.Y.Z`)** : fige `Version.h`, build Release `--no-bump` + tests,
+  dist + ad-hoc sign, zip `ditto -c -k --keepParent`, commit+tag+push, `gh release create` (asset),
+  re-bump `-dev`. (`build.sh` a gagné `--no-bump`.) Build 905/905.
