@@ -11,6 +11,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "LibraryIndex.h"
 
 // Demande l'envoi au synthé de la voix d'index global donné (via le bus interne -> MidiSysex).
 inline void requestSendVoice (int globalVoiceIndex)
@@ -91,9 +92,28 @@ private:
             g.setFont (height * 0.7f);
 
             // arrayListVoices est une StringArray : un index hors plage renvoie {} (sûr).
-            if (arrayListVoices[rowNumber + offset].isNotEmpty())
-                g.drawFittedText (arrayListVoices[rowNumber + offset], 0, 0, width, height,
+            const int glob = rowNumber + offset;
+            if (arrayListVoices[glob].isNotEmpty())
+            {
+                g.drawFittedText (arrayListVoices[glob], 0, 0, width, height,
                                   Justification::centred, 1);
+
+                // Indicateur métadonnées : ★ favori, • si tags (clé = banque courante#slot).
+                if (currentBankRelPath.isNotEmpty())
+                {
+                    const auto meta = LibraryIndex::get().getMeta (
+                        LibraryIndex::keyFor (currentBankRelPath, glob));
+                    if (meta.fav || ! meta.tags.isEmpty())
+                    {
+                        g.setColour (meta.fav ? Colours::gold
+                                              : SYColLabel.withAlpha (0.55f));
+                        g.setFont (height * 0.6f);
+                        g.drawText (meta.fav ? String::fromUTF8 ("\xE2\x98\x85")   // ★
+                                             : String::fromUTF8 ("\xE2\x80\xA2"),  // •
+                                    3, 0, 14, height, Justification::centredLeft);
+                    }
+                }
+            }
         }
 
         void listBoxItemDoubleClicked (int row, const MouseEvent&) override

@@ -102,6 +102,7 @@ static const String oscSendMidiMessage = "/77MidiMessage";
 static   StringArray  arrayBank;    //la liste des banques
 static  StringArray arrayListVoices; // liste des voices
 static MemoryBlock currentBankData;  // octets bruts de la banque sélectionnée (pour envoi d'une voix)
+static String currentBankRelPath;    // chemin relatif de la banque sélectionnée (clé LibraryIndex)
 static const int maxFiles = 512;
 
 static        Array<File> BankFiles; //les fichiers des banques

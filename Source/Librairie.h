@@ -66,6 +66,34 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         // Suppression de banque rendue découvrable (en plus de la touche Suppr).
         addAndMakeVisible (btDeleteBank);
         btDeleteBank.onClick = [this] { bankList.deleteSelectedBank (bankList.getSelectedBankRow()); };
+
+        // Filtre par synthé (visible seulement si plusieurs synthés présents).
+        addAndMakeVisible (synthFilterCombo);
+        synthFilterCombo.onChange = [this]
+        {
+            bankList.setSynthFilter (synthFilterCombo.getSelectedId() <= 1 ? String()
+                                                                           : synthFilterCombo.getText());
+        };
+        updateSynthFilterCombo();
+
+        // Panneau d'inspection du preset (nom · synthé · type + Tags / Notes / Favori).
+        addAndMakeVisible (inspTitle);
+        addAndMakeVisible (tagsLabel);  addAndMakeVisible (tagsEditor);
+        addAndMakeVisible (notesLabel); addAndMakeVisible (notesEditor);
+        addAndMakeVisible (favBtn);
+        tagsLabel.setText (TRANS("Tags"), dontSendNotification);
+        notesLabel.setText (TRANS("Notes"), dontSendNotification);
+        tagsEditor.setTextToShowWhenEmpty (TRANS("tags separes par des virgules"), Colours::grey);
+        notesEditor.setTextToShowWhenEmpty (TRANS("notes libres"), Colours::grey);
+        tagsEditor.onReturnKey = [this] { commitTags(); };
+        tagsEditor.onFocusLost = [this] { commitTags(); };
+        notesEditor.onFocusLost = [this] { commitNotes(); };
+        favBtn.onClick = [this] { commitFav(); };
+        clearInspector();
+
+        // L'index notifie (load + réconciliation de fond) -> on rafraîchit le filtre synthé
+        // et les indicateurs de tags/favori.
+        LibraryIndex::get().onChanged = [this] { updateSynthFilterCombo(); repaintVoiceLists(); };
         
         addAndMakeVisible(voicesListA);
         addAndMakeVisible(voicesListB);
@@ -94,7 +122,10 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
                 labelInfoLine.setText (name + "  —  " + SyVoice::voiceTypeLabel (type)
                                        + (loadable ? "   · chargeable dans l'editeur" : ""),
                                        dontSendNotification);
+                updateInspector (idx, name, SyVoice::voiceTypeLabel (type));
             }
+            else
+                clearInspector();
         };
         voicesListA.onRowSelected = selectOnlyThis;
         voicesListB.onRowSelected = selectOnlyThis;
@@ -113,6 +144,7 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         bankList.removeChangeListener(this);
         if (keyHost != nullptr)
             keyHost->removeKeyListener (this);
+        LibraryIndex::get().onChanged = nullptr;
         stopTimer();
 
     }
@@ -189,18 +221,35 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         btSend.setBounds (getWidth()-74,10,64,24);
         btReceive.setBounds(getWidth()-140, 10, 64, 24);
         btStop.setBounds(btReceive.getBounds());
-        voicesListA.setBounds(tableWidth + 16, 44, tableWidth, getHeight()-44);
-        voicesListB.setBounds(tableWidth + 26 + tableWidth, 44, tableWidth, getHeight()-44);
-        voicesListC.setBounds(tableWidth + 36 + tableWidth+ tableWidth, 44, tableWidth, getHeight()-44);
-        voicesListD.setBounds(tableWidth + 46 + tableWidth+ tableWidth + tableWidth, 44, tableWidth, getHeight()-44);
-        
-        searchBox.setBounds(8, 10, tableWidth, 22);
-        // Bandeau bas réservé au bouton Supprimer ; la liste occupe le reste (fenêtre réductible).
+
+        // Colonnes de voix : on réserve un bandeau bas pour le panneau d'inspection.
+        const int inspH = 76;
+        const int voiceTop = 44;
+        const int voiceH = jmax (60, getHeight() - voiceTop - inspH);
+        voicesListA.setBounds(tableWidth + 16, voiceTop, tableWidth, voiceH);
+        voicesListB.setBounds(tableWidth + 26 + tableWidth, voiceTop, tableWidth, voiceH);
+        voicesListC.setBounds(tableWidth + 36 + tableWidth+ tableWidth, voiceTop, tableWidth, voiceH);
+        voicesListD.setBounds(tableWidth + 46 + tableWidth+ tableWidth + tableWidth, voiceTop, tableWidth, voiceH);
+
+        // Panneau d'inspection du preset (tags / notes / favori), sous les colonnes.
+        const int ix = tableWidth + 16;
+        const int iw = jmax (120, getWidth() - ix - 8);
+        int iy = voiceTop + voiceH + 4;
+        inspTitle.setBounds (ix, iy, iw - 92, 20);
+        favBtn.setBounds     (ix + iw - 88, iy, 88, 20);
+        tagsLabel.setBounds  (ix, iy + 24, 50, 20);
+        tagsEditor.setBounds (ix + 52, iy + 24, iw - 52, 20);
+        notesLabel.setBounds (ix, iy + 48, 50, 20);
+        notesEditor.setBounds(ix + 52, iy + 48, iw - 52, 20);
+
+        // Colonne des banques : combo synthé (si visible) + recherche + liste + bouton Supprimer.
+        int by = 10;
+        if (synthFilterCombo.isVisible()) { synthFilterCombo.setBounds(8, by, tableWidth, 22); by += 26; }
+        searchBox.setBounds(8, by, tableWidth, 22); by += 26;
         const int delH = 26;
-        const int listTop = 36;
-        const int listH = jmax (40, getHeight() - listTop - 10 - delH);
-        bankList.setBounds(8, listTop, tableWidth, listH);
-        btDeleteBank.setBounds(8, listTop + listH + 2, tableWidth, delH - 4);
+        const int listH = jmax (40, getHeight() - by - 10 - delH);
+        bankList.setBounds(8, by, tableWidth, listH);
+        btDeleteBank.setBounds(8, by + listH + 2, tableWidth, delH - 4);
 
         // Info-line : dans l'espace libre de la barre du haut (entre les onglets et RECEIVE).
         const int infoX = tableWidth + 240;
@@ -308,6 +357,83 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         sendChangeMessage();
         repaint();
     }
+    //==============================================================================
+    // Filtre par synthé : peuplé depuis l'index ; masqué s'il n'y a qu'un seul synthé.
+    void updateSynthFilterCombo()
+    {
+        auto synths = LibraryIndex::get().synthsPresent();
+        const String previous = synthFilterCombo.getText();
+        synthFilterCombo.clear (dontSendNotification);
+        synthFilterCombo.addItem (TRANS("Tous synthes"), 1);
+        int id = 2;
+        for (auto& s : synths) synthFilterCombo.addItem (s, id++);
+        synthFilterCombo.setText (previous.isNotEmpty() ? previous : TRANS("Tous synthes"),
+                                  dontSendNotification);
+        if (synthFilterCombo.getSelectedId() == 0) synthFilterCombo.setSelectedId (1, dontSendNotification);
+        synthFilterCombo.setVisible (synths.size() > 1);
+        resized();
+    }
+
+    void visibilityChanged() override
+    {
+        if (isShowing())
+            updateSynthFilterCombo();   // rafraîchit (réconciliation de fond / imports)
+    }
+
+    //==============================================================================
+    // Panneau d'inspection du preset (tags / notes / favori) — clé = banque#slot.
+    void repaintVoiceLists()
+    {
+        voicesListA.repaint(); voicesListB.repaint();
+        voicesListC.repaint(); voicesListD.repaint();
+    }
+
+    void clearInspector()
+    {
+        currentPresetKey = String();
+        inspTitle.setText (TRANS("Aucun preset selectionne"), dontSendNotification);
+        tagsEditor.setText (String(), dontSendNotification);
+        notesEditor.setText (String(), dontSendNotification);
+        favBtn.setToggleState (false, dontSendNotification);
+        tagsEditor.setEnabled (false); notesEditor.setEnabled (false); favBtn.setEnabled (false);
+    }
+
+    void updateInspector (int globalIdx, const String& name, const String& typeLabel)
+    {
+        if (currentBankRelPath.isEmpty() || globalIdx < 0) { clearInspector(); return; }
+        currentPresetKey = LibraryIndex::keyFor (currentBankRelPath, globalIdx);
+        const auto meta  = LibraryIndex::get().getMeta (currentPresetKey);
+        const auto synth = LibraryIndex::get().synthOfBank (currentBankRelPath);
+        inspTitle.setText (name.trim() + "   —   " + synth + " · " + typeLabel, dontSendNotification);
+        tagsEditor.setText (meta.tags.joinIntoString (", "), dontSendNotification);
+        notesEditor.setText (meta.notes, dontSendNotification);
+        favBtn.setToggleState (meta.fav, dontSendNotification);
+        tagsEditor.setEnabled (true); notesEditor.setEnabled (true); favBtn.setEnabled (true);
+    }
+
+    void commitTags()
+    {
+        if (currentPresetKey.isEmpty()) return;
+        StringArray t;
+        t.addTokens (tagsEditor.getText(), ",", "");
+        t.trim(); t.removeEmptyStrings(); t.removeDuplicates (true);
+        LibraryIndex::get().setTags (currentPresetKey, t);
+        repaintVoiceLists();
+    }
+    void commitNotes()
+    {
+        if (currentPresetKey.isNotEmpty())
+            LibraryIndex::get().setNotes (currentPresetKey, notesEditor.getText().trim());
+    }
+    void commitFav()
+    {
+        if (currentPresetKey.isNotEmpty())
+        {
+            LibraryIndex::get().setFav (currentPresetKey, favBtn.getToggleState());
+            repaintVoiceLists();
+        }
+    }
+
     void buttonClicked (Button* button) override
     {
         Logger::writeToLog("Librairie -> ButtonClicked");
@@ -423,6 +549,14 @@ private:
     BankTableModel bankList;
     TextEditor searchBox;
     TextButton btDeleteBank {TRANS("Supprimer la banque")};
+    ComboBox   synthFilterCombo;
+
+    // Panneau d'inspection du preset
+    Label       inspTitle;
+    Label       tagsLabel, notesLabel;
+    TextEditor  tagsEditor, notesEditor;
+    ToggleButton favBtn { TRANS("Favori") };
+    String      currentPresetKey;
     
     int rowSelected;
     

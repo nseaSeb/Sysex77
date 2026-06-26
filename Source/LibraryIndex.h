@@ -49,6 +49,10 @@ public:
 
     static LibraryIndex& get() { static LibraryIndex instance; return instance; }
 
+    // Notifié (sur le thread message) après load()/reconcile() — l'UI s'y rebranche pour
+    // rafraîchir le filtre synthé et les indicateurs. Mis à null par le consommateur en fin de vie.
+    std::function<void()> onChanged;
+
     void setRoot (const juce::File& dir)
     {
         root = dir;
@@ -97,6 +101,8 @@ public:
                     for (auto& tag : *t) m.tags.add (tag.toString());
                 presets[pv["key"].toString()] = m;
             }
+
+        notifyChanged();
     }
 
     void save()
@@ -310,12 +316,22 @@ public:
         }
 
         if (changed)
+        {
             save();
+            notifyChanged();
+        }
         return changed;
     }
 
 private:
     LibraryIndex() = default;
+
+    // Déclenche onChanged sur le thread message (load/reconcile peuvent venir d'un thread de fond).
+    void notifyChanged()
+    {
+        if (onChanged)
+            juce::MessageManager::callAsync ([cb = onChanged] { if (cb) cb(); });
+    }
 
     struct BankEntry { juce::String synth; juce::int64 size = 0, mtime = 0; int slots = 0; };
 

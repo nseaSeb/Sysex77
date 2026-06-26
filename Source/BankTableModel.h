@@ -118,12 +118,14 @@ public:
         {
         arrayListVoices.clear();
         currentBankData.setSize (0); // pas de banque valide chargée par défaut
+        currentBankRelPath = String();
         MemoryBlock mb;
         auto file = BankFiles[sourceListBox.getSelectedRow()];
         if (file.exists() && file.loadFileAsData (mb)
             && SyVoice::looksLikeYamahaSysex ((const uint8*) mb.getData(), mb.getSize()))
         {
             currentBankData = mb; // mémorise pour pouvoir envoyer une voix au synthé
+            currentBankRelPath = LibraryIndex::get().relPathOf (file); // clé pour tags/métadonnées
             // Extraction des noms de voix (logique pure et testée, cf. SysexUtils.h / Tests.h)
             arrayListVoices.addArray (SyVoice::extractVoiceNames ((const uint8*) mb.getData(), mb.getSize()));
         }
@@ -361,14 +363,31 @@ struct SourceItemListboxContents  : public ListBoxModel, public ChangeBroadcaste
         arrayBank.clear();
         BankFiles.clear();
         for (int i = 0; i < bankFilesAll.size(); ++i)
-            if (filterText.isEmpty() || bankNamesAll[i].containsIgnoreCase (filterText))
-            {
-                BankFiles.add (bankFilesAll[i]);
-                arrayBank.add (bankNamesAll[i]);
-            }
+        {
+            if (filterText.isNotEmpty() && ! bankNamesAll[i].containsIgnoreCase (filterText))
+                continue;
+            if (synthFilter.isNotEmpty()
+                && LibraryIndex::get().synthOfBank (LibraryIndex::get().relPathOf (bankFilesAll[i])) != synthFilter)
+                continue;
+            BankFiles.add (bankFilesAll[i]);
+            arrayBank.add (bankNamesAll[i]);
+        }
         numRows = BankFiles.size();
         sourceListBox.updateContent();
         repaint();
+    }
+
+    void setSynthFilter (const String& synth)
+    {
+        synthFilter = synth;
+        sourceListBox.deselectAllRows();
+        applyFilter();
+    }
+
+    File getSelectedBankFile() const
+    {
+        const int r = sourceListBox.getSelectedRow();
+        return (r >= 0 && r < BankFiles.size()) ? BankFiles[r] : File();
     }
 
     // Filtre de recherche (appelé par le champ de recherche de LibrairiePage).
@@ -408,6 +427,7 @@ struct SourceItemListboxContents  : public ListBoxModel, public ChangeBroadcaste
     Array<File> bankFilesAll;   // liste maître (non filtrée)
     StringArray bankNamesAll;
     String      filterText;
+    String      synthFilter;    // "" = tous synthés
     ListBox sourceListBox  { "D+D source", nullptr };
     GroupComponent  groupDrop;
     SourceItemListboxContents sourceModel;
