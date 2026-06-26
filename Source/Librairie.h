@@ -62,6 +62,8 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         addAndMakeVisible (searchBox);
         searchBox.setTextToShowWhenEmpty (TRANS("Rechercher une banque..."), Colours::grey);
         searchBox.onTextChange = [this] { bankList.setFilter (searchBox.getText()); };
+        addAndMakeVisible (btClearBankSearch);
+        btClearBankSearch.onClick = [this] { searchBox.setText (String(), true); };   // -> onTextChange
 
         // Suppression de banque rendue découvrable (en plus de la touche Suppr).
         addAndMakeVisible (btDeleteBank);
@@ -97,6 +99,8 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         addAndMakeVisible (presetSearch);
         presetSearch.setTextToShowWhenEmpty (TRANS("Rechercher un preset..."), Colours::grey);
         presetSearch.onTextChange = [this] { refreshResults(); };
+        addAndMakeVisible (btClearPresetSearch);
+        btClearPresetSearch.onClick = [this] { presetSearch.setText (String(), true); };
         addAndMakeVisible (tagFilter);
         tagFilter.onChange = [this] { refreshResults(); };
         populateTagFilter();
@@ -145,11 +149,8 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
             {
                 const int type = ((const uint8*) block.getData())[32];
                 const String name = arrayListVoices[idx].trim();
-                // AFM 1/2/4 (0-4) + AWM 1/2/4 (5-7) + mixtes AFM+AWM (8-9). Drum (10) non géré.
-                const bool loadable = (type >= 0 && type <= 9);
-                labelInfoLine.setText (name + "  —  " + SyVoice::voiceTypeLabel (type)
-                                       + (loadable ? "   · chargeable dans l'editeur" : ""),
-                                       dontSendNotification);
+                // L'info du preset va dans le PANNEAU D'INSPECTION (footer) ; le header (labelInfoLine)
+                // garde l'info de la BANQUE -> pas de doublon (demande utilisateur).
                 updateInspector (idx, name, SyVoice::voiceTypeLabel (type));
             }
             else
@@ -232,10 +233,21 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         voicesListC.loadBank();
         voicesListD.loadBank();
 
-        labelInfoLine.setText (bankSelected.isNotEmpty()
-                                 ? bankSelected + "  —  " + String (arrayListVoices.size()) + " voix"
-                                 : String ("Aucune banque sélectionnée"),
-                               dontSendNotification);
+        // Garde SY77 : SEND/audition réservés au SY77 (seule cible câblée). Pour une banque
+        // d'un autre synthé : bouton SEND grisé + note (elle reste stockée/cherchable).
+        const String synth = LibraryIndex::get().synthOfBank (currentBankRelPath);
+        const bool isSY77 = synth.isEmpty() || synth == "SY77";
+        btSend.setEnabled (isSY77);
+
+        labelInfoLine.removeColour (Label::textColourId);
+        if (bankSelected.isEmpty())
+            labelInfoLine.setText (String ("Aucune banque sélectionnée"), dontSendNotification);
+        else if (! isSY77)
+            labelInfoLine.setText (bankSelected + "  —  " + synth
+                                     + " : envoi/edition SY77 uniquement", dontSendNotification);
+        else
+            labelInfoLine.setText (bankSelected + "  —  " + String (arrayListVoices.size()) + " voix",
+                                   dontSendNotification);
     }
     void resized() override
     {
@@ -257,7 +269,9 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         const int searchRow = 38;
         favToggle.setBounds   (ix + iw - 92, searchRow, 92, 22);
         tagFilter.setBounds   (ix + iw - 92 - 134, searchRow, 130, 22);
-        presetSearch.setBounds(ix, searchRow, jmax (80, iw - 92 - 134 - 8), 22);
+        const int psw = jmax (60, iw - 92 - 134 - 8 - 24);
+        presetSearch.setBounds(ix, searchRow, psw, 22);
+        btClearPresetSearch.setBounds (ix + psw + 2, searchRow, 22, 22);
 
         // Colonnes de voix (ou liste de résultats) + bandeau d'inspection en bas.
         const int inspH = 76;
@@ -283,7 +297,8 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         int by = 10;
         if (synthFilterCombo.isVisible()) { synthFilterCombo.setBounds(8, by, tableWidth, 22); by += 26; }
         sortCombo.setBounds (8 + tableWidth - 76, by, 76, 22);
-        searchBox.setBounds (8, by, tableWidth - 80, 22); by += 26;
+        btClearBankSearch.setBounds (8 + tableWidth - 76 - 24, by, 22, 22);
+        searchBox.setBounds (8, by, tableWidth - 76 - 24 - 4, 22); by += 26;
         const int delH = 26;
         const int listH = jmax (40, getHeight() - by - 10 - delH);
         bankList.setBounds(8, by, tableWidth, listH);
@@ -687,6 +702,8 @@ private:
     BankTableModel bankList;
     TextEditor searchBox;
     TextButton btDeleteBank {TRANS("Supprimer la banque")};
+    TextButton btClearBankSearch   { String::fromUTF8 ("\xC3\x97") };   // × vider recherche banque
+    TextButton btClearPresetSearch { String::fromUTF8 ("\xC3\x97") };   // × vider recherche preset
     ComboBox   synthFilterCombo;
     ComboBox   sortCombo;
 

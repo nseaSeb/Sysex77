@@ -47,6 +47,8 @@ public:
         bool         fav = false;
     };
 
+    static constexpr int kVersion = 2;   // bump -> force la re-détection des synthés au prochain load
+
     static LibraryIndex& get() { static LibraryIndex instance; return instance; }
 
     // Notifié (sur le thread message) après load()/reconcile() — l'UI s'y rebranche pour
@@ -80,16 +82,22 @@ public:
         presets.clear();
 
         auto data = juce::JSON::parse (jsonFile);
-        if (auto* banksArr = data["banks"].getArray())
-            for (auto& bv : *banksArr)
-            {
-                BankEntry b;
-                b.synth = bv["synth"].toString();
-                b.size  = (juce::int64) bv["size"];
-                b.mtime = (juce::int64) bv["mtime"];
-                b.slots = (int) bv["slots"];
-                banks[bv["path"].toString()] = b;
-            }
+
+        // Si la version de détection a changé, on NE charge PAS le cache des banques :
+        // reconcile() les re-scannera (re-détection synthé corrigée). Les TAGS (presets) sont
+        // conservés (clé indépendante du synthé).
+        const bool trustBanks = ((int) data["version"]) >= kVersion;
+        if (trustBanks)
+            if (auto* banksArr = data["banks"].getArray())
+                for (auto& bv : *banksArr)
+                {
+                    BankEntry b;
+                    b.synth = bv["synth"].toString();
+                    b.size  = (juce::int64) bv["size"];
+                    b.mtime = (juce::int64) bv["mtime"];
+                    b.slots = (int) bv["slots"];
+                    banks[bv["path"].toString()] = b;
+                }
         if (auto* presetArr = data["presets"].getArray())
             for (auto& pv : *presetArr)
             {
@@ -141,7 +149,7 @@ public:
         }
 
         auto* rootObj = new juce::DynamicObject();
-        rootObj->setProperty ("version", 1);
+        rootObj->setProperty ("version", kVersion);
         rootObj->setProperty ("banks",   banksArr);
         rootObj->setProperty ("presets", presetArr);
 
@@ -355,7 +363,16 @@ private:
             return;
 
         const auto* data = (const juce::uint8*) mb.getData();
-        const auto synth = SyVoice::synthKindLabel (SyVoice::detectSynthKind (data, mb.getSize()));
+
+        // Détection AU NIVEAU BANQUE : on scanne les blocs F0…F7 — si AU MOINS UN est une voix
+        // SY77 (classifieur « LM  8101VC »), la banque est SY77 (certaines commencent par un bloc
+        // système/multi, d'où l'insuffisance d'une détection sur le seul premier bloc).
+        auto kind = SyVoice::detectSynthKind (data, mb.getSize());     // repli : 1er bloc
+        for (auto& b : SyVoice::splitSysexMessages (data, mb.getSize()))
+            if (SyVoice::detectSynthKind ((const juce::uint8*) b.getData(), b.getSize())
+                  == SyVoice::SynthKind::SY77)
+            { kind = SyVoice::SynthKind::SY77; break; }
+        const auto synth = SyVoice::synthKindLabel (kind);
         const auto names = SyVoice::extractVoiceNames (data, mb.getSize());
 
         const juce::ScopedLock sl (lock);

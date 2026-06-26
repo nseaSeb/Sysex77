@@ -223,7 +223,13 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
   nom·banque·synthé·tags ; sélection charge la banque, double-clic envoie) ; **copier un preset vers une
   banque perso** (ajout du bloc F0…F7, `refreshBank`) ; **tri** banques (nom/synthé/date).
   Réel : 247 banques / 18199 presets indexés. Build 905/905 tests.
-  RESTE (non fait) : **envoi cross-synthé gardé** — n'autoriser SEND/audition que vers le synthé du
-  type détecté ([[feedback-hardware-safety]]) ; aujourd'hui l'envoi reste pensé SY77 (les banques
-  d'autres synthés sont stockées/affichées/cherchables mais l'éditeur et l'audition edit-buffer
-  restent SY77). À faire unité par unité, vérifié HW avant activation.
+- **2026-06-26 (LIB) — Garde SY77 + ergonomie (FAIT).** **Garde SY77** ([[feedback-hardware-safety]]) :
+  l'envoi de banque (`adresseOscSendBank`) et l'envoi/audition d'une voix (`adresseOscSendVoice`) sont
+  ignorés si la donnée n'est pas SY77 (`detectSynthKind`) ; côté UI, bouton SEND grisé + note quand la
+  banque sélectionnée n'est pas SY77. **Détection au niveau banque corrigée** : on scanne les blocs
+  (SY77 si AU MOINS un bloc voix « LM 8101VC ») — avant, une banque démarrant par un bloc système/multi
+  était classée à tort non-SY77 (47 faux négatifs → SEND aurait été bloqué à tort). Bump `library.json`
+  v2 force la re-détection (tags conservés). **Ergonomie** : croix × pour vider les champs de recherche
+  (banque + preset) ; l'info preset n'écrase plus le header (elle est dans l'inspecteur/footer), le
+  header garde l'info de la banque. Build 905/905.
+  RESTE : envoi VERS d'autres synthés (Roland/Korg…) = chantier futur, unité par unité, vérifié HW.

@@ -112,7 +112,16 @@ void oscMessageReceived (const OSCMessage& message)
         // appDirPath + nom de fichier : cette reconstruction échouait pour toute banque rangée
         // en SOUS-DOSSIER (ex. les banques importées dans "SY77 (web)/", dont bankSelected ne
         // porte que le nom de fichier) -> l'envoi de banque ne partait jamais pour celles-ci.
-        if (currentBankData.getSize() > 1)
+        // GARDE SY77 : on n'envoie une banque qu'au SY77 (seule cible câblée). Une banque
+        // d'un autre synthé est stockée/cherchable mais pas envoyée (éviterait de pousser des
+        // octets étrangers au SY77). Envoi cross-synthé = chantier futur ([[hardware-safety]]).
+        if (currentBankData.getSize() > 1
+            && SyVoice::detectSynthKind ((const uint8*) currentBankData.getData(),
+                                         currentBankData.getSize()) != SyVoice::SynthKind::SY77)
+        {
+            Logger::writeToLog ("Send BANK ignore : banque non-SY77");
+        }
+        else if (currentBankData.getSize() > 1)
         {
             auto blocks = SyVoice::splitSysexMessages ((const uint8*) currentBankData.getData(),
                                                        currentBankData.getSize());
@@ -155,7 +164,16 @@ void oscMessageReceived (const OSCMessage& message)
             auto block = SyVoice::getVoiceBlock ((const uint8*) currentBankData.getData(),
                                                  currentBankData.getSize(),
                                                  message[0].getInt32());
-            if (block.getSize() > 1)
+
+            // GARDE SY77 : audition + ouverture éditeur réservées aux voix SY77. Une voix d'un
+            // autre synthé n'est ni envoyée (octets étrangers) ni décodée par l'éditeur SY77.
+            if (block.getSize() > 1
+                && SyVoice::detectSynthKind ((const uint8*) block.getData(), block.getSize())
+                     != SyVoice::SynthKind::SY77)
+            {
+                Logger::writeToLog ("SendVoice ignore : voix non-SY77");
+            }
+            else if (block.getSize() > 1)
             {
                 // AUDITION : on redirige la voix vers l'EDIT BUFFER ($7F) au lieu de son slot
                 // mémoire d'origine -> le SY77 l'affiche/joue tout de suite, SANS écraser une
