@@ -438,11 +438,12 @@ namespace SyDraw
     // l'acc, OP4/5/6 paraissaient porteuses ; en réalité ils modulent OP1 via l'acc — vérifié
     // sur la grille SynthWorks et le widget algo de l'écran AFM). Codes : 1=thru op n+1,
     // 3/4/5=registre écrit par un op, 6/7/8=feedback, 9=accumulateur.
-    inline void afmTopology (int algoNum, bool edge[6][6], bool feedback[6], bool carrier[6])
+    // Variante prenant un AlgoDef DIRECTEMENT (pour les algos CUSTOM / free, hors kAlgo).
+    // Le wrapper `int algoNum` (juste après) lit kAlgo et délègue ici -> 45 presets inchangés.
+    inline void afmTopology (const AlgoDef& A, bool edge[6][6], bool feedback[6], bool carrier[6])
     {
         for (int d = 0; d < 6; ++d) { feedback[d] = false; carrier[d] = false; for (int s = 0; s < 6; ++s) edge[d][s] = false; }
 
-        const AlgoDef& A = kAlgo[ ((algoNum - 1) % 45 + 45) % 45 ];
         int regProd[4] = { 0, 0, 0, 0 };
         for (int i = 0; i < 6; ++i) if (A.outd[i] >= 1 && A.outd[i] <= 3) regProd[A.outd[i]] = i + 1;
 
@@ -480,6 +481,12 @@ namespace SyDraw
         }
         // Porteuses = contenu FINAL de l'accumulateur (ce qui sonne).
         for (int k = 0; k < accN; ++k) carrier[acc[k] - 1] = true;
+    }
+
+    // Wrapper : algo PRESET 1..45 -> lit kAlgo et délègue à la variante AlgoDef.
+    inline void afmTopology (int algoNum, bool edge[6][6], bool feedback[6], bool carrier[6])
+    {
+        afmTopology (kAlgo[ ((algoNum - 1) % 45 + 45) % 45 ], edge, feedback, carrier);
     }
 
     // Émule le pipeline AFM du SY77 : 6 opérateurs calculés OP6->OP1 (thru = op n+1),

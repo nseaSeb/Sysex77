@@ -12,7 +12,7 @@
 
 #include <JuceHeader.h>
 #include "LookAndFeel.h"   // AfmOscLookAndFeel + AfmWaveLookAndFeel (sprite teinté au thème)
-#include "Operator.h"      // panneau algorithme (AlgoDraw + sélecteur 1..45) embarqué à droite
+#include "AlgoEditor.h"    // éditeur d'algorithme (preset 1..45 + mode Free) embarqué à droite
 #include "AfmLfo.h"        // panneau Main/Sub LFO (colonne droite, sous l'algo)
 
 //==============================================================================
@@ -1055,7 +1055,7 @@ private:
 
     // Panneau algorithme embarqué (colonne droite) — réutilise toute la logique d'Operator
     // (sélecteur 1..45, schéma AlgoDraw, sysex ALGNUM avec offset -1). Masqué en mode zoom.
-    Operator algoPanel;
+    AlgoEditorView algoPanel;
 
     // Panneau LFO (Main + Sub) — colonne droite, sous l'algo. Masqué en mode zoom.
     AfmLfo   lfoPanel;

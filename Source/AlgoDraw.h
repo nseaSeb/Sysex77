@@ -25,7 +25,10 @@ public:
     AlgoDraw()                         { setInterceptsMouseClicks (false, false); }
     ~AlgoDraw() override               {}
 
-    void setAlgo (int number)          { intAlgoNumber = number; repaint(); }
+    // Preset 1..45 (efface l'algo custom éventuel).
+    void setAlgo (int number)          { intAlgoNumber = number; useCustom = false; repaint(); }
+    // Algorithme LIBRE / custom : prioritaire sur le numéro de preset tant qu'il est posé.
+    void setCustomAlgo (const SyDraw::AlgoDef& d) { customAlgo = d; useCustom = true; repaint(); }
 
     //==============================================================================
     void paint (Graphics& g) override
@@ -34,7 +37,9 @@ public:
         g.setColour (SYPal.panelBorder);
         g.drawRect (0, 0, getWidth(), getHeight());   // cadre discret (rôle thème)
 
-        drawAlgo (g, intAlgoNumber, getLocalBounds().toFloat().reduced (8.0f), /*labels*/ true);
+        auto area = getLocalBounds().toFloat().reduced (8.0f);
+        if (useCustom) drawAlgo (g, customAlgo,    area, /*labels*/ true);
+        else           drawAlgo (g, intAlgoNumber, area, /*labels*/ true);
     }
 
     //==============================================================================
@@ -53,7 +58,22 @@ public:
     {
         bool edge[6][6], fb[6], car[6];
         SyDraw::afmTopology (algoNum, edge, fb, car);
+        drawTopo (g, edge, fb, car, area, labels);
+    }
 
+    // Surcharge CUSTOM : dessine un AlgoDef quelconque (algorithme LIBRE / free), pas
+    // seulement un preset 1..45. Même moteur (topologie calculée puis dessinée).
+    static void drawAlgo (Graphics& g, const SyDraw::AlgoDef& def, Rectangle<float> area, bool labels)
+    {
+        bool edge[6][6], fb[6], car[6];
+        SyDraw::afmTopology (def, edge, fb, car);
+        drawTopo (g, edge, fb, car, area, labels);
+    }
+
+    // Cœur de dessin partagé : à partir de la topologie DÉJÀ calculée (edge/fb/carrier).
+    static void drawTopo (Graphics& g, bool edge[6][6], bool fb[6], bool car[6],
+                          Rectangle<float> area, bool labels)
+    {
         int   row[6];        // 0 = porteuse (bas) ; profondeur croissante vers le haut
         float colF[6];       // colonne fractionnaire (centroïde) avant normalisation
         layout (edge, car, row, colF);
@@ -275,5 +295,7 @@ private:
     }
 
     int intAlgoNumber = 1;
+    SyDraw::AlgoDef customAlgo {};   // algo libre/custom (utilisé si useCustom)
+    bool useCustom = false;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AlgoDraw)
 };
