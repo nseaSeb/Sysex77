@@ -60,8 +60,9 @@ ditto -c -k --keepParent dist/Sysex77.app "$ZIP"
 echo "==> 5) commit + tag + push"
 git add "$VERSION_FILE" dist/
 git commit -q -m "release : $TAG"
-git tag "$TAG"
-git push --follow-tags origin master
+git tag -a "$TAG" -m "Sysex77 $TAG"
+git push origin master
+git push origin "$TAG"   # push explicite (— follow-tags ne pousse pas les tags légers)
 
 echo "==> 6) GitHub release + asset"
 if [[ -n "$NOTES" ]]; then
