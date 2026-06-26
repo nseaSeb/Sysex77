@@ -250,3 +250,8 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
   invisible selon le thème édité. Remplacées par un composant `Swatch` qui peint directement la
   couleur cible. Skill `/release` + `release.sh` (incrément patch/minor/major depuis la dernière
   release) ajoutés. Build 911/911.
+- **2026-06-26 (UI/BUILD) — Schéma de version + dessin d'algo (FIX).** **Auto-bump par build
+  RETIRÉ** de `build.sh` (il faisait dépasser le dev au-delà des releases → numéros incohérents) :
+  la version ne change qu'aux releases, chaque build identifié par son timestamp. **AlgoDraw** :
+  le pas des rangées/colonnes est plafonné au pas de cellule (`jmin(cellW/cellH, …)`) → le schéma
+  d'algo profond (ex. ALG 1, pile de 6 ops) ne déborde plus en haut de la card WAVE.
