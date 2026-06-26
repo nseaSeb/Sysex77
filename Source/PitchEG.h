@@ -281,22 +281,22 @@ public:
         sampleWidth = 0.2f - (sliderSlope.getValue()/100);
         samplePathRight.setBoundsRelative(1.0f - sampleWidth, 0.93f, sampleWidth, 0.09f);
         
-        sliderSlope.setBoundsRelative(0.4f, 0.92f, 0.2f, 0.1f);
-        
-        sliderL0.setBoundsRelative(0.65f, 0.06, 0.04f, 0.3f);
-        sliderL1.setBoundsRelative(0.7f, 0.06, 0.04f, 0.3f);
-        sliderL2.setBoundsRelative(0.75f, 0.06, 0.04f, 0.3f);
-        sliderL3.setBoundsRelative(0.8f, 0.06, 0.04f, 0.3f);
-        sliderL4.setBoundsRelative(0.85f, 0.06, 0.04f, 0.3f);
-        sliderRL1.setBoundsRelative(0.9f, 0.06, 0.04f, 0.3f);
-        sliderRL2.setBoundsRelative(0.95f, 0.06, 0.04f, 0.3f);
-        
-        sliderR1.setBoundsRelative(0.7f, 0.4, 0.04f, 0.3f);
-        sliderR2.setBoundsRelative(0.75f, 0.4, 0.04f, 0.3f);
-        sliderR3.setBoundsRelative(0.8f, 0.4, 0.04f, 0.3f);
-        sliderR4.setBoundsRelative(0.85f, 0.4, 0.04f, 0.3f);
-        sliderRR1.setBoundsRelative(0.9f, 0.4, 0.04f, 0.3f);
-        sliderRR2.setBoundsRelative(0.95f, 0.4, 0.04f, 0.3f);
+        // Tailles FIXES (cf. WaveEg) : sliders qui n'enflent plus, Slope au-dessus du clavier.
+        const int W = getWidth(), H = getHeight();
+        const int kbTop = (int) (H * 0.85f);
+        sliderSlope.setBounds (jmax (90, (int) (W * 0.42f)), kbTop - 30, 160, 22);
+
+        const int sw   = 26;
+        const int sh   = jlimit (90, 200, (int) (H * 0.28f));
+        const int x0   = (int) (W * 0.63f);
+        const int step = jmax (sw + 8, jmin (sw + 34, (W - x0 - 12) / 7));
+        const int y1   = (int) (H * 0.11f);
+        const int y2   = y1 + sh + 26;
+
+        MidiSlider* top[7] = { &sliderL0,&sliderL1,&sliderL2,&sliderL3,&sliderL4,&sliderRL1,&sliderRL2 };
+        for (int i = 0; i < 7; ++i) top[i]->setBounds (x0 + i * step, y1, sw, sh);
+        MidiSlider* bot[6] = { &sliderR1,&sliderR2,&sliderR3,&sliderR4,&sliderRR1,&sliderRR2 };
+        for (int i = 0; i < 6; ++i) bot[i]->setBounds (x0 + (i + 1) * step, y2, sw, sh);
     }
     
 private:
