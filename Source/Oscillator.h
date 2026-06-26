@@ -199,12 +199,15 @@ public:
             sw.onClick = [this, i] { toggleOpActive (i); };
         }
 
-        // Panneau algorithme (colonne droite), masqué automatiquement en mode zoom.
-        addAndMakeVisible(algoPanel);
-        // Panneau LFO (Main + Sub) sous l'algo, dans un VIEWPORT scrollable : la colonne droite
-        // peut être plus courte que les 14 lignes (Main 7 + Sub 5 + 2 entêtes) -> avant, la
-        // dernière ligne (Sub LFO Mode) tombait hors champ. Le contenu a une hauteur FIXE
-        // (cf. layoutMaster) -> le Mode reste toujours visible/atteignable (scroll si besoin).
+        // 3 COLONNES scrollables (détail op | algo | LFO) : chaque colonne « lourde » est dans
+        // un VIEWPORT à scroll vertical -> l'éditeur peut être réduit sans rien couper.
+        // Algo (éditeur d'algorithme) : viewport, hauteur de contenu fixe (cf. layoutMaster).
+        addAndMakeVisible (algoView);
+        algoView.setViewedComponent (&algoPanel, false);
+        algoView.setScrollBarsShown (true, false);
+        algoPanel.setVisible (true);
+        // LFO (Main + Sub) : viewport, contenu hauteur fixe (14 lignes) -> Sub LFO Mode toujours
+        // atteignable (scroll si la colonne est courte).
         addAndMakeVisible (lfoView);
         lfoView.setViewedComponent (&lfoPanel, false);
         lfoView.setScrollBarsShown (true, false);
@@ -616,10 +619,10 @@ public:
 
         g.fillAll (getLookAndFeel().findColour (ResizableWindow::backgroundColourId));
 
-        // Séparateur de la colonne droite (algo/LFO), cohérent avec layoutMaster().
+        // Séparateurs des 3 colonnes (détail | algo | LFO), cohérents avec layoutMaster().
         g.setColour (SYPal.panelBorder);
-        g.drawVerticalLine (getLocalBounds().getRight() - algoPanelWidth(),
-                            (float) getLocalBounds().getY(), (float) getLocalBounds().getBottom());
+        for (int x : { colAlgoX, colLfoX })
+            g.drawVerticalLine (x, (float) getLocalBounds().getY(), (float) getLocalBounds().getBottom());
 
         // Mini-libellés distinguant la zone SÉLECTION (gauche) de la zone ACTIF/ON-OFF (droite).
         g.setColour (SYPal.textMuted);
@@ -690,40 +693,19 @@ public:
     void layoutMaster()
     {
         auto content = getLocalBounds();
-        // Colonne droite : ALGORITHM en haut, puis MAIN/SUB LFO dessous (inchangée).
-        {
-            auto rightCol = content.removeFromRight (algoPanelWidth());
-            // L'ALGORITHM (diagramme + barre) reste lisible avec ~36 % ; on rend le reste
-            // de la hauteur au panneau LFO, qui doit afficher 14 lignes (Main 7 + Sub 5 +
-            // 2 entêtes) sans rogner sa dernière ligne (Sub LFO Mode).
-            auto algoArea = rightCol.removeFromTop (jlimit (140, 230, rightCol.getHeight() * 36 / 100));
-            algoPanel.setBounds (algoArea.reduced (6));
 
-            // LFO dans le viewport : le contenu a une hauteur FIXE (14 lignes confortables) ->
-            // la dernière ligne (Sub LFO Mode) reste dans le haut visible même si la zone est
-            // plus courte (un scroll vertical apparaît alors). Largeur = viewport - scrollbar.
-            auto lfoArea = rightCol.reduced (6, 2);
-            lfoView.setBounds (lfoArea);
-            const int vw = jmax (60, lfoView.getWidth() - lfoView.getScrollBarThickness());
-            lfoPanel.setSize (vw, 390);   // hauteur FIXE : 14 lignes confortables (Main 8 + Sub 6)
-        }
-
-        // --- Barre fine du haut : GAUCHE = onglets « OP1..OP6 » (édition) ; DROITE = ON/OFF (actif).
+        // --- Barre fine du haut, PLEINE LARGEUR : GAUCHE = onglets « OP1..OP6 » ; DROITE = ON/OFF.
         const int barH = jlimit (26, 34, content.getHeight() / 14);
         auto bar = content.removeFromTop (barH);
-
-        // Réserve la zone ON/OFF à droite : 6 petits carrés + un mini-libellé « ACTIF » au-dessus.
         const int swW   = jmax (16, barH - 4);                       // interrupteur ~carré
         const int lblW  = 44;                                        // libellés « ÉDIT » / « ACTIF »
         auto onOffZone  = bar.removeFromRight (6 * swW + 8);
-        onOffLabelArea  = bar.removeFromRight (lblW);                // « ACTIF » (dessiné dans paint)
+        onOffLabelArea  = bar.removeFromRight (lblW);
         bar.removeFromRight (8);
         for (int i = 0; i < 6; ++i)
             opOn[i].setBounds (Rectangle<int> (onOffZone.getX() + i * swW, onOffZone.getY(),
                                                swW, onOffZone.getHeight()).reduced (1, 2));
-
-        // GAUCHE : un mini-libellé « ÉDIT » puis la barre d'onglets sur la place restante.
-        editLabelArea = bar.removeFromLeft (lblW);                   // « ÉDIT » (dessiné dans paint)
+        editLabelArea = bar.removeFromLeft (lblW);
         auto tabs = bar;
         const int tw = jmax (1, tabs.getWidth() / 6);
         for (int i = 0; i < 6; ++i)
@@ -733,8 +715,23 @@ public:
             opTab[i].setBounds (x, tabs.getY(), w, tabs.getHeight());
         }
 
-        // Tout l'espace restant va au panneau détail (la pièce maîtresse).
-        detailArea = content;
+        // --- 3 COLONNES côte à côte : DÉTAIL op (responsive) | ALGO (viewport) | LFO (viewport).
+        // Chaque colonne se prémunit du rétrécissement : le détail se COMPRIME (layout responsive),
+        // l'algo et le LFO SCROLLENT (contenu de hauteur fixe). Séparateurs dessinés dans paint().
+        const int wTot = content.getWidth();
+        auto detailCol = content.removeFromLeft (jmax (240, wTot * 44 / 100));
+        colAlgoX = content.getX();
+        auto algoCol = content.removeFromLeft (jmax (180, wTot * 29 / 100));
+        colLfoX = content.getX();
+        auto lfoCol = content;
+
+        detailArea = detailCol;   // le détail (responsive, cf. layoutDetail) remplit sa colonne
+
+        algoView.setBounds (algoCol.reduced (4));
+        algoPanel.setSize (jmax (60, algoView.getWidth() - algoView.getScrollBarThickness()), 440);
+
+        lfoView.setBounds (lfoCol.reduced (4, 2));
+        lfoPanel.setSize (jmax (60, lfoView.getWidth() - lfoView.getScrollBarThickness()), 390);
     }
 
     // Panneau détail (sous les onglets) : TOUS les contrôles de l'op selOp, labellisés et au large.
@@ -1060,6 +1057,8 @@ private:
     // Panneau LFO (Main + Sub) — colonne droite, sous l'algo. Masqué en mode zoom.
     AfmLfo   lfoPanel;
     Viewport lfoView;   // scroll vertical du panneau LFO (cf. constructeur + layoutMaster)
+    Viewport algoView;  // scroll vertical de l'éditeur d'algo (colonne 2)
+    int colAlgoX = 0, colLfoX = 0;   // x des séparateurs de colonnes (cf. paint)
 
     // Largeur réservée au panneau algorithme à droite ; layoutMaster() et paint()
     // doivent utiliser la même valeur pour rester cohérents.
