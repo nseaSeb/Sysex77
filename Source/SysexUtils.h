@@ -313,6 +313,56 @@ namespace SyVoice
     }
 
     //==============================================================================
+    /** Famille de synthé d'un dump .syx — pour une librairie multi-synthés. */
+    enum class SynthKind { Unknown, SY77, OtherYamaha, Roland, Korg, Kawai, Other };
+
+    /** Détecte la famille de synthé à partir des premiers octets d'un dump.
+
+        - octet [1] = fabricant : 0x43 Yamaha, 0x41 Roland, 0x42 Korg, 0x40 Kawai.
+        - Yamaha + format bulk 0x7A (octet [3]) + identifiant « LM  8101VC » (offset 6)
+          ⇒ SY77 (c'est le classifieur de voix SY77, cf. voiceDumpRequest). Les autres
+          dumps Yamaha sont marqués OtherYamaha (TG77/SY99/DX… à affiner au besoin).
+
+        Pure et testable (cf. Tests.h). */
+    inline SynthKind detectSynthKind (const juce::uint8* data, size_t size)
+    {
+        if (data == nullptr || size < 2 || data[0] != 0xF0)
+            return SynthKind::Unknown;
+
+        switch (data[1])
+        {
+            case 0x43: // Yamaha
+            {
+                static const char* kSY77Id = "LM  8101VC";
+                if (size >= 16 && data[3] == 0x7A
+                    && std::memcmp (data + 6, kSY77Id, 10) == 0)
+                    return SynthKind::SY77;
+                return SynthKind::OtherYamaha;
+            }
+            case 0x41: return SynthKind::Roland;
+            case 0x42: return SynthKind::Korg;
+            case 0x40: return SynthKind::Kawai;
+            default:   return SynthKind::Other;
+        }
+    }
+
+    /** Libellé court d'affichage / clé stockée dans library.json. */
+    inline juce::String synthKindLabel (SynthKind k)
+    {
+        switch (k)
+        {
+            case SynthKind::SY77:        return "SY77";
+            case SynthKind::OtherYamaha: return "Yamaha";
+            case SynthKind::Roland:      return "Roland";
+            case SynthKind::Korg:        return "Korg";
+            case SynthKind::Kawai:       return "Kawai";
+            case SynthKind::Other:       return "Autre";
+            case SynthKind::Unknown:
+            default:                     return "?";
+        }
+    }
+
+    //==============================================================================
     /** Checksum Yamaha standard : (somme des octets + checksum) ≡ 0 (mod 128). */
     inline juce::uint8 yamahaChecksum (const juce::uint8* data, int count)
     {

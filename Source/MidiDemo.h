@@ -49,6 +49,7 @@
 #include "Values.h"
 #include "SysexBus.h"
 #include "SysexUtils.h"   // SyVoice:: (builder sysex, device, helpers) — visible par tous les widgets
+#include "LibraryIndex.h" // index librairie (métadonnées/tags/recherche, library.json)
 #include "Version.h"      // Sysex77::kVersion / versionString()
 #include "AppSettings.h"  // getAppSettings() — persistance partagée (devices MIDI, fenêtre…)
 
@@ -395,6 +396,12 @@ public:
     tabs (isRunningComponenTransformsDemo)
     
     {
+        // Index de la librairie : racine = dossier des banques, chargé puis réconcilié au disque
+        // en tâche de fond (scan des .syx -> synthé détecté + cache des noms pour la recherche).
+        LibraryIndex::get().setRoot (appDirPath);
+        LibraryIndex::get().load();
+        juce::Thread::launch ([] { LibraryIndex::get().reconcile(); });
+
         // (Images de fond Sysex77/99.png supprimées : jamais dessinées — nettoyage des ressources.)
         addAndMakeVisible (tabs);
   

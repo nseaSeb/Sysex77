@@ -207,6 +207,27 @@ struct SysexUtilsTests : public juce::UnitTest
             expectEquals ((int) notVoice[30], 0x11);   // inchangé
         }
 
+        beginTest ("detectSynthKind reconnait SY77 et les autres fabricants");
+        {
+            // Bloc voix SY77 : F0 43 0n 7A cMSB cLSB "LM  8101VC" ...
+            juce::uint8 sy77[20] = { 0 };
+            sy77[0] = 0xF0; sy77[1] = 0x43; sy77[2] = 0x10; sy77[3] = 0x7A;
+            const char* id = "LM  8101VC";
+            for (int i = 0; i < 10; ++i) sy77[6 + i] = (juce::uint8) id[i];
+            expect (SyVoice::detectSynthKind (sy77, sizeof (sy77)) == SyVoice::SynthKind::SY77);
+
+            // Yamaha mais pas le classifieur SY77 -> OtherYamaha
+            juce::uint8 yam[20] = { 0xF0, 0x43, 0x10, 0x7A };
+            expect (SyVoice::detectSynthKind (yam, sizeof (yam)) == SyVoice::SynthKind::OtherYamaha);
+
+            // Roland / Korg / inconnu
+            const juce::uint8 roland[] = { 0xF0, 0x41, 0x10, 0x42 };
+            expect (SyVoice::detectSynthKind (roland, sizeof (roland)) == SyVoice::SynthKind::Roland);
+            const juce::uint8 korg[] = { 0xF0, 0x42, 0x30 };
+            expect (SyVoice::detectSynthKind (korg, sizeof (korg)) == SyVoice::SynthKind::Korg);
+            expect (SyVoice::detectSynthKind (nullptr, 0) == SyVoice::SynthKind::Unknown);
+        }
+
         beginTest ("splitSysexMessages splits successive F0..F7 blocks");
         {
             const juce::uint8 syx[] = {

@@ -12,6 +12,7 @@
 
 #include <JuceHeader.h>
 #include "SysexUtils.h"
+#include "LibraryIndex.h"
 
 //==============================================================================
 /*
@@ -108,21 +109,10 @@ public:
  //           editText.insertTextAtCaret(arrayBank[rowSelectedBank]);
             
         }
-        else if(bankDeleteKey) //message delete
+        else if(bankDeleteKey) //message delete (touche Suppr)
         {
             bankDeleteKey = false;
-            if(AlertWindow::showOkCancelBox(AlertWindow::AlertIconType::WarningIcon, "Erase Bank File", "Do you really want erase the bank file ? " + arrayBank[rowSelectedBank] ) )
-                                            {
-                                         
-            arrayBank.remove(rowSelectedBank);
-            if(BankFiles[sourceListBox.getSelectedRow()].exists())
-            {
-                BankFiles[sourceListBox.getSelectedRow()].deleteFile();
-                BankFiles.remove(sourceListBox.getSelectedRow());
-            }
-            repaint();
-                                            }
-            
+            deleteSelectedBank (rowSelectedBank);
         }
         else
         {
@@ -387,6 +377,31 @@ struct SourceItemListboxContents  : public ListBoxModel, public ChangeBroadcaste
         filterText = f.trim();
         sourceListBox.deselectAllRows();   // pas de sélection résiduelle sur une ligne masquée
         applyFilter();
+    }
+
+    int getSelectedBankRow() const { return sourceListBox.getSelectedRow(); }
+
+    // Supprime la banque de la ligne `row` (index dans la VUE filtrée). Confirmation,
+    // suppression disque, désindexation ciblée (LibraryIndex), puis re-scan propre.
+    void deleteSelectedBank (int row)
+    {
+        if (row < 0 || row >= BankFiles.size())
+            return;
+
+        auto file = BankFiles[row];
+        if (! AlertWindow::showOkCancelBox (AlertWindow::WarningIcon,
+                TRANS("Supprimer la banque"),
+                TRANS("Supprimer definitivement cette banque ?") + String ("\n") + file.getFileName(),
+                TRANS("Supprimer"), TRANS("Annuler")))
+            return;
+
+        const auto rel = LibraryIndex::get().relPathOf (file);
+        file.deleteFile();
+        LibraryIndex::get().removeBank (rel);   // désindexation ciblée + save
+
+        loadBank();            // re-scan disque -> vue rafraîchie proprement
+        sendChangeMessage();   // notifie LibrairiePage (recharge colonnes voix / info-line)
+        repaint();
     }
 
         bool somethingIsBeingDraggedOver = false;

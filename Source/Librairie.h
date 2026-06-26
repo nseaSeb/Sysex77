@@ -62,6 +62,10 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         addAndMakeVisible (searchBox);
         searchBox.setTextToShowWhenEmpty (TRANS("Rechercher une banque..."), Colours::grey);
         searchBox.onTextChange = [this] { bankList.setFilter (searchBox.getText()); };
+
+        // Suppression de banque rendue découvrable (en plus de la touche Suppr).
+        addAndMakeVisible (btDeleteBank);
+        btDeleteBank.onClick = [this] { bankList.deleteSelectedBank (bankList.getSelectedBankRow()); };
         
         addAndMakeVisible(voicesListA);
         addAndMakeVisible(voicesListB);
@@ -191,7 +195,12 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         voicesListD.setBounds(tableWidth + 46 + tableWidth+ tableWidth + tableWidth, 44, tableWidth, getHeight()-44);
         
         searchBox.setBounds(8, 10, tableWidth, 22);
-        bankList.setBounds(8, 36, tableWidth, getHeight()-46);
+        // Bandeau bas réservé au bouton Supprimer ; la liste occupe le reste (fenêtre réductible).
+        const int delH = 26;
+        const int listTop = 36;
+        const int listH = jmax (40, getHeight() - listTop - 10 - delH);
+        bankList.setBounds(8, listTop, tableWidth, listH);
+        btDeleteBank.setBounds(8, listTop + listH + 2, tableWidth, delH - 4);
 
         // Info-line : dans l'espace libre de la barre du haut (entre les onglets et RECEIVE).
         const int infoX = tableWidth + 240;
@@ -413,6 +422,7 @@ private:
     BankVoicesTable voicesListD { 48, "Bank D" };
     BankTableModel bankList;
     TextEditor searchBox;
+    TextButton btDeleteBank {TRANS("Supprimer la banque")};
     
     int rowSelected;
     
