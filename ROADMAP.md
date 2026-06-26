@@ -245,3 +245,8 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
   **Procédure release (`release.sh X.Y.Z`)** : fige `Version.h`, build Release `--no-bump` + tests,
   dist + ad-hoc sign, zip `ditto -c -k --keepParent`, commit+tag+push, `gh release create` (asset),
   re-bump `-dev`. (`build.sh` a gagné `--no-bump`.) Build 905/905.
+- **2026-06-26 (UI) — Theme Builder : pastilles de couleur visibles (FIX).** Les pastilles étaient
+  des `TextButton` rendus par le LnF maison (fond non rempli en style `outline`/`flat`) → couleur
+  invisible selon le thème édité. Remplacées par un composant `Swatch` qui peint directement la
+  couleur cible. Skill `/release` + `release.sh` (incrément patch/minor/major depuis la dernière
+  release) ajoutés. Build 911/911.

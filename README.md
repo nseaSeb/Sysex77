@@ -30,6 +30,8 @@ Inspiré, côté fonctionnalités, de l'éditeur *SynthWorks SY77*.
 - **Persistance** des réglages : interfaces MIDI, device number, taille de fenêtre, onglet,
   clavier, et **couleurs personnalisées** (thème custom).
 - Synchronisation **tout-MIDI** bidirectionnelle (un seul *device number* global).
+- **Mise à jour intégrée** : l'app vérifie les *GitHub Releases* au démarrage et propose de
+  télécharger + installer la nouvelle version automatiquement (macOS ; désactivable dans *Setting*).
 
 > ⚠️ Certaines éditions (effets, groupes, enveloppes…) sont pour l'instant en **rendu/état seul**
 > côté éditeur ; l'envoi sysex complet vers le synthé est en cours de fiabilisation. Tous n'est pas implémenté.
@@ -143,7 +145,9 @@ filter & envelope graphs, output groups + routing, an Effects tab, and persisten
 custom colours. **Modern library**: bank send/receive with progress, delete, search & sort,
 **per-preset metadata** (tags, notes, favourites) in `library.json`, **global preset search +
 tag filter** across all banks, per-synth filter, and copy-a-preset-to-a-user-bank (send/edit
-stay SY77-only). Some editor edits are state-only for now (full sysex send is being firmed up).
+stay SY77-only). **Built-in updater**: checks GitHub Releases on launch and can download + install
+the new version automatically (macOS; opt-out in *Setting*). Some editor edits are state-only for
+now (full sysex send is being firmed up).
 
 **Themes:** five built-in palettes (Dark Orange, FM Dark, Light, Crimson, Tangerine), selectable
 in *Setting*. On first launch, editable `theme.xml` files are exported to
