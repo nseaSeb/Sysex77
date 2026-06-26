@@ -267,3 +267,7 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
   L0…RR2 et Slope utilisaient `setBoundsRelative` (largeur = 0,04 × largeur fenêtre → ils enflaient) ;
   le Slope (`y=0.92`) chevauchait le clavier. Désormais largeur fixe 26 px + hauteur plafonnée, et
   Slope juste au-dessus du clavier. (Filter/Pan EG non touchés — layouts différents.)
+- **2026-06-26 (APP) — MAJ : vérif à chaque démarrage (FIX).** Le throttle 24 h empêchait la
+  détection au lancement (sauf bouton « Vérifier »). Retiré : `checkAsync` vérifie maintenant à
+  CHAQUE démarrage (1 requête ; le dialogue n'apparaît que si une version plus récente non ignorée
+  existe). Opt-out `CheckUpdatesOnStartup` conservé.

@@ -41,19 +41,14 @@ public:
         "https://api.github.com/repos/nseaSeb/Sysex77/releases/latest";
 
     //==============================================================================
-    /** Vérifie la dernière release. `manual` = déclenché par l'utilisateur (ignore le throttle
+    /** Vérifie la dernière release. `manual` = déclenché par l'utilisateur (ignore l'opt-out
         et la version « ignorée », et affiche un retour même si à jour). */
     void checkAsync (bool manual)
     {
-        if (! manual)
-        {
-            const auto last = getAppSettings()->getValue ("LastUpdateCheck", "0").getLargeIntValue();
-            const auto now  = juce::Time::getCurrentTime().toMilliseconds();
-            if (now - last < (juce::int64) 24 * 3600 * 1000)   // throttle 24 h
-                return;
-            if (! getAppSettings()->getBoolValue ("CheckUpdatesOnStartup", true))
-                return;
-        }
+        // Plus de throttle 24 h : on vérifie à CHAQUE démarrage (1 requête, limite GitHub 60/h large).
+        // Le dialogue n'apparaît que si une version plus récente NON ignorée existe -> pas de spam.
+        if (! manual && ! getAppSettings()->getBoolValue ("CheckUpdatesOnStartup", true))
+            return;
 
         juce::Thread::launch ([this, manual]
         {
