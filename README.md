@@ -22,8 +22,11 @@ Inspiré, côté fonctionnalités, de l'éditeur *SynthWorks SY77*.
 - **Édition à la souris des graphes** : glisser sur la réponse du **filtre** (cutoff/résonance) et
   sur les nœuds des **enveloppes** (niveau + rate) — vignettes d'élément et éditeurs complets.
 - **Onglet Effets** : Effect Mode + 2 unités Modulation + 2 unités Reverb.
-- **Librairie de banques** (`.SYX`) : dump, et **ouverture d'un preset dans l'éditeur** par
-  double-clic (envoi au synthé + bascule sur l'éditeur).
+- **Librairie de banques** (`.SYX`) moderne : **envoi/réception** avec barre de progression,
+  **suppression** de banque, **recherche** (banques et presets), **tri**, **métadonnées par preset**
+  (tags, notes, favoris), **recherche globale + filtre par tag** transversale à toutes les banques,
+  **filtre par synthé** (si plusieurs présents) et **copie d'un preset** vers une banque perso.
+  Double-clic sur une voix = envoi au synthé (audition dans l'edit buffer) + ouverture dans l'éditeur.
 - **Persistance** des réglages : interfaces MIDI, device number, taille de fenêtre, onglet,
   clavier, et **couleurs personnalisées** (thème custom).
 - Synchronisation **tout-MIDI** bidirectionnelle (un seul *device number* global).
@@ -82,11 +85,22 @@ sur le synthé) pour autoriser les échanges de banques.
 - **SY99** : choisissez *SY 99* dans les paramètres, fermez et rouvrez l'application (la liste des
   waves correspondra à votre synthé).
 - Cliquez en haut de la page (ou dans une zone noire) pour faire apparaître le menu.
-- La **Librairie** permet de dumper des banques. On en trouve beaucoup au format `.SYX`, par ex.
+- La **Librairie** gère vos banques `.SYX`. On en trouve beaucoup en ligne, par ex.
   http://bobbyblues.recup.ch/yamaha_sy77/sy77_patches.html
-  *(Pensez à sauvegarder vos banques et à désactiver le bulk protect avant.)*
-- **Double-cliquer une voix** de la librairie l'envoie au synthé **et l'ouvre dans l'éditeur**
-  (bascule automatique sur l'onglet *Voice*).
+  *(Pensez à sauvegarder vos banques et à désactiver le bulk protect avant tout envoi.)*
+  - **Recevoir / Envoyer** une banque (barre de progression, débit adapté au SY77), **supprimer**
+    une banque, **rechercher** et **trier** la liste.
+  - **Métadonnées par preset** : sélectionnez une voix → panneau d'inspection (nom · synthé · type)
+    pour saisir **tags**, **notes** et **favori** ; un repère ★/• apparaît dans la liste.
+    Tout est stocké dans `~/Library/Application Support/Sysex77/library.json`.
+  - **Recherche globale de presets** (par nom ou tag, avec filtre **★ favoris**) : le panneau de
+    droite bascule en liste de résultats **transversale à toutes les banques**.
+  - **Copier un preset** vers une banque perso ; **filtre par synthé** lorsque plusieurs familles
+    sont présentes (l'envoi/édition reste réservé au SY77).
+- **Double-cliquer une voix** l'envoie au synthé (audition dans l'edit buffer, sans écraser la
+  mémoire) **et l'ouvre dans l'éditeur**.
+
+![Librairie Sysex77](divers/librairie.png)
 
 ### Thèmes
 
@@ -121,12 +135,15 @@ Build (no Projucer needed): `./build.sh` (macOS/Linux) or `cmake -B build && cma
 Run unit tests with `--test`.
 
 On launch: pick your MIDI interface, then the device number (channel) in *Setting*; toggle bulk
-protect to allow bank exchanges. The Library dumps sound banks (`.SYX`); double-clicking a voice
-sends it to the synth and opens it in the editor.
+protect to allow bank exchanges. The Library sends/receives sound banks (`.SYX`) with a progress
+bar; double-clicking a voice auditions it on the synth (edit buffer) and opens it in the editor.
 
 Highlights: AFM/AWM voice editor, FM-waveform render of the real 45 algorithms, mouse-editable
 filter & envelope graphs, output groups + routing, an Effects tab, and persistence of settings &
-custom colours. Some edits are editor-state-only for now (full sysex send is being firmed up).
+custom colours. **Modern library**: bank send/receive with progress, delete, search & sort,
+**per-preset metadata** (tags, notes, favourites) in `library.json`, **global preset search +
+tag filter** across all banks, per-synth filter, and copy-a-preset-to-a-user-bank (send/edit
+stay SY77-only). Some editor edits are state-only for now (full sysex send is being firmed up).
 
 **Themes:** five built-in palettes (Dark Orange, FM Dark, Light, Crimson, Tangerine), selectable
 in *Setting*. On first launch, editable `theme.xml` files are exported to
