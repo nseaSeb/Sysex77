@@ -15,7 +15,7 @@
 namespace Sysex77
 {
     // Bump à chaque jalon notable.
-    static constexpr const char* kVersion = "1.3.4";
+    static constexpr const char* kVersion = "1.3.5-dev";
 
     /** Version + horodatage de compilation (identifie un build précis). */
     inline juce::String versionString()
