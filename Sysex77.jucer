@@ -22,7 +22,6 @@
       <GROUP id="{87236820-FC95-90B0-DBC9-557C4BE45351}" name="Patch">
         <FILE id="NT8Pb7" name="Voice.h" compile="0" resource="0" file="Source/Voice.h"/>
         <FILE id="EnAkma" name="Volume.h" compile="0" resource="0" file="Source/Volume.h"/>
-        <FILE id="RSGc0q" name="Pan.h" compile="0" resource="0" file="Source/Pan.h"/>
         <FILE id="EJGSPH" name="Element.h" compile="0" resource="0" file="Source/Element.h"/>
         <FILE id="h52Pvb" name="Pitch.h" compile="0" resource="0" file="Source/Pitch.h"/>
       </GROUP>
