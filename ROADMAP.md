@@ -255,3 +255,11 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
   la version ne change qu'aux releases, chaque build identifié par son timestamp. **AlgoDraw** :
   le pas des rangées/colonnes est plafonné au pas de cellule (`jmin(cellW/cellH, …)`) → le schéma
   d'algo profond (ex. ALG 1, pile de 6 ops) ne déborde plus en haut de la card WAVE.
+- **2026-06-26 (APP) — Auto-install de la MAJ : réparée (FIX).** L'install (download OK) ne
+  remplaçait jamais l'app. Causes : (1) **CRLF** — `replaceWithText` écrit en CRLF par défaut, le
+  helper `swap.sh` était illisible par bash (exit 2) → écriture forcée en **LF** (cause racine) ;
+  (2) **TCC** — helper + app extraite déplacés dans `/tmp` (les jobs launchd n'accèdent pas à
+  `~/Library/Caches`) ; (3) **détachement** via `launchctl submit` (un nohup/& mourait à la
+  fermeture de l'app), avec **auto-retrait du job** (sinon relance en boucle ~10 s). swap.sh réécrit
+  + garde App Translocation + log `/tmp/sysex77-update.log`. Vérifié bout en bout (1.3.1→1.3.2,
+  swap unique). NB : les builds ≤1.3.2 ont l'updater cassé → MAJ manuelle une fois vers ≥1.3.3.
