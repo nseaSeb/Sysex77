@@ -44,7 +44,9 @@ public:
 
         // -- Sub LFO --
         addAndMakeVisible (slfoWave);
-        for (auto* n : { "Saw Down", "Saw Up", "Triangle", "Square" })
+        // Formes du Sub LFO (relevées sur le SY77) : Triangle, Saw Down, Square, Sample&Hold.
+        // L'ORDRE = la valeur sysex (id-1) : 0=Triangle, 1=Saw Down, 2=Square, 3=S/Hold.
+        for (auto* n : { "Triangle", "Saw Down", "Square", "S/Hold" })
             slfoWave.addItem (n, slfoWave.getNumItems() + 1);   // 4 formes (0-3)
 
         for (MidiSlider* s : { &slfoSpeed, &slfoTime, &slfoPmd })
@@ -147,37 +149,60 @@ public:
     void resized() override
     {
         auto area = getLocalBounds().reduced (6);
-        const int rowH = jlimit (16, 24, area.getHeight() / 14);
+
+        // Le panneau contient un nombre FIXE de lignes :
+        //   1 entête Main + 7 champs Main + 1 espaceur + 1 entête Sub + 5 champs Sub
+        // soit 14 lignes-texte (kRows) avec un inter-ligne (gap) entre chacune, plus un
+        // espaceur supplémentaire (kSpacer) entre Main et Sub.
+        // Plutôt que de figer rowH (l'ancien jlimit clampait à 14px et débordait la dernière
+        // ligne — le Sub LFO Mode — hors zone), on CALCULE rowH+gap pour que l'ensemble
+        // remplisse EXACTEMENT la hauteur disponible : la dernière ligne reste donc toujours
+        // visible, quelle que soit la hauteur que nous donne la colonne de droite.
+        const int kRows   = 14;
+        const int kSpacer = 8;                     // espace dédié sous le bloc Main
+        int gap = 3;                               // inter-ligne nominal
+
+        int avail = area.getHeight() - kSpacer;
+        int rowH  = (avail - gap * (kRows - 1)) / kRows;
+        if (rowH > 24) { rowH = 24; gap = 4; }     // pas de lignes géantes si large
+        if (rowH < 13)                              // très court : on resserre l'inter-ligne
+        {
+            gap  = 1;
+            rowH = jmax (11, (avail - gap * (kRows - 1)) / kRows);
+        }
+
         auto row = [&] (Rectangle<int>& a) { return a.removeFromTop (rowH); };
 
         // ---- Main LFO ----
         lblMain.setBounds (row (area));
-        layoutField (area, rowH, lblMWave, mlfoWave);
-        layoutField (area, rowH, lblMSpd,  mlfoSpeed);
-        layoutField (area, rowH, lblMDly,  mlfoDelay);
-        layoutField (area, rowH, lblMPhs,  mlfoPhase);
-        layoutField (area, rowH, lblMPmd,  mlfoPmd);
-        layoutField (area, rowH, lblMAmd,  mlfoAmd);
-        layoutField (area, rowH, lblMFmd,  mlfoFmd);
+        area.removeFromTop (gap);
+        layoutField (area, rowH, gap, lblMWave, mlfoWave);
+        layoutField (area, rowH, gap, lblMSpd,  mlfoSpeed);
+        layoutField (area, rowH, gap, lblMDly,  mlfoDelay);
+        layoutField (area, rowH, gap, lblMPhs,  mlfoPhase);
+        layoutField (area, rowH, gap, lblMPmd,  mlfoPmd);
+        layoutField (area, rowH, gap, lblMAmd,  mlfoAmd);
+        layoutField (area, rowH, gap, lblMFmd,  mlfoFmd);
 
-        area.removeFromTop (10);
+        area.removeFromTop (kSpacer);
         subTop = area.getY();
 
         // ---- Sub LFO ----
         lblSub.setBounds (row (area));
-        layoutField (area, rowH, lblSWave, slfoWave);
-        layoutField (area, rowH, lblSSpd,  slfoSpeed);
-        layoutField (area, rowH, lblSTime, slfoTime);
-        layoutField (area, rowH, lblSPmd,  slfoPmd);
-        layoutField (area, rowH, lblSMode, slfoMode);
+        area.removeFromTop (gap);
+        layoutField (area, rowH, gap, lblSWave, slfoWave);
+        layoutField (area, rowH, gap, lblSSpd,  slfoSpeed);
+        layoutField (area, rowH, gap, lblSTime, slfoTime);
+        layoutField (area, rowH, gap, lblSPmd,  slfoPmd);
+        layoutField (area, rowH, gap, lblSMode, slfoMode);
     }
 
 private:
-    // Une ligne « label (gauche) + contrôle (droite) ».
-    void layoutField (Rectangle<int>& area, int rowH, Label& lab, Component& ctl)
+    // Une ligne « label (gauche) + contrôle (droite) », suivie d'un inter-ligne (gap).
+    void layoutField (Rectangle<int>& area, int rowH, int gap, Label& lab, Component& ctl)
     {
         auto r = area.removeFromTop (rowH);
-        area.removeFromTop (3);
+        area.removeFromTop (gap);
         const int labW = jmin (84, r.getWidth() * 42 / 100);
         lab.setBounds (r.removeFromLeft (labW));
         ctl.setBounds (r.reduced (2, 1));

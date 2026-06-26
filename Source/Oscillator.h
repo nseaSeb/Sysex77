@@ -201,8 +201,14 @@ public:
 
         // Panneau algorithme (colonne droite), masqué automatiquement en mode zoom.
         addAndMakeVisible(algoPanel);
-        // Panneau LFO (Main + Sub) sous l'algo, comme l'écran SynthWorks. Masqué en zoom.
-        addAndMakeVisible(lfoPanel);
+        // Panneau LFO (Main + Sub) sous l'algo, dans un VIEWPORT scrollable : la colonne droite
+        // peut être plus courte que les 14 lignes (Main 7 + Sub 5 + 2 entêtes) -> avant, la
+        // dernière ligne (Sub LFO Mode) tombait hors champ. Le contenu a une hauteur FIXE
+        // (cf. layoutMaster) -> le Mode reste toujours visible/atteignable (scroll si besoin).
+        addAndMakeVisible (lfoView);
+        lfoView.setViewedComponent (&lfoPanel, false);
+        lfoView.setScrollBarsShown (true, false);
+        lfoPanel.setVisible (true);
     }
 
     void setSliderLevel (Slider& slider)
@@ -687,9 +693,19 @@ public:
         // Colonne droite : ALGORITHM en haut, puis MAIN/SUB LFO dessous (inchangée).
         {
             auto rightCol = content.removeFromRight (algoPanelWidth());
-            auto algoArea = rightCol.removeFromTop (jmax (150, rightCol.getHeight() * 42 / 100));
+            // L'ALGORITHM (diagramme + barre) reste lisible avec ~36 % ; on rend le reste
+            // de la hauteur au panneau LFO, qui doit afficher 14 lignes (Main 7 + Sub 5 +
+            // 2 entêtes) sans rogner sa dernière ligne (Sub LFO Mode).
+            auto algoArea = rightCol.removeFromTop (jlimit (140, 230, rightCol.getHeight() * 36 / 100));
             algoPanel.setBounds (algoArea.reduced (6));
-            lfoPanel.setBounds (rightCol.reduced (6, 2));
+
+            // LFO dans le viewport : le contenu a une hauteur FIXE (14 lignes confortables) ->
+            // la dernière ligne (Sub LFO Mode) reste dans le haut visible même si la zone est
+            // plus courte (un scroll vertical apparaît alors). Largeur = viewport - scrollbar.
+            auto lfoArea = rightCol.reduced (6, 2);
+            lfoView.setBounds (lfoArea);
+            const int vw = jmax (60, lfoView.getWidth() - lfoView.getScrollBarThickness());
+            lfoPanel.setSize (vw, 390);   // hauteur FIXE : 14 lignes confortables (Main 8 + Sub 6)
         }
 
         // --- Barre fine du haut : GAUCHE = onglets « OP1..OP6 » (édition) ; DROITE = ON/OFF (actif).
@@ -1042,7 +1058,8 @@ private:
     Operator algoPanel;
 
     // Panneau LFO (Main + Sub) — colonne droite, sous l'algo. Masqué en mode zoom.
-    AfmLfo lfoPanel;
+    AfmLfo   lfoPanel;
+    Viewport lfoView;   // scroll vertical du panneau LFO (cf. constructeur + layoutMaster)
 
     // Largeur réservée au panneau algorithme à droite ; layoutMaster() et paint()
     // doivent utiliser la même valeur pour rester cohérents.
