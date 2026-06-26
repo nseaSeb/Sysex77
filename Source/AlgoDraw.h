@@ -102,8 +102,11 @@ public:
         const float cellW = area.getWidth()  / (float) jmax (1, cols);
         const float cellH = area.getHeight() / (float) (rows + 1);     // +1 = sortie
         const float boxS  = jmin (cellW, cellH) * 0.62f;
-        const float colW  = boxS + jmax (boxS * 0.6f, 8.0f);           // pas horizontal régulier
-        const float rowH  = boxS + jmax (boxS * 0.9f, 10.0f);          // pas vertical (gouttière de routage)
+        // Pas régulier = boîte + gouttière, mais PLAFONNÉ au pas de cellule alloué : sinon, pour
+        // les algos profonds (ex. ALG 1 = pile de 6 ops), rows*rowH dépassait la hauteur et la
+        // boîte du haut était tronquée. jmin(cell…) garantit que (rows+1) rangées tiennent.
+        const float colW  = jmin (cellW, boxS + jmax (boxS * 0.6f, 8.0f));   // pas horizontal
+        const float rowH  = jmin (cellH, boxS + jmax (boxS * 0.9f, 10.0f));  // pas vertical (gouttière)
 
         const float gridW = colW * cols;
         const float xL    = area.getX() + (area.getWidth() - gridW) * 0.5f + colW * 0.5f;
