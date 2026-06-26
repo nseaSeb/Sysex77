@@ -148,7 +148,24 @@ public:
 private:
     static constexpr int controlsW = 360;
 
-    struct ColourRow { std::unique_ptr<juce::Label> label; std::unique_ptr<juce::TextButton> swatch; juce::Colour* target; };
+    // Pastille de couleur : peint DIRECTEMENT *target (indépendant du style de bouton du thème,
+    // qui rendait la couleur invisible en « outline »/« flat »). Clic -> ouvre le picker.
+    struct Swatch : public juce::Component
+    {
+        juce::Colour* target = nullptr;
+        std::function<void()> onClick;
+        void paint (juce::Graphics& g) override
+        {
+            auto r = getLocalBounds().toFloat().reduced (1.0f);
+            g.setColour (target != nullptr ? *target : juce::Colours::grey);
+            g.fillRoundedRectangle (r, 4.0f);
+            g.setColour (juce::Colours::black.withAlpha (0.45f));
+            g.drawRoundedRectangle (r, 4.0f, 1.0f);
+        }
+        void mouseDown (const juce::MouseEvent&) override { if (onClick) onClick(); }
+    };
+
+    struct ColourRow { std::unique_ptr<juce::Label> label; std::unique_ptr<Swatch> swatch; juce::Colour* target; };
 
     void addStyleCombo (juce::ComboBox& cb, const juce::String& name,
                         juce::StringArray opts, const juce::String& current)
@@ -167,12 +184,13 @@ private:
     {
         ColourRow row;
         row.label = std::make_unique<juce::Label> (juce::String(), name);
-        row.swatch = std::make_unique<juce::TextButton> ();
+        row.swatch = std::make_unique<Swatch> ();
         row.target = target;
+        row.swatch->target = target;
         addAndMakeVisible (*row.label);
         addAndMakeVisible (*row.swatch);
-        auto* btn = row.swatch.get();
-        btn->onClick = [this, target, btn] { openColourPicker (target, btn); };
+        auto* sw = row.swatch.get();
+        sw->onClick = [this, target, sw] { openColourPicker (target, sw); };
         colours.push_back (std::move (row));
     }
 
@@ -215,7 +233,7 @@ private:
     {
         work.glow = work.accent.withAlpha (work.dark ? 0.5f : 0.33f);   // halo suit l'accent
         for (auto& c : colours)
-            c.swatch->setColour (juce::TextButton::buttonColourId, *c.target);
+            c.swatch->repaint();                 // la pastille relit *target
         applySyPalette (work);
         repaintEverything();
     }
