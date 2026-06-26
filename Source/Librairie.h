@@ -89,11 +89,39 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         tagsEditor.onFocusLost = [this] { commitTags(); };
         notesEditor.onFocusLost = [this] { commitNotes(); };
         favBtn.onClick = [this] { commitFav(); };
+        addAndMakeVisible (btCopyPreset);
+        btCopyPreset.onClick = [this] { copyCurrentPresetToBank(); };
         clearInspector();
 
-        // L'index notifie (load + réconciliation de fond) -> on rafraîchit le filtre synthé
-        // et les indicateurs de tags/favori.
-        LibraryIndex::get().onChanged = [this] { updateSynthFilterCombo(); repaintVoiceLists(); };
+        // Recherche globale de presets (+ filtre tag + favoris) -> vue résultats à plat.
+        addAndMakeVisible (presetSearch);
+        presetSearch.setTextToShowWhenEmpty (TRANS("Rechercher un preset..."), Colours::grey);
+        presetSearch.onTextChange = [this] { refreshResults(); };
+        addAndMakeVisible (tagFilter);
+        tagFilter.onChange = [this] { refreshResults(); };
+        populateTagFilter();
+        addAndMakeVisible (favToggle);
+        favToggle.onClick = [this] { refreshResults(); };
+        addChildComponent (resultsList);   // masquée tant qu'aucune recherche active
+        resultsModel.onSelect = [this] (int r) { openHit (r); };
+        resultsModel.onSend   = [this] (int r) { sendHit (r); };
+
+        // Tri de la liste des banques.
+        addAndMakeVisible (sortCombo);
+        sortCombo.addItem (TRANS("Nom A-Z"), 1);
+        sortCombo.addItem (TRANS("Synthe"),  2);
+        sortCombo.addItem (TRANS("Date"),    3);
+        sortCombo.setSelectedId (1, dontSendNotification);
+        sortCombo.onChange = [this] { bankList.setSortMode (sortCombo.getSelectedId() - 1); };
+
+        // L'index notifie (load + réconciliation de fond) -> rafraîchit filtres et indicateurs.
+        LibraryIndex::get().onChanged = [this]
+        {
+            updateSynthFilterCombo();
+            populateTagFilter();
+            repaintVoiceLists();
+            if (resultsList.isVisible()) refreshResults();
+        };
         
         addAndMakeVisible(voicesListA);
         addAndMakeVisible(voicesListB);
@@ -222,36 +250,46 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         btReceive.setBounds(getWidth()-140, 10, 64, 24);
         btStop.setBounds(btReceive.getBounds());
 
-        // Colonnes de voix : on réserve un bandeau bas pour le panneau d'inspection.
+        const int ix = tableWidth + 16;                       // gauche de la zone presets
+        const int iw = jmax (160, getWidth() - ix - 8);       // largeur de la zone presets
+
+        // Ligne de RECHERCHE GLOBALE de presets (au-dessus des colonnes / résultats).
+        const int searchRow = 38;
+        favToggle.setBounds   (ix + iw - 92, searchRow, 92, 22);
+        tagFilter.setBounds   (ix + iw - 92 - 134, searchRow, 130, 22);
+        presetSearch.setBounds(ix, searchRow, jmax (80, iw - 92 - 134 - 8), 22);
+
+        // Colonnes de voix (ou liste de résultats) + bandeau d'inspection en bas.
         const int inspH = 76;
-        const int voiceTop = 44;
+        const int voiceTop = searchRow + 26;
         const int voiceH = jmax (60, getHeight() - voiceTop - inspH);
         voicesListA.setBounds(tableWidth + 16, voiceTop, tableWidth, voiceH);
         voicesListB.setBounds(tableWidth + 26 + tableWidth, voiceTop, tableWidth, voiceH);
         voicesListC.setBounds(tableWidth + 36 + tableWidth+ tableWidth, voiceTop, tableWidth, voiceH);
         voicesListD.setBounds(tableWidth + 46 + tableWidth+ tableWidth + tableWidth, voiceTop, tableWidth, voiceH);
+        resultsList.setBounds(ix, voiceTop, iw, voiceH);      // occupe toute la zone presets
 
-        // Panneau d'inspection du preset (tags / notes / favori), sous les colonnes.
-        const int ix = tableWidth + 16;
-        const int iw = jmax (120, getWidth() - ix - 8);
+        // Panneau d'inspection du preset (tags / notes / favori / copier), sous la zone.
         int iy = voiceTop + voiceH + 4;
-        inspTitle.setBounds (ix, iy, iw - 92, 20);
+        inspTitle.setBounds  (ix, iy, jmax (60, iw - 92 - 116), 20);
+        btCopyPreset.setBounds (ix + iw - 92 - 112, iy, 112, 20);
         favBtn.setBounds     (ix + iw - 88, iy, 88, 20);
         tagsLabel.setBounds  (ix, iy + 24, 50, 20);
         tagsEditor.setBounds (ix + 52, iy + 24, iw - 52, 20);
         notesLabel.setBounds (ix, iy + 48, 50, 20);
         notesEditor.setBounds(ix + 52, iy + 48, iw - 52, 20);
 
-        // Colonne des banques : combo synthé (si visible) + recherche + liste + bouton Supprimer.
+        // Colonne des banques : combo synthé (si visible) + recherche+tri + liste + Supprimer.
         int by = 10;
         if (synthFilterCombo.isVisible()) { synthFilterCombo.setBounds(8, by, tableWidth, 22); by += 26; }
-        searchBox.setBounds(8, by, tableWidth, 22); by += 26;
+        sortCombo.setBounds (8 + tableWidth - 76, by, 76, 22);
+        searchBox.setBounds (8, by, tableWidth - 80, 22); by += 26;
         const int delH = 26;
         const int listH = jmax (40, getHeight() - by - 10 - delH);
         bankList.setBounds(8, by, tableWidth, listH);
         btDeleteBank.setBounds(8, by + listH + 2, tableWidth, delH - 4);
 
-        // Info-line : dans l'espace libre de la barre du haut (entre les onglets et RECEIVE).
+        // Info-line : barre du haut (entre les onglets et RECEIVE).
         const int infoX = tableWidth + 240;
         labelInfoLine.setBounds (infoX, 10, jmax (0, getWidth() - 150 - infoX), 24);
     }
@@ -391,16 +429,19 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
     void clearInspector()
     {
         currentPresetKey = String();
+        currentSlot = -1;
         inspTitle.setText (TRANS("Aucun preset selectionne"), dontSendNotification);
         tagsEditor.setText (String(), dontSendNotification);
         notesEditor.setText (String(), dontSendNotification);
         favBtn.setToggleState (false, dontSendNotification);
-        tagsEditor.setEnabled (false); notesEditor.setEnabled (false); favBtn.setEnabled (false);
+        tagsEditor.setEnabled (false); notesEditor.setEnabled (false);
+        favBtn.setEnabled (false); btCopyPreset.setEnabled (false);
     }
 
     void updateInspector (int globalIdx, const String& name, const String& typeLabel)
     {
         if (currentBankRelPath.isEmpty() || globalIdx < 0) { clearInspector(); return; }
+        currentSlot = globalIdx;
         currentPresetKey = LibraryIndex::keyFor (currentBankRelPath, globalIdx);
         const auto meta  = LibraryIndex::get().getMeta (currentPresetKey);
         const auto synth = LibraryIndex::get().synthOfBank (currentBankRelPath);
@@ -408,7 +449,8 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         tagsEditor.setText (meta.tags.joinIntoString (", "), dontSendNotification);
         notesEditor.setText (meta.notes, dontSendNotification);
         favBtn.setToggleState (meta.fav, dontSendNotification);
-        tagsEditor.setEnabled (true); notesEditor.setEnabled (true); favBtn.setEnabled (true);
+        tagsEditor.setEnabled (true); notesEditor.setEnabled (true);
+        favBtn.setEnabled (true);     btCopyPreset.setEnabled (true);
     }
 
     void commitTags()
@@ -431,7 +473,103 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         {
             LibraryIndex::get().setFav (currentPresetKey, favBtn.getToggleState());
             repaintVoiceLists();
+            if (resultsList.isVisible()) refreshResults();
         }
+    }
+
+    //==============================================================================
+    // Recherche globale de presets -> vue résultats à plat (remplace les 4 colonnes).
+    void populateTagFilter()
+    {
+        const String prev = tagFilter.getText();
+        tagFilter.clear (dontSendNotification);
+        tagFilter.addItem (TRANS("Tous tags"), 1);
+        int id = 2;
+        for (auto& t : LibraryIndex::get().allTags()) tagFilter.addItem (t, id++);
+        tagFilter.setText (prev.isNotEmpty() ? prev : TRANS("Tous tags"), dontSendNotification);
+        if (tagFilter.getSelectedId() == 0) tagFilter.setSelectedId (1, dontSendNotification);
+    }
+
+    void setResultsMode (bool on)
+    {
+        resultsList.setVisible (on);
+        for (auto* c : { &voicesListA, &voicesListB, &voicesListC, &voicesListD })
+            c->setVisible (! on);
+    }
+
+    void refreshResults()
+    {
+        const String tag   = tagFilter.getSelectedId() > 1 ? tagFilter.getText() : String();
+        const String synth = (synthFilterCombo.isVisible() && synthFilterCombo.getSelectedId() > 1)
+                           ? synthFilterCombo.getText() : String();
+        const bool active = presetSearch.getText().isNotEmpty() || tag.isNotEmpty() || favToggle.getToggleState();
+
+        setResultsMode (active);
+        if (! active) { labelInfoLine.setText (String(), dontSendNotification); return; }
+
+        results = LibraryIndex::get().searchPresets (presetSearch.getText(), tag,
+                                                     favToggle.getToggleState(), synth);
+        resultsList.updateContent();
+        resultsList.deselectAllRows();
+        labelInfoLine.setText (String (results.size()) + TRANS(" presets trouves"), dontSendNotification);
+    }
+
+    void openHit (int row)
+    {
+        if (row < 0 || row >= results.size()) return;
+        auto h = results.getReference (row);
+        bankList.loadBankByRelPath (h.relPath);   // -> currentBankData / currentBankRelPath
+        auto block = SyVoice::getVoiceBlock ((const uint8*) currentBankData.getData(),
+                                             currentBankData.getSize(), h.slot);
+        const int type = block.getSize() > 32 ? ((const uint8*) block.getData())[32] : -1;
+        updateInspector (h.slot, h.name, type >= 0 ? SyVoice::voiceTypeLabel (type) : String ("?"));
+    }
+
+    void sendHit (int row)
+    {
+        if (row < 0 || row >= results.size()) return;
+        auto h = results.getReference (row);
+        if (currentBankRelPath != h.relPath)
+            bankList.loadBankByRelPath (h.relPath);
+        requestSendVoice (h.slot);
+    }
+
+    // Copie le preset inspecté vers une banque utilisateur (ajout du bloc F0..F7).
+    void copyCurrentPresetToBank()
+    {
+        if (currentSlot < 0 || currentBankData.getSize() == 0) return;
+        auto block = SyVoice::getVoiceBlock ((const uint8*) currentBankData.getData(),
+                                             currentBankData.getSize(), currentSlot);
+        if (block.getSize() <= 1) return;
+
+        AlertWindow w (TRANS("Copier le preset"), TRANS("Banque de destination :"),
+                       AlertWindow::QuestionIcon);
+        w.addTextEditor ("name", "Mes presets");
+        w.addButton (TRANS("Copier"),  1, KeyPress (KeyPress::returnKey));
+        w.addButton (TRANS("Annuler"), 0, KeyPress (KeyPress::escapeKey));
+        if (w.runModalLoop() != 1) return;
+
+        String name = w.getTextEditorContents ("name").trim();
+        if (name.isEmpty()) name = "Mes presets";
+        if (! name.endsWithIgnoreCase (".syx")) name += ".syx";
+        File target = appDirPath.getChildFile (File::createLegalFileName (name));
+
+        {
+            FileOutputStream fos (target);   // se positionne en fin -> ajoute le bloc
+            if (fos.failedToOpen())
+            {
+                labelInfoLine.setText ("ERREUR : ecriture impossible", dontSendNotification);
+                labelInfoLine.setColour (Label::textColourId, Colours::red);
+                return;
+            }
+            fos.setPosition (target.getSize());
+            fos.write (block.getData(), block.getSize());
+            fos.flush();
+        }
+        LibraryIndex::get().refreshBank (target);   // réindexe la banque cible
+        bankList.loadBank();
+        labelInfoLine.removeColour (Label::textColourId);
+        labelInfoLine.setText (TRANS("Preset copie vers ") + target.getFileName(), dontSendNotification);
     }
 
     void buttonClicked (Button* button) override
@@ -550,13 +688,50 @@ private:
     TextEditor searchBox;
     TextButton btDeleteBank {TRANS("Supprimer la banque")};
     ComboBox   synthFilterCombo;
+    ComboBox   sortCombo;
 
     // Panneau d'inspection du preset
     Label       inspTitle;
     Label       tagsLabel, notesLabel;
     TextEditor  tagsEditor, notesEditor;
     ToggleButton favBtn { TRANS("Favori") };
+    TextButton  btCopyPreset { TRANS("Copier vers...") };
     String      currentPresetKey;
+    int         currentSlot = -1;
+
+    // Recherche globale de presets -> vue résultats à plat (remplace les 4 colonnes).
+    TextEditor   presetSearch;
+    ComboBox     tagFilter;
+    ToggleButton favToggle { TRANS("Favoris") };
+    juce::Array<LibraryIndex::Hit> results;
+
+    struct ResultsModel : public juce::ListBoxModel
+    {
+        juce::Array<LibraryIndex::Hit>& hits;
+        std::function<void(int)> onSelect, onSend;
+        ResultsModel (juce::Array<LibraryIndex::Hit>& h) : hits (h) {}
+
+        int getNumRows() override { return hits.size(); }
+
+        void paintListBoxItem (int row, Graphics& g, int w, int h, bool sel) override
+        {
+            if (row < 0 || row >= hits.size()) return;
+            if (sel)            g.fillAll (SYColSelected);
+            else if (row % 2)   g.fillAll (SYColAlt);
+            auto& hit = hits.getReference (row);
+            g.setColour (sel ? SYColSelected.contrasting() : SYColLabel);
+            g.setFont (h * 0.55f);
+            const String bank = hit.relPath.fromLastOccurrenceOf ("/", false, false);
+            const String tags = hit.tags.isEmpty() ? String() : "   [" + hit.tags.joinIntoString (", ") + "]";
+            const String star = hit.fav ? String::fromUTF8 ("\xE2\x98\x85 ") : String();
+            g.drawFittedText (star + hit.name.trim() + "   \xE2\x80\x94   " + bank + "  \xC2\xB7 " + hit.synth + tags,
+                              8, 0, w - 12, h, Justification::centredLeft, 1);
+        }
+        void selectedRowsChanged (int row) override        { if (onSelect) onSelect (row); }
+        void listBoxItemDoubleClicked (int row, const MouseEvent&) override { if (onSend) onSend (row); }
+    };
+    ResultsModel resultsModel { results };
+    ListBox      resultsList { "results", &resultsModel };
     
     int rowSelected;
     

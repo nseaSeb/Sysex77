@@ -241,6 +241,16 @@ public:
         save();
     }
 
+    // Réindexe UNE banque (après copie d'un preset / modification). Ciblé, pas de full scan.
+    void refreshBank (const juce::File& f)
+    {
+        if (! f.existsAsFile())
+            return;
+        indexBank (f, relPathOf (f), f.getSize(), f.getLastModificationTime().toMilliseconds());
+        save();
+        notifyChanged();
+    }
+
     void renameBank (const juce::String& oldRel, const juce::String& newRel)
     {
         {

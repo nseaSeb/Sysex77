@@ -211,27 +211,19 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
   d'écrasement** (sinon annulation). Checksum de chaque bloc validé à l'écriture.
   **(3) Recherche** : champ de filtre au-dessus de la liste des banques (`BankTableModel` garde une
   liste maître ; `arrayBank`/`BankFiles` = vue filtrée, mapping ligne→fichier conservé). Build 900/900.
-## Vision « librairie multi-synthés » (PLAN, non implémenté)
-
-Idée (utilisateur, 2026-06-26) : faire de la librairie un gestionnaire de SysEx **multi-synthés**,
-pas seulement SY77. Quatre briques, toutes faisables, à livrer par incréments :
-
-1. **Détection auto du synthé** depuis l'en-tête SysEx — fonction PURE dans `SysexUtils.h`
-   (+ test `Tests.h`, cf. contrat « toute logique pure → SysexUtils »). `byte[1]` = fabricant
-   (0x43 Yamaha, 0x41 Roland, 0x42 Korg…) ; pour Yamaha, `byte[3]` = format/modèle (0x7A = SY77/
-   TG77 bulk, formats DX7 natifs distincts, etc.). Réutilise le découpage par bloc F0…F7 déjà
-   éprouvé (cf. `verifyYamahaBulkChecksum`). Renvoie un enum `SynthKind { SY77, DX7, RolandX, … }`.
-2. **Filtre dans la librairie** — `ComboBox` « Tous / SY77 / DX7 / … » au-dessus de la liste ;
-   `BankTableModel::loadBank` applique le filtre via le détecteur (1). Changement localisé à
-   `BankTableModel.h` + `Librairie.h`.
-3. **Index de métadonnées** — un `.syx` n'a aucun champ libre → **index central** unique
-   (ex. `library.json` dans le dossier lib) reliant `fichier → {synthé, tags, auteur, notes,
-   favori}`. Plus simple qu'un sidecar par fichier ; réutilise l'emplacement de l'ancien
-   `Bank.xml` (aujourd'hui mort). Permet tri/recherche/favoris « aux petits oignons ».
-4. **Envoi cross-synthé (garde-fou)** — ⚠️ [[feedback-hardware-safety]] : n'autoriser SEND que
-   vers le synthé **correspondant au type détecté** ; jamais d'envoi silencieux d'un dump SY77
-   vers un autre synthé (SEND se grise / avertit en cas de mismatch). Les évolutions « envoi vers
-   d'autres synthés » se feront unité par unité, chacune vérifiée HW avant activation.
-
-Ordre conseillé : (1) détecteur + tests → (2) filtre UI → (3) index métadonnées → (4) envois
-multi-synthés gardés. Étapes 1-3 sont 100 % locales (sans risque matériel).
+- **2026-06-26 (LIB) — Refonte librairie « moderne » (FAIT, 3 phases).** Voir `LibraryIndex.h`.
+  **Phase 1** : index `library.json` (juce::JSON ; par banque le synthé détecté + size/mtime, par
+  preset clé `banque#slot` -> nom/tags/notes/favori) ; chargé au démarrage + réconcilié au disque en
+  tâche de fond (ajout/purge/refresh) ; `SyVoice::detectSynthKind`/`synthKindLabel` (pur + test) ;
+  **suppression de banque** fiabilisée (bug d'index sous filtre corrigé) + bouton visible +
+  désindexation ciblée. **Phase 2** : **panneau d'inspection** du preset (nom·synthé·type + Tags/Notes
+  éditables + Favori, persistés), **indicateur ★/•** dans la liste de voix, **filtre par synthé**
+  (ComboBox visible si >1 synthé). **Phase 3** : **recherche globale de presets** (champ + filtre tag
+  + bascule ★) -> le panneau droit bascule en **liste de résultats à plat** (`LibraryIndex::searchPresets`,
+  nom·banque·synthé·tags ; sélection charge la banque, double-clic envoie) ; **copier un preset vers une
+  banque perso** (ajout du bloc F0…F7, `refreshBank`) ; **tri** banques (nom/synthé/date).
+  Réel : 247 banques / 18199 presets indexés. Build 905/905 tests.
+  RESTE (non fait) : **envoi cross-synthé gardé** — n'autoriser SEND/audition que vers le synthé du
+  type détecté ([[feedback-hardware-safety]]) ; aujourd'hui l'envoi reste pensé SY77 (les banques
+  d'autres synthés sont stockées/affichées/cherchables mais l'éditeur et l'audition edit-buffer
+  restent SY77). À faire unité par unité, vérifié HW avant activation.

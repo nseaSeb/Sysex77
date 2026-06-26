@@ -351,10 +351,52 @@ struct SourceItemListboxContents  : public ListBoxModel, public ChangeBroadcaste
         bankFilesAll.clear();
         bankNamesAll.clear();
         appDirPath.findChildFiles(bankFilesAll, File::TypesOfFileToFind::findFiles, true, "*.syx");
-        for (auto& f : bankFilesAll)
-            bankNamesAll.add (f.getFileName());
-
+        sortMaster();    // remplit bankNamesAll (trié selon sortMode)
         applyFilter();
+    }
+
+    // Tri de la liste maître : 0 = nom A→Z, 1 = synthé, 2 = date (récent d'abord).
+    void sortMaster()
+    {
+        std::vector<File> v (bankFilesAll.begin(), bankFilesAll.end());
+        const int mode = sortMode;
+        std::sort (v.begin(), v.end(), [mode] (const File& a, const File& b)
+        {
+            if (mode == 2)
+                return a.getLastModificationTime() > b.getLastModificationTime();
+            if (mode == 1)
+            {
+                auto& idx = LibraryIndex::get();
+                const auto sa = idx.synthOfBank (idx.relPathOf (a));
+                const auto sb = idx.synthOfBank (idx.relPathOf (b));
+                if (sa != sb) return sa < sb;
+            }
+            return a.getFileName().compareIgnoreCase (b.getFileName()) < 0;
+        });
+        bankFilesAll = Array<File> (v.data(), (int) v.size());
+        bankNamesAll.clear();
+        for (auto& f : v) bankNamesAll.add (f.getFileName());
+    }
+
+    void setSortMode (int m) { sortMode = m; sortMaster(); applyFilter(); }
+
+    // Charge une banque par chemin relatif (vue résultats) : remplit currentBankData/RelPath,
+    // peuple les noms de voix, et notifie (recharge colonnes / inspecteur).
+    void loadBankByRelPath (const String& rel)
+    {
+        File f = appDirPath.getChildFile (rel);
+        arrayListVoices.clear();
+        currentBankData.setSize (0);
+        currentBankRelPath = String();
+        MemoryBlock mb;
+        if (f.existsAsFile() && f.loadFileAsData (mb)
+            && SyVoice::looksLikeYamahaSysex ((const uint8*) mb.getData(), mb.getSize()))
+        {
+            currentBankData = mb;
+            currentBankRelPath = rel;
+            arrayListVoices.addArray (SyVoice::extractVoiceNames ((const uint8*) mb.getData(), mb.getSize()));
+        }
+        sendChangeMessage();
     }
 
     // Construit la vue filtrée (arrayBank/BankFiles) à partir de la liste maître + filterText.
@@ -428,6 +470,7 @@ struct SourceItemListboxContents  : public ListBoxModel, public ChangeBroadcaste
     StringArray bankNamesAll;
     String      filterText;
     String      synthFilter;    // "" = tous synthés
+    int         sortMode = 0;   // 0=nom, 1=synthé, 2=date
     ListBox sourceListBox  { "D+D source", nullptr };
     GroupComponent  groupDrop;
     SourceItemListboxContents sourceModel;
