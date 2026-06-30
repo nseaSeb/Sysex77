@@ -99,6 +99,21 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
 ---
 
 ## Journal
+- **2026-06-30 (architecture — dico déclaratif, Phase 1)** — Décision : passer d'une RE paramètre
+  par paramètre à un **dictionnaire de paramètres déclaratif** (source de vérité unique), inspiré du
+  modèle Electra One / lua. AUDIT DE RÉCONCILIATION d'abord (`docs/reconciliation_audit.md`, script
+  scratchpad `reconcile.py`) : croise le **JSON Electra** (241 contrôles) × `translate()` du **codec
+  lua** (`docs/TG-77 Voice lua and json/main.lua`, bench-verified) → **table master de 221 params**
+  (nom/zone/group/N2/encodage/plage). Encodages : 194 plain / 23 s/m / 4 o/b2. Constat clé : notre
+  couverture n'est centralisée NULLE PART de façon machine-lisible (adresses calculées à l'exécution,
+  MAP.md en prose) — d'où le dico. PHASE 1 livrée (`SysexUtils.h`) : **codec d'encodage générique**
+  `enum SyEnc` + primitives pures `smToWire/Display(half,signbit)`, `obToWire/Display(offset)`,
+  `ob2Combined/V1/V2/ToDisplay` ; `egLevel`/`panLevel`/`fpdDetune` refactorés en wrappers (équivalence
+  prouvée par test). L'**o/b2** (4 break-point offsets, jusque-là non implémenté) est désormais codé +
+  testé. Tests `codec déclaratif` (s/m ±7/±12/±15, o/b1 64/32, o/b2 inversible) → **1599/1599**.
+  Outil : `build.sh` corrigé (lançait un binaire Release périmé via `find|head -1` → faux 911 ; préfère
+  maintenant l'artefact du BUILD_TYPE). À FAIRE (phases suivantes) : générer la table 221 entrées en
+  C++ depuis le JSON ; resolver `syTranslate(ui,el,filtre)→(G,T2,N2)` (port lua) ; migrer les widgets.
 - **2026-06-30 (nettoyage legacy)** — Suppression du vieil éditeur d'enveloppe mort + démo JUCE.
   `Source/ADSR.h` (classe `SADSR`) et `Source/Hook.h` (classes `Hook`/`Segment`) = ancien éditeur EG
   graphique, remplacé par `EnvelopeDraw.h` + vues Wave/Pitch-EG/filtres → **jamais instancié**.

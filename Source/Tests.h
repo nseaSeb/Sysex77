@@ -511,6 +511,36 @@ struct SysexUtilsTests : public juce::UnitTest
             expectEquals ((int) SyVoice::fpdDetuneToWire (-100), 31);
         }
 
+        beginTest ("codec déclaratif — primitives s/m, o/b1, o/b2 (oracle lua) + équivalence wrappers");
+        {
+            using namespace SyVoice;
+            // s/m générique : ±7 {7,8}, ±12 {12,16}, ±15 {15,16} — inversible + ancres lua.
+            for (auto sb : { std::pair<int,int>{7,8}, {12,16}, {15,16} })
+                for (int d = -sb.first; d <= sb.first; ++d)
+                    expectEquals (smToDisplay (smToWire (d, sb.first, sb.second), sb.first, sb.second), d);
+            expectEquals (smToWire ( 0, 7, 8), 0);
+            expectEquals (smToWire (-1, 7, 8), 9);    // signbit 8 | 1
+            expectEquals (smToWire (-7, 7, 8), 15);   // 8 | 7
+            expectEquals (smToWire (-12, 12, 16), 28);// 16 | 12 (AT PB range)
+            // fpdDetune == primitive s/m {15,16} (le wrapper ne change rien).
+            for (int d = -15; d <= 15; ++d)
+                expectEquals ((int) fpdDetuneToWire (d), smToWire (d, 15, 16));
+
+            // o/b1 générique : EG filtre (offset 64) et pan (offset 32) == wrappers.
+            for (int w = 0; w <= 127; ++w) expectEquals (egLevelToDisplay ((juce::uint8) w), obToDisplay (w, 64));
+            for (int d = -64; d <= 63; ++d) expectEquals ((int) egLevelToWire (d), obToWire (d, 64, 127));
+            for (int d = -32; d <= 31; ++d) expectEquals ((int) panLevelToWire (d), obToWire (d, 32, 63));
+
+            // o/b2 (FOS break-point offsets) : display -127..+127 -> combined=display+128, V1=bit7,V2=low7.
+            expectEquals (ob2Combined (0),   128);
+            expectEquals (ob2Combined (-127), 1);
+            expectEquals (ob2Combined (127), 255);
+            expectEquals ((int) ob2V1 (127), 1);  expectEquals ((int) ob2V2 (127), 127);   // 255 = (1<<7)|127
+            expectEquals ((int) ob2V1 (0),   1);  expectEquals ((int) ob2V2 (0),   0);      // 128 = (1<<7)|0
+            for (int d = -127; d <= 127; ++d)
+                expectEquals (ob2ToDisplay (ob2V1 (d), ob2V2 (d)), d);   // inversibilité 2 octets
+        }
+
         beginTest ("voiceBlobToParams decodes confirmed AFM operator params (SteelStrng)");
         {
             // Dump réel de la voix « SteelStrng » (1AFM, type@32 == 0x03), F0..F7 (466 o.).

@@ -606,18 +606,58 @@ namespace SyVoice
     //     (json display -127..+127, message 0..254 ; lua OB2 combined=msg+1,
     //     V1=bit7, V2=low7) — encodage distinct, non couvert ici.
 
+    //==============================================================================
+    // CODEC D'ENCODAGE DÉCLARATIF — cœur du futur dictionnaire de paramètres.
+    // Chaque paramètre a UN encodage ; ces primitives PURES centralisent la logique
+    // jusqu'ici éparpillée (fonctions par cas + chemin boolNegative des widgets).
+    // Oracle : docs/.../main.lua (encodeValue + tables SM/OB2), bench-verified.
+    enum class SyEnc { plain, signMag, offBin1, offBin2 };
+
+    /** Signe-magnitude : affichage signé (-half..+half) -> octet filaire.
+        signbit = bit posé pour le négatif (detune {15,16} ; ±7 {7,8} ; ±12 {12,16}).
+        Ex. lua encodeValue : signed=msg-half ; <0 -> signbit+(-signed). */
+    inline int smToWire (int display, int half, int signbit) noexcept
+    {
+        display = juce::jlimit (-half, half, display);
+        return display >= 0 ? display : (signbit | (-display));
+    }
+    inline int smToDisplay (int wire, int /*half*/, int signbit) noexcept
+    {
+        const int w = wire & 0x7F;
+        return (w & signbit) ? -(w & (signbit - 1)) : (w & (signbit - 1));
+    }
+
+    /** Offset-binary 1 octet : display signé centré sur `offset` (ex. EG filtre offset 64
+        octet 0..127 ; pan offset 32 octet 0..63). maxWire borne l'octet. */
+    inline int obToWire (int display, int offset, int maxWire) noexcept
+    {
+        return juce::jlimit (0, maxWire, display + offset);
+    }
+    inline int obToDisplay (int wire, int offset) noexcept
+    {
+        return (int) (wire & 0x7F) - offset;
+    }
+
+    /** Offset-binary 2 octets (FOS / break-point offsets) : display -127..+127.
+        combined = display + 128 (1..255) ; V1 = bit7, V2 = low7 (cf. lua OB2). */
+    inline int   ob2Combined  (int display) noexcept { return juce::jlimit (-127, 127, display) + 128; }
+    inline juce::uint8 ob2V1   (int display) noexcept { return (juce::uint8) ((ob2Combined (display) >> 7) & 0x01); }
+    inline juce::uint8 ob2V2   (int display) noexcept { return (juce::uint8) (ob2Combined (display) & 0x7F); }
+    inline int   ob2ToDisplay (int v1, int v2) noexcept { return (((v1 & 0x01) << 7) | (v2 & 0x7F)) - 128; }
+
+    //==============================================================================
     /** Octet filaire o/b (0..127) -> valeur d'affichage signée (-64..+63).
         Inverse exact de egLevelToWire. Source : main.lua l.22 + TG77_Voice.json. */
     inline int egLevelToDisplay (juce::uint8 wire) noexcept
     {
-        return (int) (wire & 0x7F) - 64;
+        return obToDisplay (wire, 64);
     }
 
     /** Valeur d'affichage signée (-64..+63) -> octet filaire o/b (0..127).
         Inverse exact de egLevelToDisplay ; borne le résultat dans 0..127. */
     inline juce::uint8 egLevelToWire (int display) noexcept
     {
-        return (juce::uint8) juce::jlimit (0, 127, display + 64);
+        return (juce::uint8) obToWire (display, 64, 127);
     }
 
     //==============================================================================
@@ -636,15 +676,13 @@ namespace SyVoice
     /** Affichage détune signé (-15..+15) -> octet filaire s/m (0..15 / 17..31). */
     inline juce::uint8 fpdDetuneToWire (int display) noexcept
     {
-        display = juce::jlimit (-15, 15, display);
-        return (juce::uint8) (display >= 0 ? display : (0x10 | (-display)));
+        return (juce::uint8) smToWire (display, 15, 16);
     }
 
     /** Octet filaire s/m FPD -> affichage signé (-15..+15). Inverse de fpdDetuneToWire. */
     inline int fpdDetuneToDisplay (juce::uint8 wire) noexcept
     {
-        const int w = wire & 0x7F;
-        return (w & 0x10) ? -(w & 0x0F) : (w & 0x0F);
+        return smToDisplay (wire, 15, 16);
     }
 
     /** Configure un slider de NIVEAU d'EG pour afficher le signé o/b (-64..+63) tout en
@@ -671,13 +709,13 @@ namespace SyVoice
     /** Octet filaire o/b pan (0..63) -> valeur d'affichage signée (-32..+31). */
     inline int panLevelToDisplay (juce::uint8 wire) noexcept
     {
-        return (int) (wire & 0x7F) - 32;
+        return obToDisplay (wire, 32);
     }
 
     /** Valeur d'affichage signée (-32..+31) -> octet filaire o/b pan (0..63). */
     inline juce::uint8 panLevelToWire (int display) noexcept
     {
-        return (juce::uint8) juce::jlimit (0, 63, display + 32);
+        return (juce::uint8) obToWire (display, 32, 63);
     }
 
     /** Configure un slider de NIVEAU d'EG de pan : valeur = octet filaire 0..63 (centre 32),

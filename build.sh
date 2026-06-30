@@ -59,7 +59,12 @@ echo "==> Compilation…"
 cmake --build "$BUILD_DIR" --config "$BUILD_TYPE" -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
 
 # Localise le binaire produit (chemin différent selon plateforme/générateur).
+# IMPORTANT : préférer l'artefact du BUILD_TYPE courant — sinon `find … | head -1` peut
+# renvoyer un binaire d'un AUTRE type (ex. Release périmé après une release) et les tests
+# tourneraient sur du code obsolète (faux « N/N passed »).
 APP_BIN="$(find "$BUILD_DIR" -type f \( -name Sysex77 -o -name Sysex77.exe \) \
+            -path "*artefacts/$BUILD_TYPE/*" \( -path '*MacOS*' -o -path '*artefacts*' \) 2>/dev/null | head -1 || true)"
+[[ -z "$APP_BIN" ]] && APP_BIN="$(find "$BUILD_DIR" -type f \( -name Sysex77 -o -name Sysex77.exe \) \
             \( -path '*MacOS*' -o -path '*artefacts*' \) 2>/dev/null | head -1 || true)"
 [[ -z "$APP_BIN" ]] && APP_BIN="$(find "$BUILD_DIR" -type f -name 'Sysex77*' -perm -u+x 2>/dev/null | head -1 || true)"
 
