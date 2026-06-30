@@ -119,8 +119,17 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
   l'audit : 181 plain / 23 s/m / **13 offBin1** (les niveaux EG PEG/FEG, display −64..+63 — l'audit
   les comptait à tort « plain ») / 4 o/b2. Test `SyParamTable` : 221 entrées, ui uniques, aller-retour
   codec sur TOUTE la plage de chaque entrée + ancrages (DETUNE=s/m 15/16, FEG L0=o/b1 64, BP1=o/b2,
-  R1=plain) → **4960/4960**. À FAIRE : Phase 3 resolver `syTranslate(ui,el,filtre)→(G,T2,N2)` (port
-  `translate()` lua) ; Phase 4 migration progressive des widgets vers le dico.
+  R1=plain) → **4960/4960**.
+- **2026-06-30 (dico déclaratif, Phase 3 + liaison)** — `SyVoice::syTranslate(ui, élément, filtre)
+  → {group, T2, N2}` (port PUR de `translate()` lua) dans `SysexUtils.h`. Façade manuelle
+  `Source/SyParam.h` (au-dessus de la table générée) avec `entry(ui)` et **`bytesFor(ui, valeur
+  affichée, élément, filtre, device)`** : table (encodage+plage, valeur BORNÉE) → syTranslate
+  (adresse) → paramBytes → message 9 octets (gère o/b2 V1/V2). C'est l'API que les widgets
+  consommeront (Phase 4) à la place des `{0x43,…}` recopiés. Tests : `syTranslate` (ancrages lua +
+  cohérence avec TOUTE la table : N2 concorde, groupe d'op == afmOperatorGroup) ; `bytesFor` (byte-
+  identité sur TL/DETUNE/FEG/BP1/EF MODE + bornage de plage + cohérence par entrée) → **6251/6251**.
+  Les 3 piliers PURS du dico sont posés et verrouillés par tests. RESTE : Phase 4 = migration
+  progressive des widgets (référencer un `ui` + `bytesFor` au lieu du sysex inline).
 - **2026-06-30 (nettoyage legacy)** — Suppression du vieil éditeur d'enveloppe mort + démo JUCE.
   `Source/ADSR.h` (classe `SADSR`) et `Source/Hook.h` (classes `Hook`/`Segment`) = ancien éditeur EG
   graphique, remplacé par `EnvelopeDraw.h` + vues Wave/Pitch-EG/filtres → **jamais instancié**.

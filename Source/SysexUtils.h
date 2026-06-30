@@ -544,6 +544,37 @@ namespace SyVoice
     }
 
     //==============================================================================
+    // RESOLVER D'ADRESSE — port PUR de translate() du codec lua (main.lua l.74-98).
+    // Transforme un `ui` (parameterNumber de SyParamTable) + l'élément courant (0..3) et
+    // la cible filtre (0..5) en (group, T2, N2) du message param-change. C'est le 2e pilier
+    // du dictionnaire déclaratif (avec SyEnc/SyParamTable) : un widget n'aura plus à recopier
+    // {0x43,…,group,addrHi,…,N2,…} — il référencera un `ui` et passera par ici + paramBytes.
+    struct SyAddr { juce::uint8 group; juce::uint8 t2; juce::uint8 n2; bool ok; };
+
+    inline SyAddr syTranslate (int ui, int element, int filterTarget)
+    {
+        const juce::uint8 el = elementAddrHi (element);          // (element & 3) << 5
+        if (ui >= 1000 && ui < 7000)                              // AFM opérateur (ui = 1000*op + n2)
+        {
+            const int op = ui / 1000, n2 = ui % 1000;
+            if (op >= 1 && op <= 6)                               // op 1..6 = OP1..OP6
+                return { (juce::uint8) (((6 - op) << 4) | 0x06), el, (juce::uint8) n2, true };
+        }
+        else if (ui >= 7000 && ui < 7100) return { 0x05, el,   (juce::uint8) (ui - 7000), true }; // AFM commun
+        else if (ui >= 7100 && ui < 7200) return { 0x02, 0x00, (juce::uint8) (ui - 7100), true }; // Voice commun
+        else if (ui >= 7200 && ui < 7300) return { 0x03, el,   (juce::uint8) (ui - 7200), true }; // Voice élément
+        else if (ui >= 7300 && ui < 7400)                        // Filtre
+        {
+            const int n2 = ui - 7300;
+            int fn = filterTarget;
+            if (n2 >= 0x32) fn = (filterTarget <= 2) ? 2 : 5;    // params filtre-COMMUNS (FRES/FVSON/FCMS)
+            return { 0x09, (juce::uint8) (el | (fn & 0x07)), (juce::uint8) n2, true };
+        }
+        else if (ui >= 7400 && ui < 7500) return { 0x08, 0x00, (juce::uint8) (ui - 7400), true }; // Effets
+        return { 0, 0, 0, false };
+    }
+
+    //==============================================================================
     // Group byte des ENVELOPPES (EG) — source unique de vérité pour les 4 éditeurs d'EG.
     //
     // Le bug historique « group-byte 0x00 » (cf. [[project-eg-sysex-bug]]) venait de ce que

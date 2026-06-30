@@ -11,7 +11,7 @@
 #pragma once
 #include "SysexUtils.h"
 #include "SysexBus.h"
-#include "SyParamTable.h"
+#include "SyParam.h"
 
 //==============================================================================
 /** Boucle d'écho éditeur<->synthé : le garde anti-écho doit empêcher TOUT envoi
@@ -568,6 +568,77 @@ struct SysexUtilsTests : public juce::UnitTest
             expect (find (7309) != nullptr && find (7309)->enc == SyEnc::offBin1 && find (7309)->encA == 64); // FEG L0
             expect (find (7321) != nullptr && find (7321)->enc == SyEnc::offBin2);                            // BP1 OFFSET
             expect (find (1000) != nullptr && find (1000)->enc == SyEnc::plain);                              // R1 OP1
+        }
+
+        beginTest ("syTranslate — resolver d'adresse (port lua) : ancrages + cohérence table/helpers");
+        {
+            using namespace SyVoice;
+            auto A = [] (int ui, int el, int fl) { return syTranslate (ui, el, fl); };
+            // Ancrages (oracle main.lua translate()).
+            { auto a = A(1026,0,0); expect (a.ok && a.group==0x56 && a.t2==0x00 && a.n2==0x1A); } // DETUNE OP1
+            { auto a = A(6000,0,0); expect (a.ok && a.group==0x06 && a.t2==0x00 && a.n2==0x00); } // R1 OP6
+            { auto a = A(7000,1,0); expect (a.ok && a.group==0x05 && a.t2==0x20 && a.n2==0x00); } // AFM commun, élém 2
+            { auto a = A(7141,0,0); expect (a.ok && a.group==0x02 && a.t2==0x00 && a.n2==0x29); } // AT PB (voice commun)
+            { auto a = A(7201,2,0); expect (a.ok && a.group==0x03 && a.t2==0x40 && a.n2==0x01); } // ELDT, élém 3
+            { auto a = A(7309,0,0); expect (a.ok && a.group==0x09 && a.t2==0x00 && a.n2==0x09); } // FEG L0 (par-élément)
+            { auto a = A(7351,0,0); expect (a.ok && a.group==0x09 && a.t2==0x02 && a.n2==0x33); } // VEL SENS commun AFM (fn=2)
+            { auto a = A(7351,3,3); expect (a.ok && a.group==0x09 && a.t2==0x65 && a.n2==0x33); } // commun AWM (fn=5) + élém 4
+            { auto a = A(7400,0,0); expect (a.ok && a.group==0x08 && a.t2==0x00 && a.n2==0x00); } // effet
+            expect (! A(9001,0,0).ok && ! A(500,0,0).ok);                                          // non transmissibles
+
+            // T2 = bits d'élément (sauf voice-commun/effet) : doit suivre elementAddrHi.
+            for (int el = 0; el <= 3; ++el)
+                expectEquals ((int) A(7000, el, 0).t2, (int) elementAddrHi (el));
+
+            // Cohérence avec la TABLE : chaque entrée se résout, son N2 == table, et le groupe
+            // d'op AFM == afmOperatorGroup(6-op).
+            for (const auto& e : SyParam::kParams)
+            {
+                auto a = A(e.ui, 0, 0);
+                expect (a.ok, juce::String ("ui non résolu: ") + juce::String (e.ui));
+                expectEquals ((int) a.n2, (int) e.n2);
+                if (e.zone == SyParam::Zone::afmOp)
+                    expectEquals ((int) a.group, (int) afmOperatorGroup (6 - e.op));
+            }
+        }
+
+        beginTest ("SyParam::bytesFor — pipeline bout-en-bout (table+adresse+encodage) byte-identique");
+        {
+            const int dev = 1;
+            const auto db = SyVoice::deviceByte (dev);
+            auto eq = [&] (SyParam::Msg m, std::array<juce::uint8,9> exp)
+            { expect (m.ok); for (int i = 0; i < 9; ++i) expectEquals ((int) m.bytes[(size_t) i], (int) exp[(size_t) i]); };
+
+            // TL OP1 (plain) : group 0x56, N2 0x1B, valeur brute 100.
+            eq (SyParam::bytesFor (1027, 100, 0, 0, dev),
+                { { 0x43, db, 0x34, 0x56, 0x00, 0x00, 0x1B, 0x00, 100 } });
+            // DETUNE OP1 (s/m 15/16) : display -3 -> wire 16|3 = 19.
+            eq (SyParam::bytesFor (1026, -3, 0, 0, dev),
+                { { 0x43, db, 0x34, 0x56, 0x00, 0x00, 0x1A, 0x00, 19 } });
+            // FEG L0 (offBin1 offset 64), élément 2 : T2 0x20, N2 0x09, display 0 -> wire 64.
+            eq (SyParam::bytesFor (7309, 0, 1, 0, dev),
+                { { 0x43, db, 0x34, 0x09, 0x20, 0x00, 0x09, 0x00, 64 } });
+            // BP1 OFFSET (offBin2) : display 0 -> combined 128 -> V1=1 (octet[7]), V2=0 (octet[8]).
+            eq (SyParam::bytesFor (7321, 0, 0, 0, dev),
+                { { 0x43, db, 0x34, 0x09, 0x00, 0x00, 0x15, 0x01, 0x00 } });
+            // Effet « EF MODE » (group 0x08, N2 0x00, plage 0..3) : display 2 -> V2 2.
+            eq (SyParam::bytesFor (7400, 2, 0, 0, dev),
+                { { 0x43, db, 0x34, 0x08, 0x00, 0x00, 0x00, 0x00, 2 } });
+            // La valeur affichée est BORNÉE à la plage déclarée (7 > max 3 -> 3).
+            expectEquals ((int) SyParam::bytesFor (7400, 7, 0, 0, dev).bytes[8], 3);
+            // ui inconnu -> ok=false.
+            expect (! SyParam::bytesFor (424242, 0, 0, 0, dev).ok);
+
+            // Cohérence : pour CHAQUE entrée de la table, bytesFor concorde octet-pour-octet avec
+            // syTranslate + le codec (sur la borne basse de la plage). Verrouille tout le pipeline.
+            for (const auto& e : SyParam::kParams)
+            {
+                auto a = SyVoice::syTranslate (e.ui, 0, 0);
+                auto m = SyParam::bytesFor (e.ui, e.dispMin, 0, 0, dev);
+                expect (m.ok);
+                expectEquals ((int) m.bytes[3], (int) a.group);
+                expectEquals ((int) m.bytes[6], (int) a.n2);
+            }
         }
 
         beginTest ("voiceBlobToParams decodes confirmed AFM operator params (SteelStrng)");
