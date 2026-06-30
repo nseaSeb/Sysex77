@@ -130,6 +130,14 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
   identité sur TL/DETUNE/FEG/BP1/EF MODE + bornage de plage + cohérence par entrée) → **6251/6251**.
   Les 3 piliers PURS du dico sont posés et verrouillés par tests. RESTE : Phase 4 = migration
   progressive des widgets (référencer un `ui` + `bytesFor` au lieu du sysex inline).
+- **2026-06-30 (dico déclaratif, Phase 4 — PILOTE Effects)** — Premier éditeur migré : `Effects.h`.
+  `setupParam`/`setupToggle` prennent désormais un **`ui`** (au lieu de `(n2, maxVal)` codés main) ;
+  adresse via `syTranslate(ui,0,0)` + plage via `SyParam::entry(ui)->dispMax`. 28 sites mis à jour
+  (ui = 7400+n2). La table avait déjà validé que ses plages == les `maxVal` historiques. Test de
+  NON-RÉGRESSION `Phase 4 pilote Effects` : pour n2=0x00..0x1C, `syTranslate(7400+n2)` == ancien
+  `{0x08,0x00,n2}` byte-pour-byte + plages == maxVal. Build/test **6372/6372** ; écran Effects vérifié
+  par capture (rendu + libellés OK, 0 régression). Patron de migration établi → applicable éditeur
+  par éditeur (AFM op, filtres, LFO…).
 - **2026-06-30 (nettoyage legacy)** — Suppression du vieil éditeur d'enveloppe mort + démo JUCE.
   `Source/ADSR.h` (classe `SADSR`) et `Source/Hook.h` (classes `Hook`/`Segment`) = ancien éditeur EG
   graphique, remplacé par `EnvelopeDraw.h` + vues Wave/Pitch-EG/filtres → **jamais instancié**.

@@ -641,6 +641,26 @@ struct SysexUtilsTests : public juce::UnitTest
             }
         }
 
+        beginTest ("Phase 4 pilote Effects — adresses/plages du dico == ancien inline (byte-identité)");
+        {
+            // Effects.h émettait {0x43,dev,0x34, 0x08, 0x00, 0x00, n2, 0x00, val} pour n2=0x00..0x1C.
+            // Migré : adresse via syTranslate(7400+n2) + plage via SyParamTable. Doit être IDENTIQUE.
+            for (int n2 = 0x00; n2 <= 0x1C; ++n2)
+            {
+                auto a = SyVoice::syTranslate (7400 + n2, 0, 0);
+                expect (a.ok, juce::String ("effet ui non résolu: ") + juce::String (7400 + n2));
+                expectEquals ((int) a.group, 0x08);
+                expectEquals ((int) a.t2,    0x00);
+                expectEquals ((int) a.n2,    n2);
+            }
+            // Plages du dico == maxVal historiquement codés à la main (échantillon).
+            expectEquals (SyParam::entry (7400)->dispMax,  3);   // EF MODE
+            expectEquals (SyParam::entry (7401)->dispMax,  4);   // CH1 TYPE
+            expectEquals (SyParam::entry (7415)->dispMax, 40);   // RV1 TYPE
+            expectEquals (SyParam::entry (7404)->dispMax, 127);  // CH1 PRM1
+            expectEquals (SyParam::entry (7427)->dispMax,  1);   // ST MIX1
+        }
+
         beginTest ("voiceBlobToParams decodes confirmed AFM operator params (SteelStrng)");
         {
             // Dump réel de la voix « SteelStrng » (1AFM, type@32 == 0x03), F0..F7 (466 o.).
