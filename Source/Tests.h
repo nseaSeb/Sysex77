@@ -661,6 +661,26 @@ struct SysexUtilsTests : public juce::UnitTest
             expectEquals (SyParam::entry (7427)->dispMax,  1);   // ST MIX1
         }
 
+        beginTest ("Phase 4 filtres — syTranslate reproduit l'adressage Filter1/Filter2 (byte-identité)");
+        {
+            // Filter1/2 émettaient group 0x09, addrHi = ((élém-1)<<5) | fN, N2 (rates 03-08, levels
+            // 09-0F, slope 10). fN : Filtre1 = 0 (AFM)/3 (AWM) ; Filtre2 = 1 (AFM)/4 (AWM).
+            const int filterN2[] = { 0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0x0C,0x0D,0x0E,0x0F,0x10 };
+            for (int el = 0; el <= 3; ++el)
+                for (int fn : { 0, 1, 3, 4 })
+                    for (int n2 : filterN2)
+                    {
+                        auto a = SyVoice::syTranslate (7300 + n2, el, fn);
+                        expect (a.ok);
+                        expectEquals ((int) a.group, 0x09);
+                        expectEquals ((int) a.t2,    (el << 5) | fn);
+                        expectEquals ((int) a.n2,    n2);
+                    }
+            // Params filtre-COMMUNS (N2 >= 0x32 : FRES/FVSON/FCMS) -> fN forcé 2 (AFM) / 5 (AWM).
+            expectEquals ((int) SyVoice::syTranslate (7300 + 0x32, 1, 0).t2, (1 << 5) | 2); // élém2, AFM-commun
+            expectEquals ((int) SyVoice::syTranslate (7300 + 0x33, 0, 3).t2, (0 << 5) | 5); // AWM-commun
+        }
+
         beginTest ("voiceBlobToParams decodes confirmed AFM operator params (SteelStrng)");
         {
             // Dump réel de la voix « SteelStrng » (1AFM, type@32 == 0x03), F0..F7 (466 o.).

@@ -138,6 +138,15 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
   `{0x08,0x00,n2}` byte-pour-byte + plages == maxVal. Build/test **6372/6372** ; écran Effects vérifié
   par capture (rendu + libellés OK, 0 régression). Patron de migration établi → applicable éditeur
   par éditeur (AFM op, filtres, LFO…).
+- **2026-06-30 (dico déclaratif, Phase 4 — filtres EG)** — `Filter1.h` et `Filter2.h` migrés :
+  l'adressage (group 0x09, T2 = élément|fN, N2) est dérivé de `SyVoice::syTranslate(7300+N2,
+  élément-1, fN)` via un lambda `addr` — fN = 0/3 (Filtre1 AFM/AWM), 1/4 (Filtre2). Suppression des
+  doubles templates `sysexdata/sysexdata2` + du calcul `addrHi |= fN` à la main. Plages, encodage
+  (niveaux = octet filaire o/b + `applyEgLevelDisplay` ; slope s/m), et `referTo` ValueTree
+  INCHANGÉS → byte-identique (les valeurs stockées/chargées ne bougent pas). Test `Phase 4 filtres`
+  : `syTranslate` reproduit l'adressage sur tous élément×fN{0,1,3,4}×N2 + forçage commun N2≥0x32
+  (fN 2/5). Build/test **7270/7270**. RESTE filtre : `CommonFilter.h` (cutoff/réso + communs
+  FRES/FVSON/FCMS @0x32-0x34, signés s/m).
 - **2026-06-30 (nettoyage legacy)** — Suppression du vieil éditeur d'enveloppe mort + démo JUCE.
   `Source/ADSR.h` (classe `SADSR`) et `Source/Hook.h` (classes `Hook`/`Segment`) = ancien éditeur EG
   graphique, remplacé par `EnvelopeDraw.h` + vues Wave/Pitch-EG/filtres → **jamais instancié**.

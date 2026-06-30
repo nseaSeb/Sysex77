@@ -132,9 +132,6 @@ public:
         // Groupe 0x09 = Filtre (SY77/TG77 Table 1-10). T2 = ((elem-1)<<5)|fN ; fN=1 (filtre AFM 2,
         // ajouté plus bas sur les DEUX tableaux). Offsets EG conformes spec (FR1-4=03-06,FRR1=07,FL0-4=09-0D,FRS=10).
         // (Avant : groupe 0x00 jamais valide -> les EG n'atteignaient pas le synthé.)
-        const int filterGroup = (int) SyVoice::egGroupFor (SyVoice::EgKind::filter);   // 0x09
-        int sysexdata2[9] = { 0x43, 0X10, 0x34, filterGroup, 0x00, 0x00, 0x09, 0x00, 0x00 };
-        int sysexdata[9] = { 0x43, 0X10, 0x34, filterGroup, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
         if(element == 1)
         {
@@ -158,8 +155,6 @@ public:
         else if (element ==2)
         {
             sliderSlope.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2SLOPEFILTRE2, &um));
-            sysexdata[4] = 0x20;
-            sysexdata2[4] = 0x20;
             
             sliderL0.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGFILTRE2LEVEL0, &um));
             sliderL1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGFILTRE2LEVEL1, &um));
@@ -178,8 +173,6 @@ public:
         else if (element == 3)
         {
             sliderSlope.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3SLOPEFILTRE2, &um));
-            sysexdata[4] = 0x40;
-            sysexdata2[4] = 0x40;
             
             sliderL0.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGFILTRE2LEVEL0, &um));
             sliderL1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGFILTRE2LEVEL1, &um));
@@ -198,8 +191,6 @@ public:
         else if (element == 4)
         {
             sliderSlope.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4SLOPEFILTRE2, &um));
-            sysexdata[4] = 0x60;
-            sysexdata2[4] = 0x60;
             
             sliderL0.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGFILTRE2LEVEL0, &um));
             sliderL1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGFILTRE2LEVEL1, &um));
@@ -217,64 +208,35 @@ public:
         }
         // fN du filtre 2 : 1 (AFM) / 4 (AWM) sur les DEUX tableaux, AVANT tout envoi
         // (slope/FRS inclus) : sinon le slope et les rates partaient vers le filtre 1.
-        sysexdata[4]  += 0x01 + fnBase;
-        sysexdata2[4] += 0x01 + fnBase;
+        // MIGRATION DICO (Phase 4) : adresse via SyVoice::syTranslate (ui 7300+N2). Filtre 2 ->
+        // fN = 1 (AFM) / 4 (AWM). Plages, encodage (octet filaire o/b + applyEgLevelDisplay) et
+        // referTo INCHANGÉS -> byte-identique. Plus de double template ni de calcul addrHi/fN.
+        const int fNum = 1 + fnBase;
+        auto addr = [&] (MidiSlider& s, int n2)
+        {
+            const auto a = SyVoice::syTranslate (7300 + n2, element - 1, fNum);
+            int sx[9] = { 0x43, 0X10, 0x34, (int) a.group, (int) a.t2, 0x00, (int) a.n2, 0x00, 0x00 };
+            s.setMidiSysex (sx);
+        };
 
-        sysexdata[6] = 0x10;
-        sliderSlope.setMidiSysex(sysexdata);
+        addr (sliderSlope, 0x10);
 
-        // Niveaux d'EG filtre 2 FL0-4 / FRL1-2 : offset-binary (o/b). Octet filaire 0..127
-        // (centre 64) ; le slider stocke l'octet filaire et affiche le signé -64..+63 via
-        // egLevelToDisplay. Provenance : main.lua l.22 + TG77_Voice.json pNum 7309-7315.
         for (auto* s : { &sliderL0, &sliderL1, &sliderL2, &sliderL3, &sliderL4, &sliderRL1, &sliderRL2 })
             SyVoice::applyEgLevelDisplay (*s);
 
-        sysexdata[6] = 0x09;
-        sysexdata2[6] = 0x03;
-        sliderL0.setMidiSysex(sysexdata);
-        sliderL0.setRangeAndRound(0, 127, 64);
-        sliderR1.setMidiSysex(sysexdata2);
-        sliderR1.setRangeAndRound(0, 64, 0);
-
-        sysexdata[6] = 0x0a;
-        sysexdata2[6] = 0x04;
-        sliderL1.setMidiSysex(sysexdata);
-        sliderL1.setRangeAndRound(0, 127, 64);
-        sliderR2.setMidiSysex(sysexdata2);
-        sliderR2.setRangeAndRound(0, 64, 0);
-
-        sysexdata[6] = 0x0b;
-        sysexdata2[6] = 0x05;
-        sliderL2.setMidiSysex(sysexdata);
-        sliderL2.setRangeAndRound(0, 127, 64);
-        sliderR3.setMidiSysex(sysexdata2);
-        sliderR3.setRangeAndRound(0, 64, 0);
-
-        sysexdata[6] = 0x0c;
-        sysexdata2[6] = 0x06;
-        sliderL3.setMidiSysex(sysexdata);
-        sliderL3.setRangeAndRound(0, 127, 64);
-        sliderR4.setMidiSysex(sysexdata2);
-        sliderR4.setRangeAndRound(0, 64, 0);
-
-        sysexdata[6] = 0x0d;
-        sysexdata2[6] = 0x07;
-        sliderL4.setMidiSysex(sysexdata);
-        sliderL4.setRangeAndRound(0, 127, 64);
-        sliderRR1.setMidiSysex(sysexdata2);
-        sliderRR1.setRangeAndRound(0, 64, 0);
-
-        // Compléments EG filtre 2 (le bit fN=1 est déjà appliqué à [4] plus haut) :
-        // FRR2 (rate, 0x08), FRL1 (level, 0x0E, o/b), FRL2 (level, 0x0F, o/b).
-        sysexdata2[6] = 0x08;               // FRR2 (key_off Rate 2)
-        sliderRR2.setMidiSysex(sysexdata2);
-        sliderRR2.setRangeAndRound(0, 64, 0);
-        sysexdata[6] = 0x0e;                // FRL1 (key_off cut_off Level 1, o/b)
-        sliderRL1.setMidiSysex(sysexdata);
-        sliderRL1.setRangeAndRound(0, 127, 64);
-        sysexdata[6] = 0x0f;                // FRL2 (key_off cut_off Level 2, o/b)
-        sliderRL2.setMidiSysex(sysexdata);
-        sliderRL2.setRangeAndRound(0, 127, 64);
+        addr (sliderL0, 0x09);  sliderL0.setRangeAndRound (0, 127, 64);
+        addr (sliderR1, 0x03);  sliderR1.setRangeAndRound (0, 64, 0);
+        addr (sliderL1, 0x0A);  sliderL1.setRangeAndRound (0, 127, 64);
+        addr (sliderR2, 0x04);  sliderR2.setRangeAndRound (0, 64, 0);
+        addr (sliderL2, 0x0B);  sliderL2.setRangeAndRound (0, 127, 64);
+        addr (sliderR3, 0x05);  sliderR3.setRangeAndRound (0, 64, 0);
+        addr (sliderL3, 0x0C);  sliderL3.setRangeAndRound (0, 127, 64);
+        addr (sliderR4, 0x06);  sliderR4.setRangeAndRound (0, 64, 0);
+        addr (sliderL4, 0x0D);  sliderL4.setRangeAndRound (0, 127, 64);
+        addr (sliderRR1, 0x07); sliderRR1.setRangeAndRound (0, 64, 0);
+        addr (sliderRR2, 0x08); sliderRR2.setRangeAndRound (0, 64, 0);
+        addr (sliderRL1, 0x0E); sliderRL1.setRangeAndRound (0, 127, 64);
+        addr (sliderRL2, 0x0F); sliderRL2.setRangeAndRound (0, 127, 64);
     }
     void paint (Graphics& g) override
     {
