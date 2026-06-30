@@ -13,7 +13,6 @@
 int intNumber;
 
 #include <JuceHeader.h>
-#include "ADSR.h"
 #include "Filter1.h"
 #include "Filter2.h"
 #include "CommonFilter.h"

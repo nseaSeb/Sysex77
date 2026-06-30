@@ -54,8 +54,6 @@
         <FILE id="SyxUt1" name="SysexUtils.h" compile="0" resource="0" file="Source/SysexUtils.h"/>
         <FILE id="SyTst1" name="Tests.h" compile="0" resource="0" file="Source/Tests.h"/>
         <FILE id="nRtVwq" name="MidiObjects.h" compile="0" resource="0" file="Source/MidiObjects.h"/>
-        <FILE id="jrsubs" name="ADSR.h" compile="0" resource="0" file="Source/ADSR.h"/>
-        <FILE id="Fv5G3Q" name="Hook.h" compile="0" resource="0" file="Source/Hook.h"/>
       </GROUP>
       <FILE id="yBkFWt" name="MidiSysex.h" compile="0" resource="0" file="Source/MidiSysex.h"/>
       <FILE id="KSWPHc" name="Values.h" compile="0" resource="0" file="Source/Values.h"/>

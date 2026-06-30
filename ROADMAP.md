@@ -99,6 +99,14 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
 ---
 
 ## Journal
+- **2026-06-30 (nettoyage legacy)** — Suppression du vieil éditeur d'enveloppe mort + démo JUCE.
+  `Source/ADSR.h` (classe `SADSR`) et `Source/Hook.h` (classes `Hook`/`Segment`) = ancien éditeur EG
+  graphique, remplacé par `EnvelopeDraw.h` + vues Wave/Pitch-EG/filtres → **jamais instancié**.
+  `ADSR.h` était `#include` par `FilterVue.h`/`Volume.h` sans usage d'aucun symbole → includes retirés,
+  fichiers supprimés (`git rm`), entrées `<FILE>` retirées du `.jucer`. Classe démo `CustomTabButton`
+  (étoile verte, dans une ligne commentée) retirée de `MidiDemo.h`. Build unity CMake (via `Main.cpp`)
+  ne référençait pas ces fichiers → 0 impact. Le `pbxproj` Xcode garde des entrées orphelines de
+  headers `compile="0"` (régénérées au prochain save Projucer, sans effet sur le build). Build/test 911/911.
 - **2026-06-30 (UI/LookAndFeel)** — Rendu BIPOLAIRE (pan) uniforme + aperçu Theme Builder.
   **(1) Pans qui ne partaient pas du centre.** Le remplissage « depuis le centre » (12 h) des
   contrôles bipolaires n'était implémenté QUE dans le potard « arc » par défaut et la barre de

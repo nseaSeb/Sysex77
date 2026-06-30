@@ -200,12 +200,6 @@ struct DemoTabbedComponent  : public TabbedComponent
         // on aligne donc le fond des onglets sur la couleur de fond du thème.
         for (int i = 0; i < getNumTabs(); ++i)
             setTabBackgroundColour (i, SYColBackground);
-   
-        
-        
-        
-        //        getTabbedButtonBar().getTabButton (5)->setExtraComponent (new CustomTabButton (isRunningComponenTransformsDemo),
-        //                                                                  TabBarButton::afterText);
     }
     void currentTabChanged (int newCurrentTabIndex, const String& newCurrentTabName)override
     {
@@ -225,38 +219,7 @@ struct DemoTabbedComponent  : public TabbedComponent
     {
         Logger::writeToLog("TabbedComponent: popupMenuClick");
     }
-    // This is a small star button that is put inside one of the tabs. You can
-    // use this technique to create things like "close tab" buttons, etc.
-    class CustomTabButton  : public Component
-    {
-    public:
-        CustomTabButton (bool isRunningComponenTransformsDemo)
-        : runningComponenTransformsDemo (isRunningComponenTransformsDemo)
-        {
-            setSize (20, 20);
-        }
-        
-        void paint (Graphics& g) override
-        {
-            Path star;
-            star.addStar ({}, 7, 1.0f, 2.0f);
-            
-            g.setColour (Colours::green);
-            g.fillPath (star, star.getTransformToScaleToFit (getLocalBounds().reduced (2).toFloat(), true));
-        }
-        void mouseEnter (const MouseEvent& mouseEvent) override
-        {
-            
-        }
-        void mouseDown (const MouseEvent&) override
-        {
-            
-        }
-    private:
-        bool runningComponenTransformsDemo;
-        //  std::unique_ptr<BubbleMessageComponent> bubbleMessage;
-    };
-    
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DemoTabbedComponent)
 };
 
