@@ -112,8 +112,15 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
   prouvée par test). L'**o/b2** (4 break-point offsets, jusque-là non implémenté) est désormais codé +
   testé. Tests `codec déclaratif` (s/m ±7/±12/±15, o/b1 64/32, o/b2 inversible) → **1599/1599**.
   Outil : `build.sh` corrigé (lançait un binaire Release périmé via `find|head -1` → faux 911 ; préfère
-  maintenant l'artefact du BUILD_TYPE). À FAIRE (phases suivantes) : générer la table 221 entrées en
-  C++ depuis le JSON ; resolver `syTranslate(ui,el,filtre)→(G,T2,N2)` (port lua) ; migrer les widgets.
+  maintenant l'artefact du BUILD_TYPE).
+- **2026-06-30 (dico déclaratif, Phase 2)** — Table générée `Source/SyParamTable.h` (221 entrées
+  `{ui, nom, zone, op, N2, SyEnc, encA, encB, dispMin, dispMax}`) depuis le JSON Electra × lua, via
+  `tools/gen_param_table.py` (+ `tools/reconcile_audit.py`). Classification d'encodage CORRIGÉE vs
+  l'audit : 181 plain / 23 s/m / **13 offBin1** (les niveaux EG PEG/FEG, display −64..+63 — l'audit
+  les comptait à tort « plain ») / 4 o/b2. Test `SyParamTable` : 221 entrées, ui uniques, aller-retour
+  codec sur TOUTE la plage de chaque entrée + ancrages (DETUNE=s/m 15/16, FEG L0=o/b1 64, BP1=o/b2,
+  R1=plain) → **4960/4960**. À FAIRE : Phase 3 resolver `syTranslate(ui,el,filtre)→(G,T2,N2)` (port
+  `translate()` lua) ; Phase 4 migration progressive des widgets vers le dico.
 - **2026-06-30 (nettoyage legacy)** — Suppression du vieil éditeur d'enveloppe mort + démo JUCE.
   `Source/ADSR.h` (classe `SADSR`) et `Source/Hook.h` (classes `Hook`/`Segment`) = ancien éditeur EG
   graphique, remplacé par `EnvelopeDraw.h` + vues Wave/Pitch-EG/filtres → **jamais instancié**.

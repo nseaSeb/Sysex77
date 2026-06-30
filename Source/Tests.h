@@ -11,6 +11,7 @@
 #pragma once
 #include "SysexUtils.h"
 #include "SysexBus.h"
+#include "SyParamTable.h"
 
 //==============================================================================
 /** Boucle d'écho éditeur<->synthé : le garde anti-écho doit empêcher TOUT envoi
@@ -539,6 +540,34 @@ struct SysexUtilsTests : public juce::UnitTest
             expectEquals ((int) ob2V1 (0),   1);  expectEquals ((int) ob2V2 (0),   0);      // 128 = (1<<7)|0
             for (int d = -127; d <= 127; ++d)
                 expectEquals (ob2ToDisplay (ob2V1 (d), ob2V2 (d)), d);   // inversibilité 2 octets
+        }
+
+        beginTest ("SyParamTable — dico déclaratif : 221 entrées, ui uniques, codec aller-retour");
+        {
+            using namespace SyVoice;
+            expectEquals (SyParam::kNumParams, 221);
+            std::set<int> uis;
+            for (const auto& e : SyParam::kParams)
+            {
+                expect (uis.insert (e.ui).second, juce::String ("ui dupliqué: ") + juce::String (e.ui));
+                for (int dsp = e.dispMin; dsp <= e.dispMax; ++dsp)
+                {
+                    switch (e.enc)
+                    {
+                        case SyEnc::plain:   break;   // display == octet filaire (rien à convertir)
+                        case SyEnc::signMag: expectEquals (smToDisplay (smToWire (dsp, e.encA, e.encB), e.encA, e.encB), dsp); break;
+                        case SyEnc::offBin1: expectEquals (obToDisplay (obToWire (dsp, e.encA, e.encB), e.encA), dsp); break;
+                        case SyEnc::offBin2: expectEquals (ob2ToDisplay (ob2V1 (dsp), ob2V2 (dsp)), dsp); break;
+                    }
+                }
+            }
+            // Ancrages (oracle lua/Electra) : encodage correct des params « pièges ».
+            auto find = [] (int ui) -> const SyParam::Entry* {
+                for (const auto& e : SyParam::kParams) if (e.ui == ui) return &e; return nullptr; };
+            expect (find (1026) != nullptr && find (1026)->enc == SyEnc::signMag && find (1026)->encA == 15); // DETUNE OP1
+            expect (find (7309) != nullptr && find (7309)->enc == SyEnc::offBin1 && find (7309)->encA == 64); // FEG L0
+            expect (find (7321) != nullptr && find (7321)->enc == SyEnc::offBin2);                            // BP1 OFFSET
+            expect (find (1000) != nullptr && find (1000)->enc == SyEnc::plain);                              // R1 OP1
         }
 
         beginTest ("voiceBlobToParams decodes confirmed AFM operator params (SteelStrng)");
