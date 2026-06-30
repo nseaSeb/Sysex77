@@ -171,7 +171,6 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         for (auto* l : { &labColPitch, &labColWave, &labColFilter, &labColVolume, &labColPan })
         {
             l->setJustificationType (Justification::centred);
-            l->setColour (Label::textColourId, SYColLabel);
             l->setFont (Font (12.0f, Font::bold));
             addAndMakeVisible (*l);
         }
@@ -836,7 +835,6 @@ void setNombreElements (int nombre)
     void addBtAndMakeStyle (TextButton& textButton)
     {
         textButton.setClickingTogglesState(true);
-        textButton.setColour(TextButton::ColourIds::buttonOnColourId, Colours::red);
         addAndMakeVisible (textButton);
     }
     // Bouton on/off d'ÉLÉMENT : toggle ON = élément actif (accent thème), OFF = muté.
@@ -844,7 +842,6 @@ void setNombreElements (int nombre)
     {
         bt.setClickingTogglesState (true);
         bt.setToggleState (true, dontSendNotification);  // élément actif par défaut
-        bt.setColour (TextButton::ColourIds::buttonOnColourId, SYColSelected);
         addAndMakeVisible (bt);
     }
     void addAndMakePitch ( Slider& slider)
@@ -860,8 +857,6 @@ void setNombreElements (int nombre)
         addAndMakeVisible(slider);
         slider.setPopupDisplayEnabled(true, true, this);
         slider.setPopupDisplayEnabled(true, true, this);
-        slider.setColour(Slider::ColourIds::thumbColourId, Colours::red);
-        slider.setColour(Slider::ColourIds::trackColourId, SYColSelected);
         slider.setRange(0, 127);
         slider.setNumDecimalPlacesToDisplay(0);
         slider.addListener(this);
@@ -869,7 +864,6 @@ void setNombreElements (int nombre)
     void addButtonState (TextButton& bt)
     {
         addAndMakeVisible(bt);
-        bt.setColour(TextButton::ColourIds::buttonOnColourId, SYColSelected);
         bt.setClickingTogglesState(true);
         bt.addListener(this);
     }

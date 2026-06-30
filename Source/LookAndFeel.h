@@ -231,8 +231,14 @@ inline void syncSyLookAndFeel()
     lf.setColour (GroupComponent::outlineColourId, SYPal.panelBorder);
 
     lf.setColour (TextButton::buttonColourId,      SYPal.surfaceAlt);
+    lf.setColour (TextButton::buttonOnColourId,    SYPal.accent);   // état ON = accent (suit le thème)
     lf.setColour (TextButton::textColourOffId,     ink);
     lf.setColour (TextButton::textColourOnId,      SYPal.accent.contrasting());
+
+    // Cases à cocher / interrupteurs : couleurs lues en direct (les widgets n'ont plus à les figer).
+    lf.setColour (ToggleButton::textColourId,         ink);
+    lf.setColour (ToggleButton::tickColourId,         SYPal.accent);
+    lf.setColour (ToggleButton::tickDisabledColourId, SYPal.textMuted);
 
     lf.setColour (ComboBox::backgroundColourId,    SYPal.surfaceAlt);
     lf.setColour (ComboBox::textColourId,          ink);
@@ -242,6 +248,7 @@ inline void syncSyLookAndFeel()
     // listes / tables
     lf.setColour (ListBox::backgroundColourId,     SYPal.surfaceAlt);
     lf.setColour (ListBox::textColourId,           ink);
+    lf.setColour (ListBox::outlineColourId,        SYPal.panelBorder);   // contour = bordure du thème (sinon gris JUCE)
 
     // menus déroulants
     lf.setColour (PopupMenu::backgroundColourId,            SYPal.surfaceAlt);
@@ -272,6 +279,46 @@ inline void refreshThemeAssets()
 }
 
 // Applique une palette : la rend active, dérive les alias legacy, charge les assets, (re)sélectionne le LAF.
+// Registre des labels à couleur de RÔLE (accent, muted, fond...). setColour() FIGE la couleur
+// au moment de l'appel : un label réglé à la construction garde la couleur du thème de l'époque
+// et ne suit pas un changement de thème. On enregistre (label, fonction rôle->couleur lue en
+// direct sur SYPal) ; applySyPalette ré-applique => ces labels suivent le thème. Les labels à
+// couleur de TEXTE standard n'ont PAS besoin de ça : ils héritent du défaut vivant du LookAndFeel.
+struct SyRoleColours
+{
+    static SyRoleColours& instance() { static SyRoleColours s; return s; }
+    std::vector<std::pair<Component::SafePointer<Component>, std::function<void()>>> items;
+
+    void add (Component& c, std::function<void()> apply)
+    {
+        apply();
+        items.push_back ({ Component::SafePointer<Component> (&c), std::move (apply) });
+    }
+    void refresh()
+    {
+        items.erase (std::remove_if (items.begin(), items.end(),
+                        [] (auto& it) { return it.first == nullptr; }), items.end());
+        for (auto& it : items)
+            if (it.first != nullptr) it.second();   // SafePointer vivant -> la closure peut déréférencer
+    }
+};
+
+// Enregistre un Component dont des couleurs sont des RÔLES de palette (ré-appliquées à chaque thème).
+inline void registerThemeColour (Component& c, std::function<void()> apply)
+{
+    SyRoleColours::instance().add (c, std::move (apply));
+}
+// Label : couleurs arbitraires (texte + fond) en rôle.
+inline void setRoleLabel (Label& l, std::function<void (Label&)> apply)
+{
+    registerThemeColour (l, [&l, apply = std::move (apply)] { apply (l); });
+}
+// Label : cas courant, seule la couleur de TEXTE est un rôle.
+inline void setRoleLabelColour (Label& l, std::function<Colour()> role)
+{
+    registerThemeColour (l, [&l, role = std::move (role)] { l.setColour (Label::textColourId, role()); });
+}
+
 inline void applySyPalette (const SyPalette& p)
 {
     SYPal   = p;
@@ -279,6 +326,7 @@ inline void applySyPalette (const SyPalette& p)
     deriveLegacyAliases();
     refreshThemeAssets();
     selectSyLookAndFeel();
+    SyRoleColours::instance().refresh();  // les composants à couleur de rôle suivent le nouveau thème
 }
 
 // Compat historique : 0 = Dark (Dark Orange), 1 = Light.
@@ -362,6 +410,17 @@ public:
         return LookAndFeel_V4::getTypefaceForFont (f);
     }
 
+    // Un contrôle est « bipolaire » (remplissage depuis le centre / 12 h, point neutre) si
+    // l'appli l'a marqué explicitement (propriété "bipolar" — pour les plages 0..N centrées,
+    // ex. pan EG 0..63 centre 32) OU, à défaut, si sa plage est symétrique autour de 0
+    // (detune ±, slope ±). Source unique honorée par TOUS les rendus (arc, helpers, barres).
+    static bool isBipolar (Slider& s)
+    {
+        if (s.getProperties().contains ("bipolar"))
+            return (bool) s.getProperties()["bipolar"];
+        return (s.getMinimum() < -0.01 && s.getMaximum() > 0.01);
+    }
+
     //========================================================= Potards
     void drawRotarySlider (Graphics& g, int x, int y, int w, int h, float pos,
                            float startA, float endA, Slider& s) override
@@ -404,7 +463,7 @@ public:
         // Arc de valeur (dégradé accent) + glow si actif
         // Contrôle bipolaire (ex. pan) : l'arc part du centre (12h) vers la gauche ou la droite.
         const float centreA = (startA + endA) * 0.5f;
-        const bool  bipolar = (s.getMinimum() < -0.01 && s.getMaximum() > 0.01);
+        const bool  bipolar = isBipolar (s);
         if (s.isEnabled())
         {
             Path val;
@@ -452,7 +511,7 @@ public:
     {
         // Contrôle bipolaire (ex. pan, detune, accord ±) : la portion remplie part du
         // centre (point neutre) au lieu d'une extrémité — vrai pour TOUS les styles.
-        const bool bipolar = (s.getMinimum() < -0.01 && s.getMaximum() > 0.01);
+        const bool bipolar = isBipolar (s);
 
         if (style == Slider::LinearVertical || style == Slider::LinearHorizontal)
         {
@@ -552,9 +611,19 @@ public:
     {
         auto bg  = buttonFill (b, isOver, isDown);
         const bool ghost = (SYPal.buttonStyle == "flat" || SYPal.buttonStyle == "outline");
-        // flat/outline : fond (semi-)transparent -> contrasting() serait faux ; on choisit l'encre nous-mêmes.
-        Colour ink = ghost ? (b.getToggleState() ? SYPal.accent : SYPal.textPrimary)
-                           : bg.contrasting();
+        Colour ink;
+        if (ghost)                       // flat/outline : fond (semi-)transparent -> encre choisie à la main.
+            ink = b.getToggleState() ? SYPal.accent : SYPal.textPrimary;
+        else if (b.getToggleState())     // ON : texte sur le fond ACCENT -> contraste garanti.
+            ink = bg.contrasting();
+        else
+        {
+            // OFF : préférer la couleur de TEXTE du thème (cohérence avec labels/combos) ; ne basculer
+            // sur le contraste garanti (noir/blanc) que si elle serait illisible sur le fond du bouton.
+            ink = SYPal.textPrimary;
+            if (std::abs (ink.getPerceivedBrightness() - bg.getPerceivedBrightness()) < 0.4f)
+                ink = bg.contrasting();
+        }
         g.setColour (b.isEnabled() ? ink : ink.withAlpha (0.5f));
         g.setFont (getTextButtonFont (b, b.getHeight()));
         g.drawFittedText (b.getButtonText(), b.getLocalBounds().reduced (SyMetrics::pad, 0),
@@ -730,13 +799,17 @@ private:
             const float lenAxis = horiz ? r.getWidth() : r.getHeight();
             const int n = jmax (6, (int) (lenAxis / 9.0f));
             const int lit = (int) std::round (pos01 * (float) n);
+            // Bipolaire (pan) : segments allumés ENTRE le centre et la valeur (pas depuis le bord).
+            const int mid = bipolar ? (int) std::round (0.5f * (float) n) : 0;
+            const int loC = jmin (mid, lit), hiC = jmax (mid, lit);
             const float cell = lenAxis / (float) n;
             for (int i = 0; i < n; ++i)
             {
                 auto seg = horiz
                     ? Rectangle<float> (r.getX() + i * cell, r.getY(), cell, r.getHeight()).reduced (cell * 0.16f, r.getHeight() * 0.18f)
                     : Rectangle<float> (r.getX(), r.getBottom() - (i + 1) * cell, r.getWidth(), cell).reduced (r.getWidth() * 0.18f, cell * 0.16f);
-                g.setColour (i < lit ? acc : SYPal.knobTrack.contrasting (0.08f));
+                const bool on = bipolar ? (i >= loC && i < hiC) : (i < lit);
+                g.setColour (on ? acc : SYPal.knobTrack.contrasting (0.08f));
                 g.fillRoundedRectangle (seg, 1.5f);
             }
             g.setColour (SYPal.panelBorder);
@@ -805,16 +878,20 @@ private:
             g.fillRect (r);
             const float lenAxis   = horiz ? r.getWidth()  : r.getHeight();
             const float thickAxis = horiz ? r.getHeight() : r.getWidth();
-            const float d = jmin (thickAxis * 0.7f, 14.0f);
+            const float d = jmin (thickAxis * 0.52f, 10.0f);
             const int n = jmax (4, (int) (lenAxis / (d + 4.0f)));
             const int lit = (int) std::round (pos01 * (float) n);
+            // Bipolaire (pan) : pastilles allumées ENTRE le centre et la valeur (pas depuis le bord).
+            const int mid = bipolar ? (int) std::round (0.5f * (float) n) : 0;
+            const int loC = jmin (mid, lit), hiC = jmax (mid, lit);
             const float gap = lenAxis / (float) n;
             for (int i = 0; i < n; ++i)
             {
                 const float c  = (i + 0.5f) * gap;
                 const float dx = horiz ? r.getX() + c : r.getCentreX();
                 const float dy = horiz ? r.getCentreY() : r.getBottom() - c;
-                g.setColour (i < lit ? acc : SYPal.knobTrack.contrasting (0.10f));
+                const bool on = bipolar ? (i >= loC && i < hiC) : (i < lit);
+                g.setColour (on ? acc : SYPal.knobTrack.contrasting (0.10f));
                 g.fillEllipse (dx - d * 0.5f, dy - d * 0.5f, d, d);
             }
             g.setColour (SYPal.panelBorder);
@@ -845,7 +922,9 @@ private:
         const float ringR = r - 3.0f;
         if (ringR > 1.0f && s.isEnabled())
         {
-            Path val; val.addCentredArc (cx, cy, ringR, ringR, 0.0f, startA, angle, true);
+            // Bipolaire (pan) : l'arc de valeur part du centre (12 h) vers la valeur.
+            const float fillA = isBipolar (s) ? (startA + endA) * 0.5f : startA;
+            Path val; val.addCentredArc (cx, cy, ringR, ringR, 0.0f, jmin (fillA, angle), jmax (fillA, angle), true);
             g.setColour (SYPal.accent);
             g.strokePath (val, PathStrokeType (2.0f, PathStrokeType::curved, PathStrokeType::rounded));
         }
@@ -896,11 +975,14 @@ private:
         const int n = 11;
         const float ro = r - 1.5f, ri = r - jmax (4.0f, r * 0.24f);
         const float tw = jmax (1.5f, r * 0.07f);
+        // Bipolaire (pan) : graduations allumées entre le centre (12 h) et la valeur.
+        const float fillA = isBipolar (s) ? (startA + endA) * 0.5f : startA;
+        const float litLo = jmin (fillA, angle), litHi = jmax (fillA, angle);
         for (int i = 0; i < n; ++i)
         {
             const float t = (float) i / (float) (n - 1);
             const float a = startA + t * (endA - startA);
-            const bool  lit = s.isEnabled() && a <= angle + 0.001f;
+            const bool  lit = s.isEnabled() && a >= litLo - 0.001f && a <= litHi + 0.001f;
             g.setColour (lit ? SYPal.accent : SYPal.knobTrack);
             g.drawLine (cx + std::sin (a) * ri, cy - std::cos (a) * ri,
                         cx + std::sin (a) * ro, cy - std::cos (a) * ro, tw);
@@ -931,7 +1013,9 @@ private:
             g.strokePath (track, PathStrokeType (thick, PathStrokeType::curved, PathStrokeType::rounded));
             if (s.isEnabled())
             {
-                Path val; val.addCentredArc (cx, cy, ringR, ringR, 0.0f, startA, angle, true);
+                // Bipolaire (pan) : l'arc lumineux part du centre (12 h) vers la valeur.
+                const float fillA = isBipolar (s) ? (startA + endA) * 0.5f : startA;
+                Path val; val.addCentredArc (cx, cy, ringR, ringR, 0.0f, jmin (fillA, angle), jmax (fillA, angle), true);
                 g.setColour (SYPal.accent.withAlpha (0.35f));
                 g.strokePath (val, PathStrokeType (thick + 5.0f, PathStrokeType::curved, PathStrokeType::rounded));
                 g.setColour (SYPal.accent);
@@ -963,14 +1047,16 @@ private:
         g.setColour (SYPal.background.contrasting (SYPal.dark ? 0.0f : 0.05f).withAlpha (SYPal.dark ? 0.55f : 0.25f));
         g.strokePath (channel, PathStrokeType (chThick, PathStrokeType::curved, PathStrokeType::butt));
 
-        // Couronne de LED, allumées jusqu'à la valeur.
+        // Couronne de LED, allumées jusqu'à la valeur (depuis le centre si bipolaire — pan).
         const int n = 21;
         const float dr = jmax (1.5f, chThick * 0.30f);
+        const float fillA = isBipolar (s) ? (startA + endA) * 0.5f : startA;
+        const float litLo = jmin (fillA, angle), litHi = jmax (fillA, angle);
         for (int i = 0; i < n; ++i)
         {
             const float t = (float) i / (float) (n - 1);
             const float a = startA + t * (endA - startA);
-            const bool  lit = s.isEnabled() && a <= angle + 0.001f;
+            const bool  lit = s.isEnabled() && a >= litLo - 0.001f && a <= litHi + 0.001f;
             const float dx = cx + std::sin (a) * chMid, dy = cy - std::cos (a) * chMid;
             if (lit)
             {

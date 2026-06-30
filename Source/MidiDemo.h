@@ -317,7 +317,6 @@ struct MidiSettingsPage : public Component
         addAndMakeVisible (rawBtn);
         monitorRaw = getAppSettings()->getBoolValue ("MonitorRaw", false);
         rawBtn.setToggleState (monitorRaw, dontSendNotification);
-        rawBtn.setColour (ToggleButton::tickColourId, SYColSelected);
         rawBtn.onClick = [this]
         {
             monitorRaw = rawBtn.getToggleState();
@@ -422,7 +421,6 @@ public:
         
         addAndMakeVisible(btBulk);
         btBulk.setClickingTogglesState(true);
-        btBulk.setColour(TextButton::ColourIds::buttonOnColourId, SYColSelected);
         btBulk.addListener(this);
 
         // Toggle d'affichage du clavier (gardé en bas) — masque/affiche le clavier.
@@ -430,7 +428,6 @@ public:
         btToggleKeyboard.setAlwaysOnTop (true);   // reste visible au-dessus des onglets (barre de nav)
         btToggleKeyboard.setClickingTogglesState (true);
         btToggleKeyboard.setToggleState (getAppSettings()->getBoolValue ("KeyboardVisible", true), dontSendNotification);
-        btToggleKeyboard.setColour (TextButton::ColourIds::buttonOnColourId, SYColSelected);
         btToggleKeyboard.onClick = [this]
         {
             midiKeyboard.setVisible (btToggleKeyboard.getToggleState());
@@ -450,7 +447,6 @@ public:
             addAndMakeVisible (*b);
             b->setAlwaysOnTop (true);
             b->setClickingTogglesState (true);
-            b->setColour (TextButton::ColourIds::buttonOnColourId, SYColSelected);
         }
         midiListen = getAppSettings()->getBoolValue ("MidiListen", true);
         midiSend   = getAppSettings()->getBoolValue ("MidiSend",   true);
@@ -1086,12 +1082,14 @@ private:
         void paintListBoxItem (int rowNumber, Graphics& g,
                                int width, int height, bool rowIsSelected) override
         {
-            auto textColour = getLookAndFeel().findColour (ListBox::textColourId);
-            
+            // Device ACTIVÉ = ligne sélectionnée : surbrillance à l'accent du thème (comme les
+            // tables Bank/Voices/AWM), texte contrasté. Sinon couleur de texte normale du thème.
+            auto textColour = rowIsSelected ? SYColSelected.contrasting()
+                                            : getLookAndFeel().findColour (ListBox::textColourId);
+
             if (rowIsSelected)
-                g.fillAll (textColour.interpolatedWith (getLookAndFeel().findColour (ListBox::backgroundColourId), 0.5));
-            
-            
+                g.fillAll (SYColSelected);
+
             g.setColour (textColour);
             g.setFont (height * 0.7f);
             
@@ -1491,8 +1489,6 @@ public:
         label.setFont (Font (FontOptions (15.00f, Font::plain)));
         label.setJustificationType (Justification::centredLeft);
         label.setEditable (false, false, false);
-        label.setColour (TextEditor::textColourId, Colours::black);
-        label.setColour (TextEditor::backgroundColourId, Colour (0x00000000));
         
         addAndMakeVisible (label);
     }

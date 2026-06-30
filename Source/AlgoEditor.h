@@ -35,7 +35,6 @@ public:
         sliderAlgo.setSliderStyle (Slider::LinearHorizontal);
         sliderAlgo.setRangeAndRound (1, 45, 1);
         sliderAlgo.setTextBoxStyle (Slider::NoTextBox, true, 10, 10);
-        sliderAlgo.setColour (Slider::thumbColourId, SYColSelected);
         sliderAlgo.setPopupDisplayEnabled (true, true, this);
         sliderAlgo.onValueChange = [this] { onPresetChanged(); };
         sliderAlgo.getValueObject().addListener (this);   // redraw aussi au chargement de voix
@@ -44,13 +43,12 @@ public:
         labelAlgo.attachToComponent (&sliderAlgo, false);
         addAndMakeVisible (labelAlgoNum);
         labelAlgoNum.setJustificationType (Justification::centredRight);
-        labelAlgoNum.setColour (Label::textColourId, SYColSelected);
+        setRoleLabelColour (labelAlgoNum, [] { return SYColSelected; });
         labelAlgoNum.setFont (Font (FontOptions (13.0f)).boldened());
 
         // Toggle FREE (algorithme libre).
         addAndMakeVisible (btFree);
         btFree.setClickingTogglesState (true);
-        btFree.setColour (TextButton::buttonOnColourId, SYColSelected);
         btFree.setTooltip ("Algorithme libre : editer le routage des operateurs");
         btFree.onClick = [this] { onFreeToggled(); };
 
@@ -66,7 +64,6 @@ public:
             addAndMakeVisible (b);
             b->setClickingTogglesState (true);
             b->setRadioGroupId (9201);
-            b->setColour (TextButton::buttonOnColourId, SYColSelected);
             b->onClick = [this, i] { selOp = i; refreshOpControls(); };
         }
         opTab[0]->setToggleState (true, dontSendNotification);
@@ -91,13 +88,12 @@ public:
         for (auto* l : { &lblIn0, &lblIn1, &lblDst, &lblAcc, &lblOp, &lblLvl })
         {
             addAndMakeVisible (*l);
-            l->setColour (Label::textColourId, SYColLabel);
             l->setFont (Font (FontOptions (11.0f)));
         }
 
         // Titre de section : rappelle quel opérateur on édite (les combos/niveau ci-dessous).
         addAndMakeVisible (lblOpHdr);
-        lblOpHdr.setColour (Label::textColourId, SYColSelected);
+        setRoleLabelColour (lblOpHdr, [] { return SYColSelected; });
         lblOpHdr.setFont (Font (FontOptions (12.0f)).boldened());
 
         // Niveau (TL) de l'op sélectionné : barre éditable. autoSend OFF -> n'émet pas elle-même ;
@@ -106,7 +102,6 @@ public:
         sliderLevel.setSliderStyle (Slider::LinearBar);
         sliderLevel.setTextBoxStyle (Slider::TextBoxRight, false, 34, 16);
         sliderLevel.setRange (0, 127, 1);
-        sliderLevel.setColour (Slider::trackColourId, SYColSelected);
         sliderLevel.setAutoSend (false);
         sliderLevel.setPopupDisplayEnabled (true, true, this);
     }

@@ -118,15 +118,15 @@ public:
         auto alternateColour = getLookAndFeel().findColour (ListBox::backgroundColourId)
         .interpolatedWith (getLookAndFeel().findColour (ListBox::textColourId), 0.03f);
         if (rowIsSelected)
-            g.fillAll (Colours::lightblue);
+            g.fillAll (SYColSelected);                       // accent du thème (cf. Bank/Voices tables)
         else if (rowNumber % 2)
             g.fillAll (alternateColour);
     }
-    
+
     void paintCell (Graphics& g, int rowNumber, int columnId,
                     int width, int height, bool rowIsSelected) override
     {
-        g.setColour (rowIsSelected ? Colours::darkblue : getLookAndFeel().findColour (ListBox::textColourId));
+        g.setColour (rowIsSelected ? SYColSelected.contrasting() : getLookAndFeel().findColour (ListBox::textColourId));
         g.setFont (font);
         
         if (auto* rowElement = dataList->getChildElement (rowNumber))

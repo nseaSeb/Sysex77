@@ -643,7 +643,6 @@ private:
     {
         textButton.setClickingTogglesState(true);
         textButton.setRadioGroupId(77);
-        textButton.setColour(TextButton::ColourIds::buttonOnColourId, Colours::red);
         addAndMakeVisible (textButton);
     }
 

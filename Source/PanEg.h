@@ -271,6 +271,12 @@ private:
         wire (sliderRL1,   0x0E, 0, 63, 32);  wire (sliderRL2, 0x0F, 0, 63, 32);
         wire (sliderSlope, 0x10, 0,  3, 0);   // PNSLP (repeat segment)
 
+        // Niveaux de pan (L0..L4, RL1, RL2) : plage 0..63 centrée sur 32 (= pan central).
+        // Pas symétrique autour de 0 -> marqués bipolaires explicitement pour que le rendu
+        // (potard/barre) parte du CENTRE, pas de l'extrémité gauche. Cf. LookAndFeel::isBipolar.
+        for (auto* lv : { &sliderL0, &sliderL1, &sliderL2, &sliderL3, &sliderL4, &sliderRL1, &sliderRL2 })
+            lv->getProperties().set ("bipolar", true);
+
         sx[6] = 0x00;                          // PNSCSEL (source)
         comboSrc.setMidiSysex (sx);
 

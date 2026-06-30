@@ -44,13 +44,11 @@ struct ConfigPage   : public Component, public ComboBox::Listener
         addAndMakeVisible(labEngine);
         addAndMakeVisible(comboEngine);
         labEngine.setText (TRANS("MIDI channel (Device 1-16 / ALL)"), dontSendNotification);
-        labEngine.setColour (Label::textColourId, SYColLabel);
 
         // Suivre le synthé : quand un paramètre arrive du SY77, ouvre la vue concernée.
         addAndMakeVisible (followBtn);
         followSynth = getAppSettings()->getBoolValue ("FollowSynth", false);
         followBtn.setToggleState (followSynth, dontSendNotification);
-        followBtn.setColour (ToggleButton::tickColourId, SYColSelected);
         followBtn.setTooltip (TRANS("Automatically open the view of the parameter received from the SY77"));
         followBtn.onClick = [this]
         {
@@ -64,16 +62,16 @@ struct ConfigPage   : public Component, public ComboBox::Listener
         addAndMakeVisible (btTestConn);
         btTestConn.onClick = [this] { if (onTestConnection) onTestConnection(); };
         addAndMakeVisible (labConnStatus);
-        labConnStatus.setColour (Label::textColourId, SYColLabel);
         labConnStatus.setFont (Font (FontOptions (12.0f)));
         labConnStatus.setJustificationType (Justification::centredLeft);
+        // Couleur de rôle (vert succès / neutre) ré-appliquée à chaque thème (cf. setConnStatus).
+        setRoleLabelColour (labConnStatus, [this] { return connStatusOk ? SYColSelected : SYColLabel; });
 
         // Mode développeur : fait apparaître l'onglet "Midi Setting" (moniteur MIDI + outils RE).
         // Le câblage add/remove de l'onglet est fourni par MidiDemo via onDevModeChanged.
         addAndMakeVisible (devBtn);
         devMode = getAppSettings()->getBoolValue ("DevMode", false);
         devBtn.setToggleState (devMode, dontSendNotification);
-        devBtn.setColour (ToggleButton::tickColourId, SYColSelected);
         devBtn.onClick = [this]
         {
             devMode = devBtn.getToggleState();
@@ -84,7 +82,6 @@ struct ConfigPage   : public Component, public ComboBox::Listener
         addAndMakeVisible (labDevHint);
         labDevHint.setText (TRANS("Shows the \"Midi Setting\" tab: MIDI monitor and reverse-engineering tools."),
                             dontSendNotification);
-        labDevHint.setColour (Label::textColourId, SYColLabel);
         labDevHint.setFont (Font (FontOptions (12.0f)));
         labDevHint.setMinimumHorizontalScale (1.0f);
         labDevHint.setJustificationType (Justification::topLeft);
@@ -95,7 +92,6 @@ struct ConfigPage   : public Component, public ComboBox::Listener
         addAndMakeVisible (updateStartupBtn);
         updateStartupBtn.setToggleState (getAppSettings()->getBoolValue ("CheckUpdatesOnStartup", true),
                                          dontSendNotification);
-        updateStartupBtn.setColour (ToggleButton::tickColourId, SYColSelected);
         updateStartupBtn.onClick = [this]
         {
             getAppSettings()->setValue ("CheckUpdatesOnStartup", updateStartupBtn.getToggleState());
@@ -181,7 +177,6 @@ struct ConfigPage   : public Component, public ComboBox::Listener
         addAndMakeVisible(labVersion);
         labVersion.setText (Sysex77::versionString(), dontSendNotification);
         labVersion.setJustificationType (Justification::centredRight);
-        labVersion.setColour (Label::textColourId, SYColLabel);
 
         addAndMakeVisible(labTheme);
         addAndMakeVisible(comboTheme);
@@ -373,6 +368,7 @@ struct ConfigPage   : public Component, public ComboBox::Listener
     // ok = vert (succès) ; sinon couleur de label neutre. Sûr : appelé depuis le message loop.
     void setConnStatus (const String& text, bool ok)
     {
+        connStatusOk = ok;
         labConnStatus.setColour (Label::textColourId, ok ? SYColSelected : SYColLabel);
         labConnStatus.setText (text, dontSendNotification);
     }
@@ -575,6 +571,7 @@ struct ConfigPage   : public Component, public ComboBox::Listener
     TextButton* bulkBtn     = nullptr;
     TextButton  btTestConn { TRANS("Test connection") };
     Label       labConnStatus;
+    bool        connStatusOk = false;   // état du dernier test (couleur de rôle, suit le thème)
     std::function<void()> onTestConnection;       // câblé par MidiDemo : envoie un Identity Request
 
     // Carte Apparence : langue FR/EN

@@ -131,15 +131,28 @@ public:
         btP2.setBounds (r1.removeFromLeft (110).reduced (3));
         tgP.setBounds  (r1.reduced (3));
         inner.removeFromTop (12);
-        auto r2 = inner.removeFromTop (30);
-        slP1.setBounds (r2.reduced (2));
+        // Barres (légende à gauche, barre à droite).
+        auto layBar = [&] (juce::Slider& s, juce::Label& c)
+        {
+            auto row = inner.removeFromTop (28);
+            c.setBounds (row.removeFromLeft (70));
+            s.setBounds (row.reduced (2));
+            inner.removeFromTop (8);
+        };
+        layBar (slP1, capSl1);
+        layBar (slP2, capSl2);
         inner.removeFromTop (8);
-        auto r3 = inner.removeFromTop (30);
-        slP2.setBounds (r3.reduced (2));
-        inner.removeFromTop (16);
-        auto r4 = inner.removeFromTop (90);
-        knP1.setBounds (r4.removeFromLeft (90));
-        knP2.setBounds (r4.removeFromLeft (90));
+        // Potards : normal, normal, pan bipolaire — légende sous chacun.
+        auto r4 = inner.removeFromTop (96);
+        juce::Slider* kn[] = { &knP1, &knP2, &knPan };
+        juce::Label*  kc[] = { &capKn1, &capKn2, &capPan };
+        const int kw = juce::jmin (90, r4.getWidth() / 3);
+        for (int i = 0; i < 3; ++i)
+        {
+            auto cell = r4.removeFromLeft (kw);
+            kc[i]->setBounds (cell.removeFromBottom (16));
+            kn[i]->setBounds (cell);
+        }
     }
 
     // Appelé après une sauvegarde réussie (ex. ConfigPage -> reloadThemes pour lister le nouveau).
@@ -219,14 +232,29 @@ private:
         addAndMakeVisible (btP1); btP1.setButtonText ("Bouton");
         addAndMakeVisible (btP2); btP2.setButtonText ("Actif"); btP2.setClickingTogglesState (true); btP2.setToggleState (true, juce::dontSendNotification);
         addAndMakeVisible (tgP); tgP.setButtonText ("Switch"); tgP.setToggleState (true, juce::dontSendNotification);
-        auto bar = [&] (juce::Slider& s, double mn, double mx, double v)
-        { addAndMakeVisible (s); s.setSliderStyle (juce::Slider::LinearBar); s.setRange (mn, mx, 1); s.setValue (v, juce::dontSendNotification); };
+
+        auto bar = [&] (juce::Slider& s, double mn, double mx, double v, bool bip = false)
+        { addAndMakeVisible (s); s.setSliderStyle (juce::Slider::LinearBar); s.setRange (mn, mx, 1); s.setValue (v, juce::dontSendNotification);
+          if (bip) s.getProperties().set ("bipolar", true); };
         bar (slP1, 0, 127, 88);
-        bar (slP2, -15, 15, -6);                 // bipolaire
-        auto knob = [&] (juce::Slider& s, double v)
-        { addAndMakeVisible (s); s.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag); s.setRange (0, 127, 1); s.setValue (v, juce::dontSendNotification); s.setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0); };
-        knob (knP1, 80);
-        knob (knP2, 30);
+        bar (slP2,  0,  63, 48, true);           // barre bipolaire (pan) : centre 32, calque pan EG
+
+        auto knob = [&] (juce::Slider& s, double mn, double mx, double v, bool bip = false)
+        { addAndMakeVisible (s); s.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag); s.setRange (mn, mx, 1); s.setValue (v, juce::dontSendNotification);
+          s.setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0); if (bip) s.getProperties().set ("bipolar", true); };
+        knob (knP1,  0, 127, 80);
+        knob (knP2,  0, 127, 30);
+        knob (knPan, 0,  63, 48, true);          // potard bipolaire (pan) : arc/LED partent du centre
+
+        // Légendes : on identifie chaque surface de l'aperçu (sinon « pan » indiscernable d'un potard).
+        auto cap = [&] (juce::Label& l, const juce::String& t, juce::Justification j)
+        { addAndMakeVisible (l); l.setText (t, juce::dontSendNotification); l.setJustificationType (j);
+          l.setFont (juce::Font (juce::FontOptions (11.0f))); l.setColour (juce::Label::textColourId, SYPal.textMuted); };
+        cap (capSl1, "Barre",            juce::Justification::centredLeft);
+        cap (capSl2, "Barre pan",        juce::Justification::centredLeft);
+        cap (capKn1, "Potard",           juce::Justification::centred);
+        cap (capKn2, "Potard",           juce::Justification::centred);
+        cap (capPan, "Pan",              juce::Justification::centred);
     }
 
     void apply()
@@ -234,6 +262,8 @@ private:
         work.glow = work.accent.withAlpha (work.dark ? 0.5f : 0.33f);   // halo suit l'accent
         for (auto& c : colours)
             c.swatch->repaint();                 // la pastille relit *target
+        for (auto* l : { &capSl1, &capSl2, &capKn1, &capKn2, &capPan })
+            l->setColour (juce::Label::textColourId, work.textMuted);   // légendes suivent le thème
         applySyPalette (work);
         repaintEverything();
     }
@@ -276,7 +306,8 @@ private:
     juce::GroupComponent previewPanel;
     juce::TextButton btP1, btP2;
     juce::ToggleButton tgP;
-    juce::Slider slP1, slP2, knP1, knP2;
+    juce::Slider slP1, slP2, knP1, knP2, knPan;
+    juce::Label  capSl1, capSl2, capKn1, capKn2, capPan;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ThemeBuilder)
 };

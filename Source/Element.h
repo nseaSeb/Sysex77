@@ -117,7 +117,6 @@ public:
     {
      
         addAndMakeSlider(sliderVolume);
-        sliderVolume.setColour(Slider::ColourIds::thumbColourId, SYColSelected);
         sliderVolume.setRange(0, 100);
         sliderVolume.setPopupDisplayEnabled(true, true, this);
         sliderVolume.setNumDecimalPlacesToDisplay(0);
@@ -133,7 +132,6 @@ public:
         // sans légende (demande utilisateur).
         addAndMakeVisible (labelLevel);
         labelLevel.setJustificationType (Justification::centred);
-        labelLevel.setColour (Label::textColourId, SYColLabel);
         labelLevel.setFont (Font (9.0f, Font::bold));
         labelLevel.setInterceptsMouseClicks (false, false);
 
@@ -145,8 +143,6 @@ public:
         btGroup2.setClickingTogglesState (true);
         btGroup1.setTooltip ("Sortie : groupe 1");
         btGroup2.setTooltip ("Sortie : groupe 2");
-        btGroup1.setColour (TextButton::ColourIds::buttonOnColourId, SYColSelected);
-        btGroup2.setColour (TextButton::ColourIds::buttonOnColourId, SYColSelected);
 
         addAndMakeVisible(groupWave);
         addAndMakeVisible(groupFilter);
@@ -165,9 +161,12 @@ public:
         addAndMakeVisible(waveNameLabel);
         waveNameLabel.setJustificationType(Justification::centred);
         waveNameLabel.setFont(Font(14.0f, Font::bold));
-        // Contraste maximal : fond inversé OPAQUE + texte couleur du fond.
-        waveNameLabel.setColour(Label::textColourId, SYColBackground);
-        waveNameLabel.setColour(Label::backgroundColourId, SYColBackground.contrasting());
+        // Contraste maximal : fond inversé OPAQUE + texte couleur du fond. Rôles -> suit le thème.
+        setRoleLabel (waveNameLabel, [] (Label& lb)
+        {
+            lb.setColour (Label::textColourId,       SYColBackground);
+            lb.setColour (Label::backgroundColourId, SYColBackground.contrasting());
+        });
         waveNameLabel.setInterceptsMouseClicks(false, false);
         waveNameLabel.setVisible(false);
         // Repeint l'élément (filtre + enveloppe de volume) dès qu'une de ses valeurs change.

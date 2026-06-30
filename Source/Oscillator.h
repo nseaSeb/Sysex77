@@ -116,7 +116,7 @@ public:
         // « Wave N » (N = 1..16, cohérent avec le display 1-indexé de setOscSliderStyle).
         addChildComponent(lblWave);
         lblWave.setJustificationType(Justification::centred);
-        lblWave.setColour(Label::textColourId, SYPal.accent);
+        setRoleLabelColour (lblWave, [] { return SYPal.accent; });
         lblWave.setFont(Font(FontOptions(12.0f)).boldened());
         // Suit la valeur PWAVE de chaque op : referTo (dans setElementNumber) change la source mais
         // garde la liste d'écouteurs du Value -> on s'abonne une fois ici (cf. Operator::sliderAlgo).
@@ -175,7 +175,6 @@ public:
             tab.setRadioGroupId (1001);
             tab.setConnectedEdges (  (i > 0 ? Button::ConnectedOnLeft  : 0)
                                    | (i < 5 ? Button::ConnectedOnRight : 0));
-            tab.setColour (TextButton::buttonOnColourId, SYPal.accent);
             tab.onClick = [this, i] { setSelOp (i); };
         }
         opTab[selOp].setToggleState (true, dontSendNotification);
@@ -192,9 +191,7 @@ public:
             sw.setButtonText (String (i + 1));
             sw.setClickingTogglesState (true);
             sw.setToggleState (true, dontSendNotification);   // défaut : tous ON
-            sw.setColour (TextButton::buttonOnColourId,  SYPal.accent);      // allumé = ON (accent)
-            sw.setColour (TextButton::textColourOnId,    SYPal.background);   // texte lisible sur accent
-            sw.setColour (TextButton::textColourOffId,   SYPal.textMuted);    // atténué = OFF
+            // (Le texte ON/OFF est rendu par ModernLookAndFeel::drawButtonText depuis la palette.)
             sw.setTooltip ("Active/désactive l'opérateur " + String (i + 1) + " (mute via niveau)");
             sw.onClick = [this, i] { toggleOpActive (i); };
         }
@@ -251,7 +248,6 @@ public:
         slider.setRange(0, 127, 1);
         slider.setNumDecimalPlacesToDisplay(0);
         slider.setPopupDisplayEnabled(true, true, this);
-        slider.setColour(Slider::ColourIds::trackColourId, SYColSelected);
     }
 
     ~Oscillator()

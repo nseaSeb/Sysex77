@@ -99,6 +99,83 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
 ---
 
 ## Journal
+- **2026-06-30 (UI/LookAndFeel)** — Rendu BIPOLAIRE (pan) uniforme + aperçu Theme Builder.
+  **(1) Pans qui ne partaient pas du centre.** Le remplissage « depuis le centre » (12 h) des
+  contrôles bipolaires n'était implémenté QUE dans le potard « arc » par défaut et la barre de
+  valeur (`drawValueBar`) ; les 4 recettes de potards thématiques (`drawKnobDot/Tick/Neon/ArcTick`,
+  `LookAndFeel.h`) remplissaient/allumaient TOUJOURS depuis le début de course → pan faux dans les
+  thèmes « dot/tick/neon/arctick ». De plus la détection (`min<0 && max>0`) ratait les pans EG
+  (plage 0..63 centrée sur 32, jamais symétriques autour de 0). FIX : helper unique
+  `ModernLookAndFeel::isBipolar(s)` = propriété explicite `"bipolar"` OU plage symétrique ;
+  honoré par TOUS les rendus (arc + 4 helpers : arc de valeur / graduations / LED allumés entre le
+  CENTRE et la valeur ; `Vintage` = aiguille seule, inchangé). Niveaux pan EG (L0..L4, RL1, RL2)
+  marqués `bipolar` dans `PanEg.h` (`applyAddresses`). Aucun recâblage sysex. Build/test 911/911.
+  COMPLÉMENT : les sous-styles de BARRE `led` et `dots` (`drawValueBar`) allumaient aussi les
+  cellules depuis le bord (`i < lit`) en ignorant `bipolar` (≠ rail/groove/notch/bar qui passent
+  par `fillRect()` déjà centré) → corrigés : segments/pastilles allumés ENTRE le centre et la
+  valeur (centre = vide). Pastilles `dots` aussi rétrécies (0.7→0.52, plafond 14→10 px). 911/911.
+- **2026-06-30 (UI/thème)** — Labels qui ne suivaient pas le changement de thème. CAUSE :
+  `Label::setColour(textColourId, …)` FIGE la couleur à l'appel (construction) ; au changement de
+  thème, seul le DÉFAUT du LookAndFeel (`Label::textColourId = textPrimary`, lu en direct) suit,
+  pas les overrides. DEUX classes : (a) overrides REDONDANTS `= SYColLabel` (== le défaut vivant) —
+  purs snapshots inutiles → **supprimés** (8 sites : AlgoEditor, Config ×4, Effects, Element,
+  Voice) ; les labels héritent du défaut thématisé en direct. (b) overrides de RÔLE (accent/muted/
+  fond) qui doivent rester non-défaut → nouveau registre `SyRoleLabels` (`LookAndFeel.h`) :
+  `setRoleLabel`/`setRoleLabelColour (label, []{ return SYPal.accent; })` enregistre (label via
+  `Component::SafePointer`, applicateur) et `applySyPalette` ré-applique → suivent le thème.
+  Convertis : AfmLfo (titres Main/Sub accent + labels muted), AlgoEditor (ALG n + entête op),
+  Operator (ALG n), Oscillator (nom de wave), Element (waveNameLabel texte+fond), Config (statut
+  de connexion, état mémorisé `connStatusOk`). Statuts orange/rouge (Librairie) = indicateurs
+  intentionnels, inchangés. Build/test 911/911.
+  SUITE (boutons) — même piège pour les BOUTONS (« Bulk Protect », toggles Settings, groupes,
+  onglets…) : `setColour(buttonOnColourId/tickColourId, SYColSelected)` figeait l'état ON. FIX :
+  défaut GLOBAL posé dans `syncSyLookAndFeel` (`TextButton::buttonOnColourId = accent`,
+  `ToggleButton::tickColourId = accent`, `textColourId = ink`, `tickDisabledColourId = textMuted`)
+  → lu en direct par `findColour`. Les 18 overrides par-composant redondants (== accent) SUPPRIMÉS
+  (AlgoEditor, Config ×3, Element ×2, MidiDemo ×4, Oscillator ×2, MidiObjects ×2, Pitch, Voice ×2).
+  Registre `SyRoleLabels` généralisé en `SyRoleColours` (n'importe quel Component via
+  `registerThemeColour`) ; les interrupteurs d'op AFM (texte ON=fond / OFF=muted, non-défaut) y
+  sont enregistrés. Build/test 911/911.
+  VRAI BUG « Bulk Protect » (vu APRÈS capture d'écran — thème DX7 vert/noir) : le TEXTE des boutons
+  pleins (square/round/fun) était `bg.contrasting()` = BLANC, alors que labels/combos/titres
+  prenaient `textPrimary` (vert) → boutons « hors thème ». FIX `drawButtonText` : état OFF utilise
+  désormais `SYPal.textPrimary` (cohérent), repli sur `bg.contrasting()` seulement si l'écart de
+  `getPerceivedBrightness` < 0.4 (illisible) ; état ON garde `accent.contrasting()` (texte sur
+  fond accent). Build/test 911/911. Leçon : pour un bug VISUEL, capturer d'abord (cf. mémoire).
+- **2026-06-30 (UI/audit)** — Audit « artefacts hors-thème » des vues (grep + agent architecte).
+  2 artefacts RÉELLEMENT visibles corrigés : (1) **table AWM** (`AWMVue.h`) sélection en
+  `Colours::lightblue`/`darkblue` codés en dur → `SYColSelected` + `.contrasting()` (aligné sur
+  Bank/Voices tables) ; (2) **libellés d'octave** du clavier `MidiKeyDraw` (`MidiObjects.h`) peints
+  `Colours::white` → `SYColLabel` (illisibles sur thème clair ; touches blanc/noir gardées =
+  métaphore piano assumée). Le RESTE de l'audit = code mort / inerte, PAS des artefacts : `Hook`/
+  `Segment`/`ADSR` (legacy EG jamais instancié), étoile verte `CustomTabButton` (démo JUCE
+  commentée), `setColour` sur colour-ids ignorés par ModernLookAndFeel (Slider track/thumb,
+  TextButton on/text — dont mes lignes Oscillator.h:196-197), `addLabelAndSetStyle` qui pose
+  `TextEditor::textColourId` sur un Label (mauvais id → inerte). Nettoyage de ce code mort = backlog
+  optionnel. Build/test 911/911.
+- **2026-06-30 (UI/audit suite)** — 2 vues signalées par l'user (capture à l'appui). (1) **Listes
+  MIDI In/Out** (`MidiDeviceListBox::paintListBoxItem`) : ligne sélectionnée (device activé) peinte
+  en blend gris texte/fond 50 % → passée à `SYColSelected` + `.contrasting()` (accent, comme
+  Bank/Voices/AWM). (2) **St Mix** (Effects) : déjà couvert par le fix `drawButtonText` (TextButton
+  → texte = couleur du thème) — confirmé vert en DX7. NETTOYAGE CODE MORT (approuvé) : retrait des
+  `setColour` INERTES (colour-ids ignorés par ModernLookAndFeel) — 12 lignes Slider thumb/track +
+  TextButton on (= SYColSelected/red) sur 9 fichiers, le bloc `registerThemeColour` des
+  interrupteurs d'op (Oscillator), 2 lignes `TextEditor::textColourId=black` sur un Label (MidiDemo).
+  RESTE EN BACKLOG (passe dédiée, risqué — inclus par fichiers vivants) : fichiers legacy `ADSR.h`/
+  `Hook.h` + classe `Segment` (EG jamais instancié) et `CustomTabButton` (démo JUCE). Build/test 911/911.
+- **2026-06-30 (UI/fixes ciblés, capture user)** — (A) **Contour card MIDI Input** blanc/gris (vs
+  Output vert) : `MidiDeviceListBox` fait `setOutlineThickness(1)` sans couleur → défaut JUCE gris.
+  Ajout `lf.setColour(ListBox::outlineColourId, SYPal.panelBorder)` au global (`syncSyLookAndFeel`)
+  → toutes les listes ont le contour du thème. (B) **BUG « St Mix » : libellé effacé à la sélection.**
+  `MidiButton::valueChanged` (RX) ET `buttonClicked` (clic) faisaient `setButtonText(strOn/strOff)` ;
+  or `setupToggle`/usages sans `setTextOnOff` laissent `strOn`/`strOff` VIDES → au toggle, le libellé
+  ("St Mix 1", etc.) était remplacé par "" → bouton vert plein sans texte. FIX : ne swapper le texte
+  QUE si `strOn`/`strOff` non vides, sinon garder le libellé statique. Corrige tous les MidiButton
+  utilisés comme toggle simple. Build/test 911/911.
+  **(2) Theme Builder enrichi** (`ThemeBuilder.h`) : l'aperçu n'avait que des potards/barres
+  unipolaires → impossible de juger le pan. Ajout d'un POTARD pan bipolaire (0..63 centre 32, calque
+  pan EG) + passage de la barre bipolaire d'exemple en 0..63 centre 32 + légendes sous chaque
+  surface (Barre / Barre pan / Potard / Pan), couleur suivant le thème. À juger en test.
 - **2026-06-25 (UI/MIDI)** — 2 correctifs après test hardware.
   **(1) Boutons In/Out reconçus en INTERRUPTEURS écoute/envoi** (`MidiDemo.h`). Avant : chaque
   bouton ouvrait un menu de choix de PÉRIPHÉRIQUE (méprise). Désormais 2 toggles ON/OFF rapides

@@ -32,7 +32,6 @@ public:
   //      sliderAlgo.setNumDecimalPlacesToDisplay(0);
         sliderAlgo.setPopupDisplayEnabled(true, true, this);
         sliderAlgo.setTextBoxStyle(Slider::NoTextBox, true, 10, 10);
-        sliderAlgo.setColour(Slider::ColourIds::thumbColourId, SYColSelected);
         sliderAlgo.onValueChange = [this] {setAlgorythm();};
         // Redessine la topologie AUSSI quand la valeur change sans notification (chargement
         // d'une voix : MidiSlider fait setValue(dontSendNotification) -> onValueChange ne se
@@ -45,7 +44,7 @@ public:
         // en haut à droite de la barre. Couleur via rôle de thème (accent).
         addAndMakeVisible(labelAlgoNum);
         labelAlgoNum.setJustificationType(Justification::centredRight);
-        labelAlgoNum.setColour(Label::textColourId, SYColSelected);
+        setRoleLabelColour (labelAlgoNum, [] { return SYColSelected; });
         labelAlgoNum.setFont(Font(FontOptions(14.0f)).boldened());
 
         setAlgorythm();

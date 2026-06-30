@@ -61,10 +61,10 @@ public:
         {
             addAndMakeVisible (*l);
             l->setJustificationType (Justification::centredLeft);
-            l->setColour (Label::textColourId, SYPal.textMuted);
+            setRoleLabelColour (*l, [] { return SYPal.textMuted; });
         }
-        lblMain.setColour (Label::textColourId, SYPal.accent);
-        lblSub .setColour (Label::textColourId, SYPal.accent);
+        setRoleLabelColour (lblMain, [] { return SYPal.accent; });
+        setRoleLabelColour (lblSub,  [] { return SYPal.accent; });
         lblMain.setFont (Font (FontOptions (13.0f)).boldened());
         lblSub .setFont (Font (FontOptions (13.0f)).boldened());
     }
@@ -75,7 +75,6 @@ public:
         s.setSliderStyle (Slider::LinearBar);
         s.setTextBoxStyle (Slider::NoTextBox, true, 0, 0);
         s.setPopupDisplayEnabled (true, true, this);
-        s.setColour (Slider::trackColourId, SYColSelected);
     }
 
     // Câblage : group 0x05, addrHi = élément<<5 (4 éléments), param = N2 de la Table 1-6.

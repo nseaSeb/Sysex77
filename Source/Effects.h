@@ -115,7 +115,6 @@ private:
         addAndMakeVisible (s);
         s.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
         s.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 46, 16);
-        s.setColour (juce::Slider::thumbColourId, SYColSelected);
         s.setRangeAndRound (0, maxVal, 0);
         s.getValueObject().referTo (valueTreeVoice.getPropertyAsValue (id, nullptr));
         int sx[9] = { 0x43, 0x10, 0x34, 0x08, 0x00, 0x00, n2, 0x00, 0x00 };
@@ -125,7 +124,6 @@ private:
         addAndMakeVisible (*lab);
         lab->setText (name, juce::dontSendNotification);
         lab->setJustificationType (juce::Justification::centred);
-        lab->setColour (juce::Label::textColourId, SYColLabel);
         lab->setFont (juce::FontOptions (12.0f));
         lab->attachToComponent (&s, false);
     }

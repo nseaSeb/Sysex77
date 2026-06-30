@@ -87,7 +87,6 @@ public:
         // In your constructor, you should add any child components, and
         // initialise any special settings that your component needs.
         
-        setColour(Slider::ColourIds::thumbColourId, SYColSelected);
         setPopupDisplayEnabled(true, true, this);
         setSliderStyle(SliderStyle::LinearVertical);
         setTextBoxStyle(TextEntryBoxPosition::NoTextBox, false, getWidth(), 20);
@@ -310,7 +309,6 @@ public:
         // In your constructor, you should add any child components, and
         // initialise any special settings that your component needs.
         
-        setColour(TextButton::ColourIds::buttonOnColourId, SYColSelected);
         setClickingTogglesState(true);
         TextButton::addListener(this);
         valueSysexIn.addListener(this); //Listen to the sysex in
@@ -358,14 +356,10 @@ public:
                         // val = value.getValue()[4];
                         // if(sysexData[7] ==  val)
                         setToggleState(value.getValue()[5], dontSendNotification);
-                        if(getToggleState())
-                        {
-                            setButtonText(strOn);
-                        }
-                        else
-                        {
-                            setButtonText(strOff);
-                        }
+                        // Ne swappe le texte QUE si un couple on/off a été défini (setTextOnOff) ;
+                        // sinon on garde le libellé statique (ex. "St Mix 1") au lieu de l'effacer.
+                        if (strOn.isNotEmpty() || strOff.isNotEmpty())
+                            setButtonText (getToggleState() ? strOn : strOff);
                     }
                 }
             }
@@ -378,10 +372,9 @@ public:
 
     void buttonClicked (Button* button) override
     {
-        if(getToggleState())
-            setButtonText(strOn);
-        else
-            setButtonText(strOff);
+        // Idem RX : ne réécris le texte que si un couple on/off existe, sinon garde le libellé statique.
+        if (strOn.isNotEmpty() || strOff.isNotEmpty())
+            setButtonText (getToggleState() ? strOn : strOff);
 
         // Octets PACKÉS (ex. AFM op 0x18 PES / 0x19 KOE-sync) : l'auto-send brut écraserait
         // les autres champs ; l'hôte (Oscillator) compose et émet l'octet complet.
@@ -503,7 +496,6 @@ void addRadio(String text, int radioId)
     {
         auto bt = new TextButton;
         bt->setButtonText(text);
-        bt->setColour(TextButton::ColourIds::buttonOnColourId, SYColSelected);
         bt->setClickingTogglesState(radioId);
         bt->addListener(this);
         bt->setRadioGroupId(radioId);
@@ -742,12 +734,13 @@ public:
         float fY = getHeight() - fHeight;
         
         g.fillRect(0.0f,fY, float(getWidth()), fHeight);
-        
+
+        g.setColour(SYColLabel);   // libellés d'octave = couleur de texte du thème (lisible clair/sombre)
         for(int i = 0 ; i < intOctave +1;i++)
         {
             g.setFont(fHeight*0.3f);
             g.drawFittedText("C" + String(i-2), (i * 7) *  fgrid,0, fgrid * 5, getHeight() -fHeight, Justification::centredLeft ,1);
-            
+
         }
         
         g.setColour(Colours::black);
