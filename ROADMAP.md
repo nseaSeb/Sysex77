@@ -138,6 +138,15 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
   `{0x08,0x00,n2}` byte-pour-byte + plages == maxVal. Build/test **6372/6372** ; écran Effects vérifié
   par capture (rendu + libellés OK, 0 régression). Patron de migration établi → applicable éditeur
   par éditeur (AFM op, filtres, LFO…).
+- **2026-07-01 (dico déclaratif, Phase 4 — CommonFilter)** — 3e éditeur filtre migré :
+  `CommonFilter.h` (cutoff Fq1/Fq2 + résonance/vélocité/LFO communs + radios FTYPE/FMODE + toggle
+  Filtre2). Lambda générique `wire(widget, n2, filterTarget)` (auto& -> marche pour MidiSlider/
+  MidiButton/MidiRadio). filterTarget = fnBase + 0/1/2 (Filtre1/Filtre2/commun) ; les communs
+  (N2≥0x32) sont de toute façon forcés fN 2/5 par syTranslate. Suppression des templates manuels.
+  Byte-identique (referTo/plages/encodage signés inchangés ; adresses CONFIRMÉES synthé). Test
+  filtre étendu (N2 0x00-0x02 sur f1/f2, communs 0x32-0x34 forcés) → **7484/7484**. **Les 3 éditeurs
+  de filtre sont sur le dico.** ⚠️ COMMITÉ EN LOCAL, NON POUSSÉ : l'utilisateur vérifie sur le vrai
+  SY77 avant push (migration byte-identique → contrôle de non-régression).
 - **2026-06-30 (dico déclaratif, Phase 4 — filtres EG)** — `Filter1.h` et `Filter2.h` migrés :
   l'adressage (group 0x09, T2 = élément|fN, N2) est dérivé de `SyVoice::syTranslate(7300+N2,
   élément-1, fN)` via un lambda `addr` — fN = 0/3 (Filtre1 AFM/AWM), 1/4 (Filtre2). Suppression des

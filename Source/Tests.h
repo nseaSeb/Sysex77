@@ -676,9 +676,24 @@ struct SysexUtilsTests : public juce::UnitTest
                         expectEquals ((int) a.t2,    (el << 5) | fn);
                         expectEquals ((int) a.n2,    n2);
                     }
-            // Params filtre-COMMUNS (N2 >= 0x32 : FRES/FVSON/FCMS) -> fN forcé 2 (AFM) / 5 (AWM).
-            expectEquals ((int) SyVoice::syTranslate (7300 + 0x32, 1, 0).t2, (1 << 5) | 2); // élém2, AFM-commun
-            expectEquals ((int) SyVoice::syTranslate (7300 + 0x33, 0, 3).t2, (0 << 5) | 5); // AWM-commun
+            // CommonFilter : cutoff/mode (N2 0x00-0x02) sur fN f1=fnBase+0 / f2=fnBase+1.
+            for (int el = 0; el <= 3; ++el)
+                for (int fn : { 0, 1, 3, 4 })
+                    for (int n2 : { 0x00, 0x01, 0x02 })
+                    {
+                        auto a = SyVoice::syTranslate (7300 + n2, el, fn);
+                        expect (a.ok); expectEquals ((int) a.group, 0x09);
+                        expectEquals ((int) a.t2, (el << 5) | fn);
+                        expectEquals ((int) a.n2, n2);
+                    }
+            // Params filtre-COMMUNS (N2 0x32-0x34 : FRES/FVSON/FCMS) -> fN FORCÉ 2 (AFM) / 5 (AWM),
+            // quel que soit le filterTarget passé (CommonFilter passe fnBase+2 = 2 ou 5).
+            for (int el = 0; el <= 3; ++el)
+                for (int n2 : { 0x32, 0x33, 0x34 })
+                {
+                    expectEquals ((int) SyVoice::syTranslate (7300 + n2, el, 0 + 2).t2, (el << 5) | 2); // AFM
+                    expectEquals ((int) SyVoice::syTranslate (7300 + n2, el, 3 + 2).t2, (el << 5) | 5); // AWM
+                }
         }
 
         beginTest ("voiceBlobToParams decodes confirmed AFM operator params (SteelStrng)");

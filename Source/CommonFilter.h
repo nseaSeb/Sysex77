@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include "SysexUtils.h"     // SyVoice::syTranslate (adressage dico)
 #include "EnvelopeDraw.h"
 
 class CommonFilter    : public ElementComponent, public TextButton::Listener,
@@ -130,8 +131,6 @@ public:
     {
         Logger::writeToLog("Common Filter set element number");
         storedElement = element; lastUm = &um;
-        int sysexdata2[9] = { 0x43, 0X10, 0x34, 0x09, 0x03, 0x00, 0x09, 0x00, 0x00 };
-        int sysexdata[9] = { 0x43, 0X10, 0x34, 0x09, 0x03, 0x00, 0x00, 0x00, 0x00 };
         
         if(element==1)
         {
@@ -150,8 +149,6 @@ public:
         }
         else if(element==2)
         {
-            sysexdata[4] = 0x20;
-            sysexdata2[4] = 0x20;
             btFilter2.getToggleStateValue().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2MODEFILTRE2, &um));
             radioFilter1Mode.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2MODEFILTRE1, &um));
             radioControlFiltre1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2CONTROLEURFILTRE1, &um));
@@ -164,8 +161,6 @@ public:
         }
         else if(element==3)
         {
-            sysexdata[4] = 0x40;
-            sysexdata2[4] = 0x40;
             
             btFilter2.getToggleStateValue().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3MODEFILTRE2, &um));
             radioFilter1Mode.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3MODEFILTRE1, &um));
@@ -179,8 +174,6 @@ public:
         }
         else if(element==4)
         {
-            sysexdata[4] = 0x60;
-            sysexdata2[4] = 0x60;
             
             btFilter2.getToggleStateValue().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4MODEFILTRE2, &um));
             radioFilter1Mode.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4MODEFILTRE1, &um));
@@ -193,46 +186,28 @@ public:
             sliderResonnance.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4RESONNANCEFILTRE, &um));
         }
 
-        // Adresse filtre SY77 (CONFIRMÉE sur le synthé) : groupe 0x09,
-        // addrHi = (élément-1)<<5 | (n°filtre-1) ; param 0x00 = mode, 0x01 = cutoff.
-        const int elemBase = (element - 1) << 5;   // 0x00 / 0x20 / 0x40 / 0x60
-        // fN : filtre 1 / 2 / common = fnBase + 0/1/2. AFM fnBase=0 (fN 0-2), AWM fnBase=3 (fN 3-5).
-        const int f1 = elemBase | (fnBase);
-        const int f2 = elemBase | (fnBase + 1);
-        const int fc = elemBase | (fnBase + 2);
+        // MIGRATION DICO (Phase 4) : adresse (group 0x09, T2 = élément|fN, N2) dérivée de
+        // SyVoice::syTranslate(7300+N2, élément-1, filterTarget). filterTarget = fnBase + 0/1/2
+        // pour Filtre 1 / Filtre 2 / commun (AFM fnBase=0 -> fN 0-2 ; AWM fnBase=3 -> fN 3-5).
+        // Les params COMMUNS (N2 >= 0x32) sont de toute façon forcés par syTranslate vers fN 2/5.
+        // referTo ValueTree et plages/encodage INCHANGÉS -> byte-identique. Adresses CONFIRMÉES synthé.
+        auto wire = [&] (auto& widget, int n2, int filterTarget)
+        {
+            const auto a = SyVoice::syTranslate (7300 + n2, element - 1, filterTarget);
+            int sx[9] = { 0x43, 0X10, 0x34, (int) a.group, (int) a.t2, 0x00, (int) a.n2, 0x00, 0x00 };
+            widget.setMidiSysex (sx);
+        };
+        const int f1t = fnBase + 0, f2t = fnBase + 1, fct = fnBase + 2;
 
-        sysexdata[4] = f1;                  // Filtre 1
-        sysexdata[6] = 0x01;                // cutoff
-        sliderFq1.setMidiSysex(sysexdata);
-        // (Mode/type filtre 1 = AH f1, param 0x00 ; câblé plus bas via radioFilter1Mode.)
-
-        sysexdata[4] = f2;                  // Filtre 2
-        sysexdata[6] = 0x00;                // mode (Thru/LPF/HPF)
-        btFilter2.setMidiSysex(sysexdata);
-        sysexdata[6] = 0x01;                // cutoff
-        sliderFq2.setMidiSysex(sysexdata);
-
-        // Sous-bloc "common" de l'élément : addrHi = fc (confirmé synthé via résonance).
-        sysexdata[4] = fc;
-        sysexdata[6] = 0x32;                // résonance (CONFIRMÉ)
-        sliderResonnance.setMidiSysex(sysexdata);
-        sysexdata[6] = 0x33;                // vélocité (param supposé, addrHi confirmé)
-        sliderVelocity.setMidiSysex(sysexdata);
-        sysexdata[6] = 0x34;                // LFO (param supposé, addrHi confirmé)
-        sliderLfoSens.setMidiSysex(sysexdata);
-
-        // Type de filtre 1 (FTYPE, param 0x00) + mode de contrôle filtre 1 (FMODE, param 0x02).
-        // FTYPE: 0=LPF/1=HPF/2=Thru ; FMODE: 0=EG/1=LFO/2=EG-VA (carte TG77).
-        sysexdata[4] = f1;
-        sysexdata[6] = 0x00;
-        radioFilter1Mode.setMidiSysex(sysexdata);
-        sysexdata[6] = 0x02;
-        radioControlFiltre1.setMidiSysex(sysexdata);
-
-        // Mode de contrôle filtre 2 (FMODE, param 0x02).
-        sysexdata[4] = f2;
-        sysexdata[6] = 0x02;
-        radioControlFiltre2.setMidiSysex(sysexdata);
+        wire (sliderFq1,           0x01, f1t);   // cutoff filtre 1
+        wire (btFilter2,           0x00, f2t);   // mode filtre 2 (Thru/LPF/HPF)
+        wire (sliderFq2,           0x01, f2t);   // cutoff filtre 2
+        wire (sliderResonnance,    0x32, fct);   // résonance (commun, confirmé synthé)
+        wire (sliderVelocity,      0x33, fct);   // vélocité (commun)
+        wire (sliderLfoSens,       0x34, fct);   // LFO sens (commun)
+        wire (radioFilter1Mode,    0x00, f1t);   // FTYPE filtre 1
+        wire (radioControlFiltre1, 0x02, f1t);   // FMODE filtre 1
+        wire (radioControlFiltre2, 0x02, f2t);   // FMODE filtre 2
     }
 
     int fnBase = 0;            // 0 = AFM (fN 0-2), 3 = AWM (fN 3-5)
