@@ -413,3 +413,14 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
   détection au lancement (sauf bouton « Vérifier »). Retiré : `checkAsync` vérifie maintenant à
   CHAQUE démarrage (1 requête ; le dialogue n'apparaît que si une version plus récente non ignorée
   existe). Opt-out `CheckUpdatesOnStartup` conservé.
+- **2026-07-01 (ARCHI) — Dico déclaratif (Phases 1-4).** Migration du câblage widget→Sysex vers un
+  codec déclaratif : primitives d'encodage pures + audit de réconciliation (Ph.1), table de
+  paramètres générée + test de cohérence (Ph.2), resolver `syTranslate` + liaison `bytesFor` (Ph.3),
+  puis migration des éditeurs Effects (pilote), filtres EG (Filter1/Filter2) et CommonFilter
+  (cutoff/réso/communs) (Ph.4). Legacy EG mort + démo JUCE supprimés. Interne, aucun changement
+  visible ; couvert par les tests (7484/7484).
+- **2026-07-01 (FILTRE) — Ordre des labels du Filtre 1 (FIX).** Les boutons radio du Filtre 1 étaient
+  déclarés `LPF/HPF/Thru` (index 0=LPF), alors que l'index du bouton **est** la valeur sysex envoyée
+  et que le reste du code (dessin de la réponse, `EnvelopeDraw::FilterMode { Thru=0, LPF=1, HPF=2 }`,
+  parsing FTYPE) suppose `0=Thru, 1=LPF, 2=HPF`. Résultat vérifié sur le SY77 : cliquer « LPF »
+  envoyait 0 → le synthé faisait Thru (labels décalés d'un cran). Réordonnés en `Thru/LPF/HPF`.
