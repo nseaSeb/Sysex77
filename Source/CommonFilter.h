@@ -28,11 +28,12 @@ public:
         addAndMakeVisible(groupSens);
         
         // add radio for the first filter
-        // Ordre = énum synthé FiltType (carte TG77 vérifiée hardware) : 0=LPF, 1=HPF, 2=Thru.
-        // L'index du bouton = la valeur sysex envoyée (cf. MidiRadio::buttonClicked).
+        // Ordre = énum synthé FiltType (vérifié sur le SY77 hardware) : 0=Thru, 1=LPF, 2=HPF.
+        // L'index du bouton = la valeur sysex envoyée (cf. MidiRadio::buttonClicked) ;
+        // cohérent avec EnvelopeDraw::FilterMode { Thru=0, LPF=1, HPF=2 } et le dessin de réponse.
+        radioFilter1Mode.addRadio("Thru",112);
         radioFilter1Mode.addRadio("LPF",112);
         radioFilter1Mode.addRadio("HPF",112);
-        radioFilter1Mode.addRadio("Thru",112);
         addAndMakeVisible(radioFilter1Mode);
         
         radioControlFiltre1.addRadio("EG", 113);
