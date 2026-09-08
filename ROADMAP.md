@@ -429,7 +429,21 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
   **(7) AWMVue** : sélection de wave via `sendParam9` (dernier envoi brut hors builder). Docs :
   FIXME périmé (nom de voix actif), MAP.md (légende ⚠️, FOS ⬜, lignes RS/VEL/PEG/amp-EG). Tous
   🟡 : **à vérifier sur le SY77** (RS, VEL, PARS, FPRS, Range, Vel SW). Build/test 7506/7506.
-  Écrans vérifiés par capture (Pitch EG, Volume EG, détail AFM). Suite : EG d'ampli PAR opérateur.
+  Écrans vérifiés par capture (Pitch EG, Volume EG, détail AFM).
+- **2026-09-08 (EG d'ampli AFM PAR OPÉRATEUR, bloc 1 suite).** `WaveEg.h` : barre d'onglets
+  **ALL | OP1..OP6** au-dessus du graphe (calque SY77 [F2] All). ALL = comportement historique
+  (diffusion aux 6 groupes, props partagées `ELEMENT<e>EGVOL*` lues aussi par la vignette Voice) +
+  **recopie** de chaque geste utilisateur dans les 6 props par op (`ELEMENT<e>OP<n>EGVOL*`, amorcées
+  depuis la valeur partagée au 1er passage). OPn = sysex sur le seul groupe de l'op, sliders liés
+  aux props de l'op. **RX** : WaveEg écoute `valueSysexIn` et range chaque param d'EG reçu (synthé
+  ou replay de chargement) dans la prop de son op → un dump conserve désormais ses 6 EG distincts
+  (avant : un seul jeu de sliders, dernier op replay gagnant). Recopie ALL→ops désactivée en
+  contexte RX (`suppressSend > 0`) pour ne pas écraser ces valeurs. Le rebind au changement
+  d'onglet est sous `ScopedEchoSuppress` (sinon le referTo ré-émettait 14 param-changes).
+  Table unique `rows()` (slider ↔ N2 ↔ suffixe) remplace les 4 blocs `referTo` copiés-collés.
+  Vérifié par capture : onglets rendus, valeur posée en ALL visible sur OP3. Non vérifié hardware
+  (envoi par op). Build/test 7506/7506. RESTE : vignette Element.h sur props partagées (= dernier
+  op replay après chargement) ; RS non chargé du dump.
 - **2026-07-01 (FILTRE) — Ordre des labels du Filtre 1 (FIX).** Les boutons radio du Filtre 1 étaient
   déclarés `LPF/HPF/Thru` (index 0=LPF), alors que l'index du bouton **est** la valeur sysex envoyée
   et que le reste du code (dessin de la réponse, `EnvelopeDraw::FilterMode { Thru=0, LPF=1, HPF=2 }`,

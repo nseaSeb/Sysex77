@@ -13,7 +13,7 @@
 #include "SysexUtils.h"
 #include "EnvelopeDraw.h"
 
-class WaveEg    : public ElementComponent, public TextButton::Listener, Slider::Listener
+class WaveEg    : public ElementComponent, public TextButton::Listener, Slider::Listener, public Value::Listener
 {
 public:
     WaveEg()
@@ -21,6 +21,20 @@ public:
         // In your constructor, you should add any child components, and
         // initialise any special settings that your component needs.
         
+        // EG PAR OPERATEUR : barre d'onglets ALL | OP1..OP6 (calque le SY77 [F2] All / [F1] op).
+        // ALL = diffusion aux 6 ops (proprietes partagees ELEMENT<e>EGVOL*), OPn = un seul groupe
+        // (proprietes ELEMENT<e>OP<n>EGVOL*). Cf. applyOpBinding().
+        for (int i = 0; i < 7; ++i)
+        {
+            opTab[i].setButtonText (i == 0 ? "ALL" : "OP" + String (i));
+            opTab[i].setRadioGroupId (1002);
+            opTab[i].setClickingTogglesState (true);
+            opTab[i].setConnectedEdges ((i > 0 ? Button::ConnectedOnLeft : 0) | (i < 6 ? Button::ConnectedOnRight : 0));
+            opTab[i].onClick = [this, i] { if (selOp != i) { selOp = i; applyOpBinding(); } };
+            addAndMakeVisible (opTab[i]);
+        }
+        opTab[0].setToggleState (true, dontSendNotification);
+        valueSysexIn.addListener (this);   // stocke les EG par op recus (synthe / chargement dump)
         addAndMakeVisible(keyDraw);
         addAndMakeVisible(samplePathLeft);
         addAndMakeVisible(samplePathRight);
@@ -106,6 +120,7 @@ public:
     
     ~WaveEg()
     {
+        valueSysexIn.removeListener (this);
         sliderSlope.removeListener(this);
     }
     void 	sliderValueChanged (Slider *slider) override
@@ -114,7 +129,95 @@ public:
         
         if(slider == &sliderSlope)
             resized();
+        // Mode ALL : un geste UTILISATEUR recopie la valeur dans les 6 proprietes par op (sinon
+        // l'onglet OPn afficherait une valeur perimee). PAS en contexte RX/chargement
+        // (suppressSend > 0) : la valeur recue ne concerne qu'un op, deja stocke par valueChanged().
+        if (! isAwm && selOp == 0 && curUm != nullptr && SysexBus::get().suppressSend.load() == 0)
+            for (auto& r : rows())
+                if (r.s == slider)
+                    for (int n = 1; n <= 6; ++n)
+                        valueTreeVoice.setProperty (propId (curElement, n, r.suffix), (int) slider->getValue(), nullptr);
         repaint();
+    }
+
+    // --- EG par operateur : table sliders <-> N2 (Table 1-7) <-> suffixe de propriete.
+    struct Row { MidiSlider* s; int n2; const char* suffix; };
+    std::vector<Row> rows()
+    {
+        return { { &sliderR1, 0x00, "EGVOLR1" }, { &sliderR2, 0x01, "EGVOLR2" }, { &sliderR3, 0x02, "EGVOLR3" },
+                 { &sliderR4, 0x03, "EGVOLR4" }, { &sliderRR1, 0x04, "EGVOLRR1" }, { &sliderRR2, 0x05, "EGVOLRR2" },
+                 { &sliderL1, 0x06, "EGVOLLEVEL1" }, { &sliderL2, 0x07, "EGVOLLEVEL2" }, { &sliderL3, 0x08, "EGVOLLEVEL3" },
+                 { &sliderL4, 0x09, "EGVOLLEVEL4" }, { &sliderRL1, 0x0A, "EGVOLRL1" }, { &sliderRL2, 0x0B, "EGVOLRL2" },
+                 { &sliderL0, 0x0E, "EGVOLLEVEL0" }, { &sliderSlope, 0x0F, "SLOPEVOL" } };
+    }
+    // op 0 = partage (ALL, noms historiques ELEMENT<e>EGVOL* lus aussi par la vignette Element.h) ;
+    // op 1..6 = ELEMENT<e>OP<n>EGVOL*.
+    static Identifier propId (int element, int op, const char* suffix)
+    {
+        return Identifier ("ELEMENT" + String (element) + (op > 0 ? "OP" + String (op) : String()) + suffix);
+    }
+    // Groupe sysex de l'op UI n (1..6) : OP1 = 0x56 ... OP6 = 0x06 (afmOperatorGroup indexe OP6..OP1).
+    static int groupForOp (int n) { return (int) SyVoice::afmOperatorGroup (6 - n); }
+
+    // Relie les 14 sliders a l'op selectionne : adresse (group), diffusion, propriete, plage.
+    // Sous ScopedEchoSuppress : le referTo re-publie la valeur liee (Slider::valueChanged ->
+    // setValue(sendNotificationSync)) -> sans garde, chaque changement d'onglet enverrait 14
+    // param-changes au synthe ([[feedback-hardware-safety]]).
+    void applyOpBinding()
+    {
+        if (curUm == nullptr || isAwm) return;
+        const ScopedEchoSuppress noSend;
+        const int aH = (curElement - 1) << 5;
+        Array<int> ops;
+        for (int op = 0; op < 6; ++op)
+            ops.add ((int) SyVoice::egGroupFor (SyVoice::EgKind::afmAmplitude, op));
+        const int group = (selOp == 0) ? ops[0] : groupForOp (selOp);
+        for (auto& r : rows())
+        {
+            const Identifier id = propId (curElement, selOp, r.suffix);
+            // 1er passage sur OPn : amorce depuis la valeur partagee (sinon slider a 0).
+            if (selOp > 0 && valueTreeVoice.getProperty (id).isVoid())
+                valueTreeVoice.setProperty (id, valueTreeVoice.getProperty (propId (curElement, 0, r.suffix)), nullptr);
+            int sx[9] = { 0x43, 0X10, 0x34, group, aH, 0x00, r.n2, 0x00, 0x00 };
+            r.s->setMidiSysex (sx);
+            r.s->setMidiBroadcastGroups (selOp == 0 ? ops : Array<int>());
+            if (r.s == &sliderSlope)
+            {
+                // RS (rate scaling, 0x0F) = s/m -7..+7 (OCR l.412, table signMag {7,8}) ; le chemin
+                // s/m du widget (~d + max+2) == smToWire(d,7,8) (test). Style horizontal re-pose
+                // (setRangeAndRound(min<0) force Rotary).
+                r.s->setRangeAndRound (-7, 7, 0);
+                r.s->setSliderStyle (Slider::SliderStyle::LinearHorizontal);
+            }
+            else
+                r.s->setRangeAndRound (0, 63, 0);
+            r.s->getValueObject().referTo (valueTreeVoice.getPropertyAsValue (id, curUm));
+        }
+        for (int i = 0; i < 7; ++i)
+            opTab[i].setToggleState (i == selOp, dontSendNotification);
+        resized();
+        repaint();
+    }
+
+    // RX (synthe ou replay de chargement, toujours sous ScopedEchoSuppress) : tout param d'EG
+    // d'ampli AFM recu pour CET element est stocke dans la propriete de SON op -> les 6 EG
+    // distincts d'un dump survivent (avant : un seul jeu de sliders, dernier op replay gagnant).
+    void valueChanged (Value& v) override
+    {
+        if (isAwm || curUm == nullptr) return;
+        const var arr = v.getValue();
+        if (! arr.isArray() || arr.size() < 6) return;
+        const int group = (int) arr[0], aH = (int) arr[1], param = (int) arr[3], val = (int) arr[5];
+        if ((group & 0x0F) != 0x06) return;               // pas un groupe d'operateur AFM
+        const int opIdx = (group >> 4) & 0x0F;            // 0 = OP6 ... 5 = OP1
+        if (opIdx > 5 || ((aH >> 5) + 1) != curElement) return;
+        const int opN = 6 - opIdx;
+        for (auto& r : rows())
+            if (r.n2 == param)
+            {
+                const int disp = (param == 0x0F) ? SyVoice::smToDisplay (val, 7, 8) : val;
+                valueTreeVoice.setProperty (propId (curElement, opN, r.suffix), disp, nullptr);
+            }
     }
     // En contexte AWM (vue Wave), l'EG de volume cible l'amp-EG AWM (group 0x07, Table 1-8)
     // au lieu de diffuser aux opérateurs AFM. Activé par WaveVue. À appeler AVANT setElementNumber.
@@ -124,157 +227,54 @@ public:
     void setElementNumber ( int element, UndoManager& um) override
     {
         Logger::writeToLog( "WaveEg setElement");
-        // EG d'ampli AFM = EG PAR OPÉRATEUR ; le groupe [3] sera diffusé aux 6 opérateurs
-        // (mode « All », cf. SY77 [F2] All). T2 [4] = (element-1)<<5 (réglé par bloc ci-dessous).
-        // Group byte centralisé (cf. SyVoice::egGroupFor) : AFM amp-EG = group du 1er opérateur
-        // (op 0 = OP6 -> 0x06) ; le mode « All » réécrit ensuite le group pour chaque opérateur.
-        const int afmAmpGroup = (int) SyVoice::egGroupFor (SyVoice::EgKind::afmAmplitude, 0);
-        int sysexdata2[9] = { 0x43, 0X10, 0x34, afmAmpGroup, 0x00, 0x00, 0x00, 0x00, 0x00 };
-        int sysexdata[9]  = { 0x43, 0X10, 0x34, afmAmpGroup, 0x00, 0x00, 0x00, 0x00, 0x00 };
-        
-        if(element == 1)
-        {
-            
-            sliderSlope.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1SLOPEVOL, &um));
-            
-            sliderL0.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGVOLLEVEL0, &um));
-            sliderL1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGVOLLEVEL1, &um));
-            sliderL2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGVOLLEVEL2, &um));
-            sliderL3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGVOLLEVEL3, &um));
-            sliderL4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGVOLLEVEL4, &um));
-            sliderRL1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGVOLRL1 , &um));
-            sliderRL2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGVOLRL2 , &um));
-            sliderR1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGVOLR1 , &um));
-            sliderR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGVOLR2 , &um));
-            sliderR3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGVOLR3 , &um));
-            sliderR4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGVOLR4 , &um));
-            sliderRR1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGVOLRR1 , &um));
-            sliderRR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT1EGVOLRR2 , &um));
-            
-        }
-        else if (element ==2)
-        {
-            sliderSlope.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2SLOPEVOL, &um));
-            sysexdata[4] = 0x20;
-            sysexdata2[4] = 0x20;
-            
-            sliderL0.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGVOLLEVEL0, &um));
-            sliderL1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGVOLLEVEL1, &um));
-            sliderL2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGVOLLEVEL2, &um));
-            sliderL3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGVOLLEVEL3, &um));
-            sliderL4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGVOLLEVEL4, &um));
-            sliderRL1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGVOLRL1 , &um));
-            sliderRL2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGVOLRL2 , &um));
-            sliderR1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGVOLR1 , &um));
-            sliderR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGVOLR2 , &um));
-            sliderR3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGVOLR3 , &um));
-            sliderR4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGVOLR4 , &um));
-            sliderRR1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGVOLRR1 , &um));
-            sliderRR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT2EGVOLRR2 , &um));
-            
-        }
-        else if (element == 3)
-        {
-            sliderSlope.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3SLOPEVOL, &um));
-            sysexdata[4] = 0x40;
-            sysexdata2[4] = 0x40;
-            
-            sliderL0.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGVOLLEVEL0, &um));
-            sliderL1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGVOLLEVEL1, &um));
-            sliderL2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGVOLLEVEL2, &um));
-            sliderL3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGVOLLEVEL3, &um));
-            sliderL4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGVOLLEVEL4, &um));
-            sliderRL1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGVOLRL1 , &um));
-            sliderRL2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGVOLRL2 , &um));
-            sliderR1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGVOLR1 , &um));
-            sliderR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGVOLR2 , &um));
-            sliderR3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGVOLR3 , &um));
-            sliderR4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGVOLR4 , &um));
-            sliderRR1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGVOLRR1 , &um));
-            sliderRR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT3EGVOLRR2 , &um));
-            
-        }
-        else if (element == 4)
-        {
-            sliderSlope.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4SLOPEVOL, &um));
-            sysexdata[4] = 0x60;
-            sysexdata2[4] = 0x60;
-            
-            sliderL0.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGVOLLEVEL0, &um));
-            sliderL1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGVOLLEVEL1, &um));
-            sliderL2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGVOLLEVEL2, &um));
-            sliderL3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGVOLLEVEL3, &um));
-            sliderL4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGVOLLEVEL4, &um));
-            sliderRL1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGVOLRL1 , &um));
-            sliderRL2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGVOLRL2 , &um));
-            sliderR1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGVOLR1 , &um));
-            sliderR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGVOLR2 , &um));
-            sliderR3.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGVOLR3 , &um));
-            sliderR4.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGVOLR4 , &um));
-            sliderRR1.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGVOLRR1 , &um));
-            sliderRR2.getValueObject().referTo(valueTreeVoice.getPropertyAsValue(IDs::ELEMENT4EGVOLRR2 , &um));
-            
-        }
-        // --- EG d'ampli AWM (Table 1-8, group 0x07) : un seul groupe (pas de diffusion).
-        // Correspondance sliders -> N2 : PAR1-4@50-53, PARR1@54, PAL2@55, PAL3@56, PARS@57.
-        // addrHi = (élément-1)<<5 (déjà dans sysexdata[4]). Les sliders sans équivalent AWM
-        // (RR2/L0/L1/L4/RL1/RL2) gardent leur referTo (render) mais n'émettent rien.
+        curElement = element;
+        curUm      = &um;
+        const int aH = (element - 1) << 5;   // T2 = (element-1)<<5
+
+        // --- EG d'ampli AWM (Table 1-8, group 0x07) : un seul groupe (pas de diffusion), pas
+        // d'onglets d'op. Correspondance sliders -> N2 : PAR1-4@50-53, PARR1@54, PAL2@55, PAL3@56,
+        // PARS@57. Les sliders sans equivalent AWM (RR2/L0/L1/L4/RL1/RL2) gardent leur referTo
+        // (rendu) mais n'emettent rien.
         if (isAwm)
         {
+            for (int i = 0; i < 7; ++i) opTab[i].setVisible (false);
+            const ScopedEchoSuppress noSend;   // le referTo re-publie la valeur liee
+            for (auto& r : rows())
+                r.s->getValueObject().referTo (valueTreeVoice.getPropertyAsValue (propId (element, 0, r.suffix), &um));
+
             int awm[9] = { 0x43, 0X10, 0x34, (int) SyVoice::egGroupFor (SyVoice::EgKind::awmAmplitude),
-                           sysexdata[4], 0x00, 0x00, 0x00, 0x00 };
-            auto wireAwm = [&] (MidiSlider& s, int n2, int maxVal)
+                           aH, 0x00, 0x00, 0x00, 0x00 };
+            auto wireAwm = [&] (MidiSlider& sl, int n2, int maxVal)
             {
                 awm[6] = n2;
-                s.setMidiSysex (awm);
-                s.setMidiBroadcastGroups ({});
-                s.setRangeAndRound (0, maxVal, 0);
+                sl.setMidiSysex (awm);
+                sl.setMidiBroadcastGroups ({});
+                sl.setRangeAndRound (0, maxVal, 0);
             };
             wireAwm (sliderR1, 0x50, 63); wireAwm (sliderR2, 0x51, 63);
             wireAwm (sliderR3, 0x52, 63); wireAwm (sliderR4, 0x53, 63);
             wireAwm (sliderRR1, 0x54, 63);
             wireAwm (sliderL2, 0x55, 63); wireAwm (sliderL3, 0x56, 63);
             // PARS (rate scaling AWM, N2 0x57) = s/m -7..+7 comme PAVSON (OCR l.523/532) ;
-            // était plain 0..64. Non vérifié hardware (MAP 🟡).
+            // etait plain 0..64. Non verifie hardware (MAP jaune).
             awm[6] = 0x57;
             sliderSlope.setMidiSysex (awm);
             sliderSlope.setMidiBroadcastGroups ({});
             sliderSlope.setRangeAndRound (-7, 7, 0);
             sliderSlope.setSliderStyle (Slider::SliderStyle::LinearHorizontal);
-            for (MidiSlider* s : { &sliderRR2, &sliderL0, &sliderL1, &sliderL4, &sliderRL1, &sliderRL2 })
-                s->setMidiBroadcastGroups ({});
+            for (MidiSlider* sl : { &sliderRR2, &sliderL0, &sliderL1, &sliderL4, &sliderRL1, &sliderRL2 })
+            {
+                sl->setMidiBroadcastGroups ({});
+                sl->setRangeAndRound (0, 63, 0);
+            }
             return;
         }
 
-        // --- EG d'ampli AFM = EG par OPÉRATEUR (Table 1-7). Mode « All » : chaque slider est
-        // diffusé aux 6 opérateurs (groupes 0x06/0x16/0x26/0x36/0x46/0x56). Offsets opérateur :
-        // R1-4=00-03, RR1=04, RR2=05, L1-4=06-09, RL1=0A, RL2=0B, L0=0E, RS(slope)=0F.
-        Array<int> ops;
-        for (int op = 0; op < 6; ++op)
-            ops.add ((int) SyVoice::egGroupFor (SyVoice::EgKind::afmAmplitude, op));
-
-        auto wire = [&] (MidiSlider& s, int n2, int maxVal)
-        {
-            sysexdata[6] = n2;
-            s.setMidiSysex (sysexdata);
-            s.setMidiBroadcastGroups (ops);
-            s.setRangeAndRound (0, maxVal, 0);
-        };
-
-        wire (sliderR1,  0x00, 63); wire (sliderR2,  0x01, 63); wire (sliderR3, 0x02, 63); wire (sliderR4, 0x03, 63);
-        wire (sliderRR1, 0x04, 63); wire (sliderRR2, 0x05, 63);
-        wire (sliderL1,  0x06, 63); wire (sliderL2,  0x07, 63); wire (sliderL3, 0x08, 63); wire (sliderL4, 0x09, 63);
-        wire (sliderRL1, 0x0A, 63); wire (sliderRL2, 0x0B, 63);
-        wire (sliderL0,  0x0E, 63);
-        // RS (rate scaling, N2 0x0F) = s/m -7..+7 (spec OCR l.412, SyParamTable signMag {7,8}).
-        // Était câblé plain 0..64 -> octets faux. setRangeAndRound(min<0) active le chemin s/m
-        // du widget (~d + max+2 == smToWire(d,7,8), verrouillé par test) mais force Rotary ->
-        // on remet le style horizontal du constructeur.
-        sysexdata[6] = 0x0F;
-        sliderSlope.setMidiSysex (sysexdata);
-        sliderSlope.setMidiBroadcastGroups (ops);
-        sliderSlope.setRangeAndRound (-7, 7, 0);
-        sliderSlope.setSliderStyle (Slider::SliderStyle::LinearHorizontal);
+        // --- EG d'ampli AFM = EG PAR OPERATEUR (Table 1-7). Onglet ALL = diffusion aux 6 ops
+        // (groupes 0x06..0x56), OPn = un seul groupe. Offsets : R1-4=00-03, RR1=04, RR2=05,
+        // L1-4=06-09, RL1=0A, RL2=0B, L0=0E, RS(slope)=0F.
+        for (int i = 0; i < 7; ++i) opTab[i].setVisible (true);
+        applyOpBinding();
     }
     void paint (Graphics& g) override
     {
@@ -312,6 +312,12 @@ public:
     {
         // Overlay d'édition = même rectangle que l'EG dessiné dans paint() (moitié gauche).
         auto b = getLocalBounds().toFloat();
+        {   // onglets ALL | OP1..OP6 au-dessus du graphe (AFM seulement)
+            const int tx = (int) (b.getWidth() * 0.03f), tw = (int) (b.getWidth() * 0.58f);
+            const int cw = jmax (1, tw / 7);
+            for (int i = 0; i < 7; ++i)
+                opTab[i].setBounds (tx + i * cw, 4, cw, 22);
+        }
         egGraph.setBounds (juce::Rectangle<float> (b.getWidth() * 0.03f, b.getHeight() * 0.05f,
                                                    b.getWidth() * 0.58f, b.getHeight() * 0.74f).toNearestInt());
 
@@ -383,6 +389,11 @@ private:
     MidiSlider  sliderRR2;
 
     EgGraphView egGraph; // édition souris des nœuds de l'EG (niveau + rate) sur le grand graphe
+
+    TextButton   opTab[7];          // ALL | OP1..OP6
+    int          selOp      = 0;    // 0 = ALL (diffusion), 1..6 = un operateur
+    int          curElement = 1;
+    UndoManager* curUm      = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (WaveEg)
 };
