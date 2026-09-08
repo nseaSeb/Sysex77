@@ -444,6 +444,23 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
   Vérifié par capture : onglets rendus, valeur posée en ALL visible sur OP3. Non vérifié hardware
   (envoi par op). Build/test 7506/7506. RESTE : vignette Element.h sur props partagées (= dernier
   op replay après chargement) ; RS non chargé du dump.
+- **2026-09-08 (REVUE DE CODE — 5 correctifs sur les 2 commits du jour).** `/code-review` sur
+  `origin/master...HEAD`. **(1) RX ne rafraîchissait QUE les props par op** : après un chargement
+  fait depuis un onglet OPn, l'onglet ALL gardait les valeurs de la voix PRÉCÉDENTE et les
+  diffusait aux 6 opérateurs au premier geste ; la vignette d'élément (Element.h, props partagées)
+  restait périmée elle aussi. `WaveEg::valueChanged` écrit désormais AUSSI la prop partagée
+  (dernier op reçu gagne = comportement d'avant les onglets). **(2) Collision Range/Vel SW ↔ Slope**
+  (PitchEG.h) en fenêtre étroite : à la largeur mini (640) `0,42W` tombait sur le bouton Vel SW ;
+  le Slope démarre maintenant après lui (+45 px pour son label) et sa largeur s'adapte.
+  **(3) Barre d'onglets sous le graphe** (WaveEg.h) : `egGraph` est ajouté après les boutons donc
+  au-dessus, et en fenêtre basse (hauteur mini 480 → 0,05H = 24 px) il recouvrait le bas des
+  onglets et interceptait les clics ; nouveau `egBounds()` partagé par `paint()`/`resized()` qui
+  décale le graphe sous la barre. **(4) Diffusion ALL non annulable** : les 6 copies par op
+  s'écrivaient avec `nullptr` au lieu de `curUm` → un Cmd-Z ne défaisait que la valeur ALL et
+  désynchronisait les onglets. **(5) Les 2 nouveaux widgets du Pitch EG** (Range/Vel SW) faisaient
+  leur `referTo` hors `ScopedEchoSuppress` : inoffensif aujourd'hui (appelé une seule fois sur un
+  arbre vide) mais un futur re-bind aurait émis FPEGR/FYPSW au synthé sans geste utilisateur
+  ([[feedback-hardware-safety]]). Vérifié par capture à 640x480 (les 2 écrans). Build/test 7506/7506.
 - **2026-07-01 (FILTRE) — Ordre des labels du Filtre 1 (FIX).** Les boutons radio du Filtre 1 étaient
   déclarés `LPF/HPF/Thru` (index 0=LPF), alors que l'index du bouton **est** la valeur sysex envoyée
   et que le reste du code (dessin de la réponse, `EnvelopeDraw::FilterMode { Thru=0, LPF=1, HPF=2 }`,

@@ -221,6 +221,11 @@ public:
         sysexdata[6] = 0x0B;                        // FPRS (rate scaling) -> slider "slope"
         sliderSlope.setMidiSysex(sysexdata);
         {
+            // Le referTo re-publie la valeur liee : ComboBox::valueChanged re-emet via
+            // setSelectedId(sendNotificationAsync) et Button::valueChanged via setToggleState
+            // (synchrone) -> sans garde, un re-bind enverrait FPEGR/FYPSW au synthe sans geste
+            // utilisateur. Meme garde que WaveEg::applyOpBinding.
+            const ScopedEchoSuppress noSend;
             auto P = [&] (const String& suffix) -> Value
             { return valueTreeVoice.getPropertyAsValue (Identifier ("ELEMENT" + String (element) + suffix), &um); };
             sysexdata[6] = 0x0A;                    // FPEGR (range 0..3) : MidiCombo emet id-1
@@ -306,13 +311,14 @@ public:
         // Tailles FIXES (cf. WaveEg) : sliders qui n'enflent plus, Slope au-dessus du clavier.
         const int W = getWidth(), H = getHeight();
         const int kbTop = (int) (H * 0.85f);
-        sliderSlope.setBounds (jmax (90, (int) (W * 0.42f)), kbTop - 30, 160, 22);
-        // Range + Vel SW : meme rangee, a gauche du Slope (sous le graphe, au-dessus du clavier).
-        {
-            const int x = (int) (W * 0.03f) + 52;                 // place pour le label "Range"
-            comboRange.setBounds (x, kbTop - 30, 84, 22);
-            btVelSw.setBounds (x + 92, kbTop - 30, 96, 22);
-        }
+        // Range + Vel SW : meme rangee, a GAUCHE du Slope (sous le graphe, au-dessus du clavier).
+        const int rx = (int) (W * 0.03f) + 52;                    // place pour le label "Range"
+        comboRange.setBounds (rx, kbTop - 30, 84, 22);
+        btVelSw.setBounds (rx + 92, kbTop - 30, 96, 22);
+        // Le Slope demarre APRES eux (+45 px pour son label attache a gauche) : en fenetre
+        // etroite (largeur mini 640) 0,42W tombait sur le bouton Vel SW.
+        sliderSlope.setBounds (jmax (btVelSw.getRight() + 45, (int) (W * 0.42f)), kbTop - 30,
+                               jmax (80, jmin (160, W - (btVelSw.getRight() + 45) - 12)), 22);
 
         const int sw   = 26;
         const int sh   = jlimit (90, 200, (int) (H * 0.28f));

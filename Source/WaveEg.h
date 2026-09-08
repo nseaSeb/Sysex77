@@ -136,7 +136,9 @@ public:
             for (auto& r : rows())
                 if (r.s == slider)
                     for (int n = 1; n <= 6; ++n)
-                        valueTreeVoice.setProperty (propId (curElement, n, r.suffix), (int) slider->getValue(), nullptr);
+                        // MEME UndoManager que la prop partagee : sinon un Cmd-Z ne defait que
+                        // la valeur ALL et les 6 copies par op restent en avance (desync).
+                        valueTreeVoice.setProperty (propId (curElement, n, r.suffix), (int) slider->getValue(), curUm);
         repaint();
     }
 
@@ -217,6 +219,11 @@ public:
             {
                 const int disp = (param == 0x0F) ? SyVoice::smToDisplay (val, 7, 8) : val;
                 valueTreeVoice.setProperty (propId (curElement, opN, r.suffix), disp, nullptr);
+                // ET la prop PARTAGEE (dernier op recu gagne = comportement d'avant les onglets) :
+                // sans ca, apres un chargement fait depuis l'onglet OPn, l'onglet ALL garderait les
+                // valeurs de la voix PRECEDENTE et les diffuserait aux 6 ops au 1er geste ; la
+                // vignette d'element (Element.h, props partagees) resterait elle aussi perimee.
+                valueTreeVoice.setProperty (propId (curElement, 0, r.suffix), disp, nullptr);
             }
     }
     // En contexte AWM (vue Wave), l'EG de volume cible l'amp-EG AWM (group 0x07, Table 1-8)
@@ -276,6 +283,19 @@ public:
         for (int i = 0; i < 7; ++i) opTab[i].setVisible (true);
         applyOpBinding();
     }
+    // Rectangle du grand graphe. Partage par paint() et resized() ET decale sous la barre
+    // d'onglets AFM : le graphe est ajoute APRES les boutons (donc au-dessus) et les recouvrait
+    // en fenetre basse (hauteur mini 480 -> 0,05H = 24 px < bas des onglets).
+    static constexpr int kTabY = 2, kTabH = 20, kTabGap = 4;
+    juce::Rectangle<float> egBounds() const
+    {
+        auto b = getLocalBounds().toFloat();
+        const float bottom = b.getHeight() * 0.79f;                       // 0,05H + 0,74H
+        const float top    = jmax (b.getHeight() * 0.05f,
+                                   isAwm ? 0.0f : (float) (kTabY + kTabH + kTabGap));
+        return { b.getWidth() * 0.03f, top, b.getWidth() * 0.58f, jmax (40.0f, bottom - top) };
+    }
+
     void paint (Graphics& g) override
     {
         /* This demo code just fills the component's background and
@@ -286,9 +306,7 @@ public:
          */
         
         g.fillAll (getLookAndFeel().findColour (ResizableWindow::backgroundColourId));   // clear the background
-        auto bounds = getLocalBounds().toFloat();
-        juce::Rectangle<float> egArea (bounds.getWidth() * 0.03f, bounds.getHeight() * 0.05f,
-                                       bounds.getWidth() * 0.58f, bounds.getHeight() * 0.74f);
+        auto egArea = egBounds();
 
         juce::Array<float> egLevels { (float) sliderL0.getValue(), (float) sliderL1.getValue(),
                                       (float) sliderL2.getValue(), (float) sliderL3.getValue(),
@@ -316,10 +334,9 @@ public:
             const int tx = (int) (b.getWidth() * 0.03f), tw = (int) (b.getWidth() * 0.58f);
             const int cw = jmax (1, tw / 7);
             for (int i = 0; i < 7; ++i)
-                opTab[i].setBounds (tx + i * cw, 4, cw, 22);
+                opTab[i].setBounds (tx + i * cw, kTabY, cw, kTabH);
         }
-        egGraph.setBounds (juce::Rectangle<float> (b.getWidth() * 0.03f, b.getHeight() * 0.05f,
-                                                   b.getWidth() * 0.58f, b.getHeight() * 0.74f).toNearestInt());
+        egGraph.setBounds (egBounds().toNearestInt());
 
         keyDraw.setBoundsRelative(0.0f, 0.85f, 1.0f, 0.09f);
         float sampleWidth = 0.2f + (sliderSlope.getValue()/100);
