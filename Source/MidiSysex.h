@@ -95,9 +95,7 @@ void oscMessageReceived (const OSCMessage& message)
     {
         if (message.size() == 1 && message[0].isInt32())
         {
-            // FIXME (à tester sur matériel) : cette fonctionnalité « envoi du nom de voix »
-            // est aujourd'hui inactive — oscMidiMessage est déclaré `const` et n'est jamais
-            // Envoi du nom de voix : oscMidiMessage contient les 10 messages VNAM0..VNAM9
+            // Envoi du nom de voix (ACTIF, non vérifié hardware : VNAM0..9 group 0x02 N2 0x01-0x0A) : oscMidiMessage contient les 10 messages VNAM0..VNAM9
             // construits dans Voice.h. Boucle bornée par la taille réelle ET le nombre
             // demandé (défense contre toute incohérence).
             const int requested = jmin (message[0].getInt32(), oscMidiMessage.size());

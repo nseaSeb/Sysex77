@@ -668,6 +668,7 @@ public:
         stopTimer();
         Updater::get().onUpdateAvailable = nullptr;
         Updater::get().onMessage = nullptr;
+        SysexBus::get().onMessage = nullptr;   // lambda posée dans MidiSysex.h (capture this)
 
         midiInputs .clear();
         midiOutputs.clear();

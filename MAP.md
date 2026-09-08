@@ -17,6 +17,7 @@
 | 🟢 | **Chargé & vérifié** (ouverture dump : octet confirmé par diff single-param ou oracle de test) |
 | 🟡 | **Câblé, non vérifié** (émis / spec-correct, mais pas encore confirmé sur le synthé) |
 | ❓ | **Douteux** (adresse ou offset incertain — à revérifier) |
+| ⚠️ | **Encodage suspect** (câblé, mais contredit la spec — à trancher sur hardware avant correction) |
 | ⬜ | **Non implémenté / non chargé** |
 
 Couverture du chargement : **AFM 1/2/4** (profond) **+ AWM 1/2/4** (waveform + niveau + amp-EG),
@@ -80,7 +81,9 @@ Restant : **drum** (type 10) ; AWM filtre (chargement) + fine/fixed (encodage à
 |---|:---:|:---:|---|
 | **Algorithme (ALGNUM)** | 🟡 | 🟢 | dump **@377 confirmé** (diff single-param 16→1) ; oracle `val(0x05,0x00)==23` (Tests.h:234) |
 | **Pitch EG rates (FPR1-3, FPRR1)** | 🟡 | 🟢 | bloc N2-ordonné @base+271+ ; oracle SteelStrng `val(0x05,0x02)==16`, `val(0x05,0x03)==13` (Tests.h:249-250) |
-| **PEG vel switch (FYPSW, élément)** | 🟡 | 🟡 | chargé param 0x05/0x0C ; **= « Velocity Switch » du pitch-EG d'élément** (1 par élément, spec OCR l.356), PAS le « PEG SW » par-op de la grille. Pas d'oracle |
+| **PEG vel switch (FYPSW, élément)** | 🟡 | 🟡 | chargé param 0x05/0x0C ; **= « Velocity Switch » du pitch-EG d'élément** (1 par élément, spec OCR l.356), PAS le « PEG SW » par-op de la grille. **Widget `btVelSw` ajouté (PitchEG.h, 2026-09-08)** — avant, aucun widget ne l'émettait. Pas d'oracle |
+| **PEG range (FPEGR, 0x0A, 0..3)** | 🟡 | ⬜ | **CÂBLÉ (2026-09-08)** : combo `comboRange` (PitchEG.h), libellés 8 oct/2 oct/1 oct/1/2 oct (overlay TG77_Voice.json). Spec OCR l.354. Non vérifié hardware, non chargé |
+| **PEG rate scaling (FPRS, 0x0B, 0..7)** | 🟡 | ⬜ | **CORRIGÉ (2026-09-08)** : slider Slope était -7..+7 (chemin s/m → octets 8..15 pour les négatifs) alors que la spec dit **plain 0-7** (OCR l.355, table 7011). Passé en 0..7 |
 | **Pitch EG levels (FPL0-3, FPRL1, o/b)** | 🟡 | 🟢 | **chargés** group 0x05 N2 0x05-0x09 (SysexUtils, `voiceBlobToParams`). Encodage o/b offset 64 (`egLevelToDisplay`/`egLevelToWire`) **recoupé codec lua indépendant** (main.lua l.22 + TG77_Voice.json pNum 7005-7008 : display{-64,63}/message{0,127}/default 64). Éditeur aligné 0..64→0..127 (PitchEG.h) → corrige l'**envoi** (atteignait ½ plage). Oracle SteelStrng `val(0x05,0x05)==55` (Tests.h). NON vérifié hardware |
 | **Main LFO** (Speed/Delay/PMD/AMD/FMD/Wave/Phase) | 🟡 | ⬜ | éditeur câblé (`AfmLfo.h`) ; group 0x05 N2 0x0D-0x13 (Table 1-6, OCR l.357-364) ; non vérifié hardware ; chargement dump non branché |
 | **Sub LFO** (Wave/Speed/Mode/Time/PMD) | 🟡 | ⬜ | éditeur câblé (`AfmLfo.h`) ; group 0x05 N2 0x15-0x19 (Table 1-6, OCR l.366-371) ; Mode = delay/decay (bouton 2 états) ; non vérifié hardware ; chargement dump non branché |
@@ -103,7 +106,9 @@ Restant : **drum** (type 10) ; AWM filtre (chargement) + fine/fixed (encodage à
 | **SENSIT PM (FMLPMS, 0x18 b4~2)** | 🟢 | ⬜ | **CORRIGÉ** : recompose l'octet packé 0x18 (auto-send OFF, plage 0..7) au lieu d'envoyer 0..31 brut qui écrasait MODE/PES. Spec OCR l.431 |
 | **SCALING (BP1-4 + offset-levels)** | 🟡 | 🟡 | chargé param 0x1C-1F / 0x20-23 ; pas d'oracle |
 | **VEL SW (RVSW)** | 🟡 | 🟡 | chargé param 0x24 ; pas d'oracle |
-| RS / Slope / HT | ❓ | ⬜ | interne 15 = constante dans le dump → offset à revoir |
+| RS / Slope / HT | 🟡 | ⬜ | **ENVOI CORRIGÉ (2026-09-08)** : RS (0x0F) était câblé plain 0..64 (WaveEg.h) ; spec = s/m -7..+7 (OCR l.412, table signMag {7,8}) → slider -7..7 (chemin s/m du widget == `smToWire(d,7,8)`, test). Non vérifié hardware. Dump : interne 15 = constante → offset à revoir |
+| **SENSIT VEL (FMLVS, 0x11, s/m ±7)** | 🟡 | 🟡 | **ENVOI CORRIGÉ (2026-09-08)** : était plain 0..15 (octet brut, affichage non signé) ; spec s/m -7..+7 (OCR l.414) → barre Vel -7..7. Le chargement dump (@17, replay via valueSysexIn) passe par le même décodage s/m du widget. Non vérifié hardware |
+| **Amp-EG AFM = diffusion aux 6 ops (mode « All »)** | 🟡 | 🟡 | Les 13 sliders de l'onglet Volume EG pilotent les 6 opérateurs EN MÊME TEMPS (`setMidiBroadcastGroups`, WaveEg.h) ; pas d'édition par opérateur. Au chargement dump seul l'op dont le group == 0x06 (OP6) alimente les sliders. Édition par op = chantier suivant |
 | **Freq MODE (Fixed/Ratio, FPM 0x18 b0)** | 🟢 | ⬜ | **CORRIGÉ collision 0x18** : MODE/PES/PM recomposent désormais l'octet 0x18 complet (`Oscillator::send18`, lit l'état des 3 widgets → robuste). Spec OCR l.433. Chargement dump non branché (octet packé) |
 | **PHASE / SYNC (0x19)** | 🟢 | ⬜ | **CORRIGÉ** : V1 b0 = KOE/SYNC (btPhase), V2 = PHASE 0..127 (sliderPhase) recomposés en un frame (`Oscillator::send19`). Spec OCR l.435-436. Auparavant sync et phase s'écrasaient (et copier-coller `sliderFine4` corrigé). Chargement dump non branché |
 | **PEG SW par-op (PES, 0x18 b1)** | 🟢 | ⬜ | **CORRIGÉ** : la grille « PEG SW » (6 boutons) = Pitch-EG Switch PAR OPÉRATEUR (spec OCR l.432), recompose l'octet 0x18 b1 (`Oscillator::send18`). Avant : câblé sur FYPSW (group 0x05/0x0C, switch d'ÉLÉMENT) avec une propriété PARTAGÉE → 6 boutons/1 état/aucun effet. Maintenant 6 états distincts, propriété `ELEMENT<e>PEGSW<o>` |
@@ -116,7 +121,7 @@ Restant : **drum** (type 10) ; AWM filtre (chargement) + fine/fixed (encodage à
 | **Mode de contrôle (FMODE) f1 & f2** | 🟡 | 🟢 | dump @base+298/+327 ; oracle SteelStrng `val(0x09,0x02)==2` (Tests.h:251) |
 | **EG filtre 1 & 2 : rates (FR1-4, FRR1-2)** | 🟡 | 🟢 | dump @base+296/+325+N2 ; oracle SteelStrng `val(0x09,0x03)==11` (Tests.h:252) |
 | **EG filtre 1 & 2 : niveaux (FL0-4, FRL1-2, o/b)** | 🟡 | 🟢 | **chargés** group 0x09 N2 0x09-0x0F des 2 filtres (SysexUtils). Encodage o/b offset 64 recoupé codec lua (main.lua l.22 + TG77_Voice.json pNum 7309-7315). Éditeur aligné 0..64→0..127 (Filter1/2.h) → corrige l'**envoi**. Oracle SteelStrng : FL0 filtre 1 == octet **64 == centre o/b par défaut** (`val(0x09,0x09)==64`, Tests.h). NON vérifié hardware |
-| EG filtre : FOS (break-point offsets, o/b 2 octets) | 🟡 | ⬜ | encodage param-change connu (lua OB2 combined=msg+1, V1=bit7/V2=low7) mais **layout BULK non confirmé** (octets @424-427 = 1,0,1,0, MSB/interleave ambigu) → NON chargé |
+| EG filtre : FOS (break-point offsets, o/b 2 octets) | ⬜ | ⬜ | encodage param-change connu (lua OB2 combined=msg+1, V1=bit7/V2=low7) mais **layout BULK non confirmé** (octets @424-427 = 1,0,1,0, MSB/interleave ambigu) → NON chargé |
 | **Cutoff filtre 1** | 🟡 | 🟢 | dump **@404 confirmé** (diff single-param 127→0) ; oracle `val(0x09,0x01)==27` (Tests.h:236) |
 | **Cutoff filtre 2** | 🟡 | 🟢 | dump @433 ; oracle SteelStrng `valH(0x09,1,0x01)==50` (Tests.h:246) |
 | **Résonance** | 🟡 | 🟢 | dump @461 ; oracle SteelStrng `valH(0x09,2,0x32)==59` (Tests.h:247) |

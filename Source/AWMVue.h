@@ -242,7 +242,11 @@ public:
 
         sysexData[8] = lastRowSelected;
 
-        sender.send(oscAddressPatern, (uint8) sysexData[0], sysexData[1], sysexData[2], sysexData[3], sysexData[4], sysexData[5], sysexData[6], sysexData[7], sysexData[8]);
+        {
+            uint8 b[9];
+            for (int i = 0; i < 9; ++i) b[i] = (uint8) sysexData[i];
+            sender.sendParam9 (oscAddressPatern, b);   // même chemin que les widgets Midi* (1.3)
+        }
 
         // Persiste l'index + le NOM de la wave choisie pour cet élément, afin de
         // l'afficher sur la vue Voice (sysexData[4] encode l'élément : 0x00/20/40/60).

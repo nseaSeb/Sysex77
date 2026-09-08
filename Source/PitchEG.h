@@ -27,8 +27,18 @@ public:
         addAndMakeVisible(labelSlope);
         labelSlope.setJustificationType(Justification::centred);
         labelSlope.attachToComponent(&sliderSlope, true);
+        // PEG Range (FPEGR 0x0A, 0..3) + Velocity Switch (FYPSW 0x0C, on/off) : params
+        // d'element-commun documentes (OCR l.354/356, table 7010/7012), sans widget jusqu'ici.
+        // Libelles = overlay PEGRange du TG77_Voice.json (ordre = valeur sysex = id-1).
+        addAndMakeVisible (comboRange);
+        for (auto* n : { "8 oct", "2 oct", "1 oct", "1/2 oct" })
+            comboRange.addItem (n, comboRange.getNumItems() + 1);
+        labelRange.attachToComponent (&comboRange, true);
+        addAndMakeVisible (labelRange);
+        addAndMakeVisible (btVelSw);
+        btVelSw.setTextOnOff ("Vel SW on", "Vel SW off");
         
-        sliderSlope.setRangeAndRound(-7,7,0);
+        sliderSlope.setRangeAndRound(0,7,0);   // FPRS = plain 0..7 (OCR l.355, table 7011) ; -7..7 envoyait des octets s/m 8..15
         sliderSlope.setPopupDisplayEnabled(true, true, this);
         addAndMakeVisible(sliderSlope);
         sliderSlope.setSliderStyle(Slider::SliderStyle::LinearHorizontal);
@@ -210,6 +220,18 @@ public:
         // --- Sysex Pitch EG (groupe 0x05). On n'émet QUE les paramètres documentés. ---
         sysexdata[6] = 0x0B;                        // FPRS (rate scaling) -> slider "slope"
         sliderSlope.setMidiSysex(sysexdata);
+        {
+            auto P = [&] (const String& suffix) -> Value
+            { return valueTreeVoice.getPropertyAsValue (Identifier ("ELEMENT" + String (element) + suffix), &um); };
+            sysexdata[6] = 0x0A;                    // FPEGR (range 0..3) : MidiCombo emet id-1
+            comboRange.setMidiSysex (sysexdata);
+            comboRange.getSelectedIdAsValue().referTo (P ("PEGRANGE"));
+            if (comboRange.getSelectedItemIndex() < 0)
+                comboRange.setSelectedId (1, dontSendNotification);   // jamais vide (cf. AfmLfo)
+            sysexdata[6] = 0x0C;                    // FYPSW (velocity switch on/off)
+            btVelSw.setMidiSysex (sysexdata);
+            btVelSw.getToggleStateValue().referTo (P ("PEGVELSW"));
+        }
 
         // Levels FPL0-3 (05-08) + release level FPRL1 (09). Encodage offset-binary (o/b) :
         // l'octet filaire est 0..127 (centre 64) ; la valeur STOCKÉE par le slider EST cet octet
@@ -285,6 +307,12 @@ public:
         const int W = getWidth(), H = getHeight();
         const int kbTop = (int) (H * 0.85f);
         sliderSlope.setBounds (jmax (90, (int) (W * 0.42f)), kbTop - 30, 160, 22);
+        // Range + Vel SW : meme rangee, a gauche du Slope (sous le graphe, au-dessus du clavier).
+        {
+            const int x = (int) (W * 0.03f) + 52;                 // place pour le label "Range"
+            comboRange.setBounds (x, kbTop - 30, 84, 22);
+            btVelSw.setBounds (x + 92, kbTop - 30, 96, 22);
+        }
 
         const int sw   = 26;
         const int sh   = jlimit (90, 200, (int) (H * 0.28f));
@@ -302,6 +330,9 @@ public:
 private:
     
     Label   labelSlope {"test", "Slope"};
+    Label   labelRange {"", "Range"};
+    MidiCombo   comboRange;   // FPEGR 0x0A (0..3)
+    MidiButton  btVelSw;      // FYPSW 0x0C (on/off)
     MidiKeyDraw keyDraw;
     MidiSlider  sliderSlope;
     MidiPath    samplePathLeft;

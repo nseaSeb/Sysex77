@@ -234,7 +234,13 @@ public:
             wireAwm (sliderR3, 0x52, 63); wireAwm (sliderR4, 0x53, 63);
             wireAwm (sliderRR1, 0x54, 63);
             wireAwm (sliderL2, 0x55, 63); wireAwm (sliderL3, 0x56, 63);
-            wireAwm (sliderSlope, 0x57, 64);   // PARS (s/m, encodage à affiner)
+            // PARS (rate scaling AWM, N2 0x57) = s/m -7..+7 comme PAVSON (OCR l.523/532) ;
+            // était plain 0..64. Non vérifié hardware (MAP 🟡).
+            awm[6] = 0x57;
+            sliderSlope.setMidiSysex (awm);
+            sliderSlope.setMidiBroadcastGroups ({});
+            sliderSlope.setRangeAndRound (-7, 7, 0);
+            sliderSlope.setSliderStyle (Slider::SliderStyle::LinearHorizontal);
             for (MidiSlider* s : { &sliderRR2, &sliderL0, &sliderL1, &sliderL4, &sliderRL1, &sliderRL2 })
                 s->setMidiBroadcastGroups ({});
             return;
@@ -260,7 +266,15 @@ public:
         wire (sliderL1,  0x06, 63); wire (sliderL2,  0x07, 63); wire (sliderL3, 0x08, 63); wire (sliderL4, 0x09, 63);
         wire (sliderRL1, 0x0A, 63); wire (sliderRL2, 0x0B, 63);
         wire (sliderL0,  0x0E, 63);
-        wire (sliderSlope, 0x0F, 64);   // RS rate scaling (-7..+7 s/m exact à affiner, cf. encodage EG)
+        // RS (rate scaling, N2 0x0F) = s/m -7..+7 (spec OCR l.412, SyParamTable signMag {7,8}).
+        // Était câblé plain 0..64 -> octets faux. setRangeAndRound(min<0) active le chemin s/m
+        // du widget (~d + max+2 == smToWire(d,7,8), verrouillé par test) mais force Rotary ->
+        // on remet le style horizontal du constructeur.
+        sysexdata[6] = 0x0F;
+        sliderSlope.setMidiSysex (sysexdata);
+        sliderSlope.setMidiBroadcastGroups (ops);
+        sliderSlope.setRangeAndRound (-7, 7, 0);
+        sliderSlope.setSliderStyle (Slider::SliderStyle::LinearHorizontal);
     }
     void paint (Graphics& g) override
     {

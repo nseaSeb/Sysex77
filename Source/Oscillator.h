@@ -553,15 +553,18 @@ public:
             const int aH = sysexdata[4];
             for (int o = 0; o < 6; ++o)
             {
-                auto wireS = [&] (MidiSlider& s, int param, int maxv, const String& prop)
+                auto wireS = [&] (MidiSlider& s, int param, int minv, int maxv, const String& prop)
                 {
                     int sx[9] = { 0x43, 0X10, 0x34, grp[o], aH, 0x00, param, 0x00, 0x00 };
-                    s.setMidiSysex (sx);  s.setRangeAndRound (0, maxv, 0);
+                    s.setMidiSysex (sx);  s.setRangeAndRound (minv, maxv, 0);
+                    s.setSliderStyle (Slider::LinearBar);   // setRangeAndRound(min<0) force Rotary
                     s.getValueObject().referTo (valueTreeVoice.getPropertyAsValue (
                         Identifier ("ELEMENT" + String (element) + prop + String (o + 1)), &um));
                 };
-                wireS (sensVel[o], 0x11, 15, "SVEL");
-                wireS (sensAm[o],  0x10,  7, "SAM");
+                // SENSIT VEL (FMLVS, 0x11) = s/m -7..+7 (OCR l.414, table signMag {7,8}) ; était
+                // plain 0..15 (octet brut affiché non signé). AM (0x10) reste plain 0..7.
+                wireS (sensVel[o], 0x11, -7, 7, "SVEL");
+                wireS (sensAm[o],  0x10,  0, 7, "SAM");
                 // SENSIT PM = FMLPMS (octet packé 0x18 b4~2, plage 0~7). Auto-send OFF :
                 // recomposition de l'octet 0x18 (sinon écrase MODE/FPM b0 + PES b1). Spec l.431.
                 sensPm[o].setAutoSend (false);
@@ -571,8 +574,8 @@ public:
                 sensPm[o].onValueChange = [this, o] { send18 (o); };
                 for (int k = 0; k < 4; ++k)
                 {
-                    wireS (bpScl[o][k],  0x1C + k, 127, "BP"  + String (k + 1) + "_");
-                    wireS (offScl[o][k], 0x20 + k, 127, "OFF" + String (k + 1) + "_");
+                    wireS (bpScl[o][k],  0x1C + k, 0, 127, "BP"  + String (k + 1) + "_");
+                    wireS (offScl[o][k], 0x20 + k, 0, 127, "OFF" + String (k + 1) + "_");
                 }
                 int sv[9] = { 0x43, 0X10, 0x34, grp[o], aH, 0x00, 0x24, 0x00, 0x00 };   // RVSW
                 velSw[o].setMidiSysex (sv);

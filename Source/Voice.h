@@ -241,7 +241,11 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         element4.removeChangeListener(this);
         editName.removeListener(this);
         comboMode.removeListener(this);
- 
+        element1.elementValue.removeListener(this);
+        element2.elementValue.removeListener(this);
+        element3.elementValue.removeListener(this);
+        element4.elementValue.removeListener(this);
+        voiceNameVal.removeListener(this);
     }
     
     #include "ValueTrees.h"

@@ -145,8 +145,7 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
   (N2≥0x32) sont de toute façon forcés fN 2/5 par syTranslate. Suppression des templates manuels.
   Byte-identique (referTo/plages/encodage signés inchangés ; adresses CONFIRMÉES synthé). Test
   filtre étendu (N2 0x00-0x02 sur f1/f2, communs 0x32-0x34 forcés) → **7484/7484**. **Les 3 éditeurs
-  de filtre sont sur le dico.** ⚠️ COMMITÉ EN LOCAL, NON POUSSÉ : l'utilisateur vérifie sur le vrai
-  SY77 avant push (migration byte-identique → contrôle de non-régression).
+  de filtre sont sur le dico.** (Poussé et publié en v1.3.7.)
 - **2026-06-30 (dico déclaratif, Phase 4 — filtres EG)** — `Filter1.h` et `Filter2.h` migrés :
   l'adressage (group 0x09, T2 = élément|fN, N2) est dérivé de `SyVoice::syTranslate(7300+N2,
   élément-1, fN)` via un lambda `addr` — fN = 0/3 (Filtre1 AFM/AWM), 1/4 (Filtre2). Suppression des
@@ -419,6 +418,18 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
   puis migration des éditeurs Effects (pilote), filtres EG (Filter1/Filter2) et CommonFilter
   (cutoff/réso/communs) (Ph.4). Legacy EG mort + démo JUCE supprimés. Interne, aucun changement
   visible ; couvert par les tests (7484/7484).
+- **2026-09-08 (AUDIT + FIXES d'encodage, bloc 1).** Audit complet (revue bugs + couverture
+  paramètres vs `SyParamTable.h`). Corrigés : **(1) RS opérateur** (WaveEg.h 0x0F) plain 0..64 →
+  s/m -7..+7 ; **(2) SENSIT VEL** (Oscillator.h 0x11) plain 0..15 → s/m -7..+7 ; **(3) PARS AWM**
+  (WaveEg.h 0x57) plain 0..64 → s/m -7..+7 ; **(4) FPRS pitch-EG** (PitchEG.h 0x0B) -7..7 → plain
+  0..7 (spec OCR l.355). Le chemin s/m ad hoc de `MidiSlider` (`~d + max+2`) est prouvé == `smToWire`
+  par test. **(5) Pitch EG** : widgets PEG Range (0x0A, 4 libellés) + Velocity Switch (0x0C) ajoutés
+  (aucun widget n'émettait FYPSW depuis le passage du PEG SW grille en per-op). **(6) Fuites** :
+  `SysexBus::onMessage` remis à nullptr dans `~MidiDemo`, listeners Value retirés dans `~VoicePage`.
+  **(7) AWMVue** : sélection de wave via `sendParam9` (dernier envoi brut hors builder). Docs :
+  FIXME périmé (nom de voix actif), MAP.md (légende ⚠️, FOS ⬜, lignes RS/VEL/PEG/amp-EG). Tous
+  🟡 : **à vérifier sur le SY77** (RS, VEL, PARS, FPRS, Range, Vel SW). Build/test 7506/7506.
+  Écrans vérifiés par capture (Pitch EG, Volume EG, détail AFM). Suite : EG d'ampli PAR opérateur.
 - **2026-07-01 (FILTRE) — Ordre des labels du Filtre 1 (FIX).** Les boutons radio du Filtre 1 étaient
   déclarés `LPF/HPF/Thru` (index 0=LPF), alors que l'index du bouton **est** la valeur sysex envoyée
   et que le reste du code (dessin de la réponse, `EnvelopeDraw::FilterMode { Thru=0, LPF=1, HPF=2 }`,

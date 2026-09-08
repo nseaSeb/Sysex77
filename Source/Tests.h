@@ -523,6 +523,11 @@ struct SysexUtilsTests : public juce::UnitTest
             expectEquals (smToWire (-1, 7, 8), 9);    // signbit 8 | 1
             expectEquals (smToWire (-7, 7, 8), 15);   // 8 | 7
             expectEquals (smToWire (-12, 12, 16), 28);// 16 | 12 (AT PB range)
+            // Formule ad hoc de MidiSlider::sliderValueChanged (setRangeAndRound(min<0) :
+            // d<0 -> (~d) + (max+2)) == codec s/m pour ±7 (RS/VEL/PARS) et ±15 (detune).
+            for (auto sb : { std::pair<int,int>{7,8}, {15,16} })
+                for (int d = -sb.first; d < 0; ++d)
+                    expectEquals ((~d) + (sb.first + 2), smToWire (d, sb.first, sb.second));
             // fpdDetune == primitive s/m {15,16} (le wrapper ne change rien).
             for (int d = -15; d <= 15; ++d)
                 expectEquals ((int) fpdDetuneToWire (d), smToWire (d, 15, 16));
