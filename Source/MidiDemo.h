@@ -416,23 +416,21 @@ public:
         // Default migrated from the former "KeyboardVisible" setting.
         barMode = jlimit (0, 2, getAppSettings()->getIntValue ("BottomBarMode",
                                 getAppSettings()->getBoolValue ("KeyboardVisible", true) ? 1 : 0));
+        // One compact button (same width as the old toggle, keeps the tab bar free on
+        // narrow windows) opening a menu None / Keys / Seq.
+        addAndMakeVisible (btBarMode);
+        btBarMode.setAlwaysOnTop (true);   // stays above the tab bar
+        btBarMode.setTooltip (TRANS ("Bottom bar: none, on-screen keyboard or phrase player (loops a phrase while you edit)"));
+        btBarMode.onClick = [this]
         {
-            TextButton* modeButtons[3] = { &btModeNone, &btModeKeys, &btModeSeq };
-            for (int i = 0; i < 3; ++i)
-            {
-                auto* b = modeButtons[i];
-                addAndMakeVisible (*b);
-                b->setAlwaysOnTop (true);   // stays above the tab bar
-                b->setClickingTogglesState (true);
-                b->setRadioGroupId (7701);
-                b->setConnectedEdges ((i > 0 ? Button::ConnectedOnLeft : 0) | (i < 2 ? Button::ConnectedOnRight : 0));
-                b->setToggleState (i == barMode, dontSendNotification);
-                b->onClick = [this, i, b] { if (b->getToggleState()) setBarMode (i); };
-            }
-            btModeNone.setTooltip (TRANS ("Hide the bottom bar"));
-            btModeKeys.setTooltip (TRANS ("On-screen keyboard"));
-            btModeSeq .setTooltip (TRANS ("Phrase player: loops a phrase while you edit"));
-        }
+            PopupMenu m;
+            m.addItem (1, TRANS ("None"), true, barMode == 0);
+            m.addItem (2, TRANS ("Keys"), true, barMode == 1);
+            m.addItem (3, TRANS ("Seq"),  true, barMode == 2);
+            m.showMenuAsync (PopupMenu::Options().withTargetComponent (&btBarMode),
+                             [this] (int r) { if (r > 0) setBarMode (r - 1); });
+        };
+        refreshBarModeButton();
         addChildComponent (seqPanel);
 
         // INTERRUPTEURS écoute/envoi TOUJOURS VISIBLES (à gauche du toggle clavier).
@@ -949,13 +947,9 @@ public:
 
         // Bouton de toggle calé à droite, sur la rangée d'onglets (barre de nav en bas).
         const int barTop = tabs.getBottom() - 32; // 32 = profondeur de la barre d'onglets
-        const int modeW = 50;
-        const int toggleX = getWidth() - margin - 3 * modeW;
-        btModeNone.setBounds (toggleX,             barTop + 3, modeW, 26);
-        btModeKeys.setBounds (toggleX + modeW,     barTop + 3, modeW, 26);
-        btModeSeq .setBounds (toggleX + 2 * modeW, barTop + 3, modeW, 26);
-        for (auto* b : { &btModeNone, &btModeKeys, &btModeSeq })
-            b->toFront (false);   // above the tab bar (else clicks go to the tabs)
+        const int toggleX = getWidth() - margin - 70;
+        btBarMode.setBounds (toggleX, barTop + 3, 70, 26);
+        btBarMode.toFront (false);   // above the tab bar (else clicks go to the tabs)
 
         // Sélecteurs in/out TOUJOURS VISIBLES, à GAUCHE du toggle clavier, sur la même rangée.
         // Compacts (54 px) ; ordre [In][Out][Clavier] de gauche à droite.
@@ -1055,6 +1049,10 @@ public:
         {
             const ScopedLock sl (outLock);
             jassert (midiOutputs[index]->outDevice.get() != nullptr);
+            // Release anything still sounding through this port before it disappears.
+            if (auto* dev = midiOutputs[index]->outDevice.get())
+                for (int ch = 1; ch <= 16; ++ch)
+                    dev->sendMessageNow (MidiMessage::allNotesOff (ch));
             midiOutputs[index]->outDevice.reset();
         }
     }
@@ -1377,11 +1375,20 @@ public:
         // Interrupteur « Out » (envoi) OFF : l'app n'émet RIEN vers le synthé. Point de coupe
         // unique -> couvre notes, param-changes/sysex, bulk ET le MIDI Thru (qui passe par ici),
         // donc OFF = rien ne sort, Thru compris (cohérence demandée).
-        if (! midiSend) return;
+        // Note-offs still pass when Out is OFF: otherwise a note started before the switch
+        // (sequencer or keyboard) would hang on the synth with no way to release it.
+        if (! midiSend && ! msg.isNoteOff()) return;
         // The sequencer thread, the bank-send thread and the message thread all send here:
         // serialise so messages never interleave on a port (and the port list is stable).
         const ScopedLock sl (outLock);
-        if (msg.isSysEx()) seqPlayer.editHappened();   // Retrig mode: restart after edits
+        // Retrig mode: restart the phrase after a VOICE PARAM CHANGE only (F0 43 1n 34 ...,
+        // 11 bytes) — not after dump requests, system setup or bulk transfers.
+        if (msg.isSysEx() && msg.getRawDataSize() == 11)
+        {
+            const uint8* d = msg.getRawData();
+            if (d[1] == 0x43 && (d[2] & 0xF0) == 0x10 && d[3] == 0x34)
+                seqPlayer.editHappened();
+        }
         // Anti-écho assuré à la RÉCEPTION par dontSendNotification dans chaque widget Midi*
         // (et par setValue() sans renvoi pour Segment) ; pas de flag global non thread-safe.
         for (auto midiOutput : midiOutputs)
@@ -1581,16 +1588,23 @@ public:
     TextButton pairButton   { TRANS("MIDI Bluetooth devices...") };
     
     TextButton  btBulk {"Bulk Protect"};
-    TextButton  btModeNone { TRANS ("None") }, btModeKeys { TRANS ("Keys") }, btModeSeq { TRANS ("Seq") };
+    TextButton  btBarMode;
     int barMode = 1;   // 0 = none, 1 = keyboard, 2 = phrase player
+
+    void refreshBarModeButton()
+    {
+        const char* names[3] = { "None", "Keys", "Seq" };
+        btBarMode.setButtonText (TRANS (names[barMode]));
+        btBarMode.setToggleState (barMode != 0, dontSendNotification);
+    }
 
     void setBarMode (int m)
     {
-        barMode = jlimit (0, 2, m);
-        TextButton* bs[3] = { &btModeNone, &btModeKeys, &btModeSeq };
-        bs[barMode]->setToggleState (true, dontSendNotification);
-        if (barMode != 2) seqPanel.stopPlaying();
+        // Release held keyboard notes BEFORE switching: in Seq mode handleNoteOff swallows them.
         keyboardState.allNotesOff (0);
+        barMode = jlimit (0, 2, m);
+        refreshBarModeButton();
+        if (barMode != 2) seqPanel.stopPlaying();
         getAppSettings()->setValue ("BottomBarMode", barMode);
         getAppSettings()->saveIfNeeded();
         resized();

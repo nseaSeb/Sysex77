@@ -136,11 +136,15 @@ namespace Seq
         {
             std::vector<Tick> ticks;
             size_t next = 0;
-            double anchorMs = 0, anchorBeat = 0, loopStart = 0, curBpm = 120;
+            double anchorMs = 0, anchorBeat = 0, loopStart = 0, curBpm = 120, loopLen = 4;
 
+            // Snapshot phrase + root at each loop start; loopLen belongs to the SCHEDULED phrase
+            // (a phrase switched mid-loop must not shift where the next loop starts).
             auto startLoop = [&] (double beat0)
             {
-                ticks = schedule (phrases()[(size_t) phraseIndex.load()], root.load());
+                const auto& ph = phrases()[(size_t) phraseIndex.load()];
+                ticks = schedule (ph, root.load());
+                loopLen = ph.loopBeats;
                 next = 0;
                 loopStart = beat0;
             };
@@ -153,16 +157,17 @@ namespace Seq
                 {
                     allOff();
                     restartPending = true;
-                    wait (20);
+                    wait (playing ? 20 : -1);   // stopped: sleep until play()/stop() notify
                     continue;
                 }
 
-                const double rt = retrigAtMs.load();
-                if (restartPending || (rt > 0 && now >= rt))
+                double rt = retrigAtMs.load();
+                const bool retrigDue = rt > 0 && now >= rt
+                                       && retrigAtMs.compare_exchange_strong (rt, 0.0);   // keeps a newer edit
+                if (restartPending || retrigDue)
                 {
                     allOff();
                     restartPending = false;
-                    retrigAtMs = 0;
                     curBpm = bpm;
                     anchorMs = now + 5.0;   // tiny lead so the first note is not late
                     anchorBeat = 0;
@@ -178,13 +183,21 @@ namespace Seq
 
                 if (next >= ticks.size())
                 {
-                    startLoop (loopStart + phrases()[(size_t) phraseIndex.load()].loopBeats);
+                    startLoop (loopStart + loopLen);
                     if (ticks.empty()) { wait (20); continue; }
                 }
 
                 const auto& t = ticks[next];
                 const double due = anchorMs + beatsToMs (loopStart + t.beat - anchorBeat, curBpm);
                 const double remaining = due - now;
+
+                // Stalled (port lock held by a long send, clock jump...): shift the timeline
+                // instead of firing every overdue note in one burst.
+                if (remaining < -30.0)
+                {
+                    anchorMs -= remaining;
+                    continue;
+                }
 
                 if (remaining > 2.0)
                 {
@@ -202,25 +215,26 @@ namespace Seq
 
         void emit (const Tick& t)
         {
-            const int ch = channel;
             if (t.on)
             {
-                if (active[(size_t) t.note]) emitOff (ch, t.note);   // overlapping repeat
-                active[(size_t) t.note] = true;
+                if (active[(size_t) t.note]) emitOff (t.note);   // overlapping repeat
+                const int ch = channel;
+                active[(size_t) t.note] = ch;                   // remember the note-on channel
                 out (juce::MidiMessage::noteOn (ch, t.note, (juce::uint8) t.vel));
             }
             else if (active[(size_t) t.note])
-                emitOff (ch, t.note);
+                emitOff (t.note);
         }
-        void emitOff (int ch, int n)
+        void emitOff (int n)
         {
-            active[(size_t) n] = false;
+            const int ch = active[(size_t) n];
+            active[(size_t) n] = 0;
             out (juce::MidiMessage::noteOff (ch, n));
         }
         void allOff()
         {
             for (int n = 0; n < 128; ++n)
-                if (active[(size_t) n]) emitOff (channel, n);
+                if (active[(size_t) n]) emitOff (n);
         }
         void out (juce::MidiMessage m)
         {
@@ -232,7 +246,7 @@ namespace Seq
         std::atomic<bool>   playing { false }, restartPending { true }, retrig { false };
         std::atomic<int>    phraseIndex { 0 }, root { 60 }, channel { 1 };
         std::atomic<double> bpm { 120.0 }, retrigAtMs { 0.0 };
-        std::array<bool, 128> active {};   // touched by the player thread only
+        std::array<int, 128> active {};    // channel of each sounding note (0 = off); player thread only
     };
 
     //==========================================================================
@@ -325,8 +339,7 @@ namespace Seq
         }
         template <typename V> static void save (const char* key, V v)
         {
-            getAppSettings()->setValue (key, v);
-            getAppSettings()->saveIfNeeded();
+            getAppSettings()->setValue (key, v);   // saved by the PropertiesFile timer, not per drag step
         }
 
         Player& player;
