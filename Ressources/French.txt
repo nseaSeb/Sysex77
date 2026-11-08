@@ -49,3 +49,7 @@ countries: FR
 "Developer" = "Développeur"
 "Developer mode" = "Mode développeur"
 "Shows the \"Midi Setting\" tab: MIDI monitor and reverse-engineering tools." = "Affiche l'onglet « Midi Setting » : moniteur MIDI et outils de rétro-ingénierie."
+"Reset point" = "Remettre le point au centre"
+"Reset all levels" = "Remettre tous les niveaux au centre"
+"Copy envelope" = "Copier l'enveloppe"
+"Paste envelope" = "Coller l'enveloppe"

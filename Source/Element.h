@@ -224,6 +224,7 @@ public:
                                                              : (int) commande::VolumeAFM);
         };
         egGraph.maxLevel = 127.0f;                       // vignette : niveaux EGVOL 0..127
+        egGraph.releaseNode = -1;                        // vignette : pas de repere KEY OFF
         egGraph.onEditNode = [this] (int node, float levelF, float segWeightF)
         {
             const int level = roundToInt (levelF);

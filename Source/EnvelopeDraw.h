@@ -579,20 +579,52 @@ public:
     std::function<void (int node, float level, float segWeight)>   onEditNode;    // segWeight<0 => inchangé
     std::function<void()>                                          onOpenEditor;  // clic simple (optionnel)
     float maxLevel = 127.0f;
+    // Niveau de "reset" (double-clic / menu) : centre pour les EG o/b (pitch, filtre, pan).
+    // < 0 => pas de reset (EG d'amplitude : aucun defaut evident).
+    float resetLevel = -1.0f;
+    // Premier noeud de release (key-off) : trait pointille "KEY OFF" sur le noeud precedent.
+    // -1 => rien. Les EG SY77 a 7 noeuds (L0..L4, RL1, RL2) => 5.
+    int   releaseNode = 5;
 
     EgGraphView() { setMouseCursor (juce::MouseCursor::PointingHandCursor); }
 
-    void mouseDown (const juce::MouseEvent& e) override { dragged = false; selected = nearestNode (e.position.x); }
+    void mouseDown (const juce::MouseEvent& e) override
+    {
+        dragged = false;
+        selected = nearestNode (e.position.x);
+        if (e.mods.isPopupMenu()) { popup = true; showMenu(); return; }
+        popup = false;
+        auto pts = nodePoints();
+        anchorMouse = e.position;
+        anchorPt = lastEff = (selected >= 0 && selected < pts.size()) ? pts[selected] : e.position;
+        fine = e.mods.isShiftDown();
+    }
+    // Glisser = deplacement RELATIF au noeud saisi (pas de saut au clic) ; Shift = fin (x0.2),
+    // re-ancre si Shift change en cours de geste (pas de saut non plus).
     void mouseDrag (const juce::MouseEvent& e) override
     {
+        if (popup) return;
         dragged = true;
         if (selected < 0 || ! onEditNode || getWidth() < 2 || getHeight() < 2) return;
-        const float fy = juce::jlimit (0.0f, 1.0f, e.position.y / (float) getHeight());
+        const bool f = e.mods.isShiftDown();
+        if (f != fine) { anchorPt = lastEff; anchorMouse = e.position; fine = f; }
+        lastEff = anchorPt + (e.position - anchorMouse) * (fine ? 0.2f : 1.0f);
+        const float fy = juce::jlimit (0.0f, 1.0f, lastEff.y / (float) getHeight());
         const float level = (1.0f - fy) * maxLevel;
-        const float segW  = (selected >= 1) ? solveSegWeight (selected, e.position.x / (float) getWidth()) : -1.0f;
+        const float segW  = (selected >= 1) ? solveSegWeight (selected, lastEff.x / (float) getWidth()) : -1.0f;
         onEditNode (selected, level, segW);
     }
-    void mouseUp (const juce::MouseEvent&) override { if (! dragged && onOpenEditor) onOpenEditor(); }
+    void mouseUp (const juce::MouseEvent&) override
+    {
+        if (! dragged && ! popup && onOpenEditor) onOpenEditor();
+        popup = false;
+    }
+    void mouseDoubleClick (const juce::MouseEvent& e) override
+    {
+        if (e.mods.isPopupMenu() || resetLevel < 0.0f || ! onEditNode) return;
+        const int n = nearestNode (e.position.x);
+        if (n >= 0) onEditNode (n, resetLevel, -1.0f);
+    }
 
     // Affordance : surligne le nœud survolé (ou en cours de glissement) -> on voit
     // qu'il est saisissable. Ne dessine que l'anneau (la courbe est peinte dessous).
@@ -607,10 +639,20 @@ public:
     }
     void paint (juce::Graphics& g) override
     {
-        const int h = (dragged && selected >= 0) ? selected : hovered;
-        if (h < 0) return;
         auto pts = nodePoints();
-        if (h >= pts.size()) return;
+        // Repere key-off : pointille vertical sur le noeud de sustain (avant le 1er noeud de release).
+        if (releaseNode >= 1 && releaseNode < pts.size() && getHeight() > 40)
+        {
+            const float x = pts[releaseNode - 1].x;
+            const float dash[] = { 3.0f, 3.0f };
+            g.setColour (SYColSelected.withAlpha (0.45f));
+            g.drawDashedLine ({ x, 0.0f, x, (float) getHeight() }, dash, 2, 1.0f);
+            g.setFont (10.0f);
+            g.drawText ("KEY OFF", juce::Rectangle<float> (x + 3.0f, 2.0f, 60.0f, 12.0f),
+                        juce::Justification::centredLeft, false);
+        }
+        const int h = (dragged && selected >= 0) ? selected : hovered;
+        if (h < 0 || h >= pts.size()) return;
         auto p = pts[h];
         g.setColour (SYColSelected.withAlpha (0.25f));
         g.fillEllipse (p.x - 6.0f, p.y - 6.0f, 12.0f, 12.0f);
@@ -671,7 +713,50 @@ private:
         fx = juce::jlimit (0.0f, 0.98f, fx);
         return juce::jlimit (1.0f, 99.0f, (fx * otherSum - before) / (1.0f - fx));
     }
+    // Menu clic droit : reset du point / de tous les niveaux (EG o/b), copier / coller l'EG.
+    // Presse-papiers partage entre editeurs, compatible seulement a echelle + nb de noeuds egaux
+    // (pas de collage pitch -> amplitude). Coller rejoue onEditNode noeud par noeud : poids et
+    // niveaux sont des entiers (rate = 66 - poids), l'aller-retour est exact.
+    struct Clip { float maxLevel = 0; juce::Array<float> levels, weights; };
+    static Clip& clipboard() { static Clip c; return c; }
+    void showMenu()
+    {
+        juce::Array<float> levels, weights;
+        computeData (levels, weights);
+        auto& clip = clipboard();
+        const bool canPaste = clip.maxLevel == maxLevel && clip.levels.size() == levels.size()
+                              && clip.weights.size() == weights.size() && levels.size() > 0;
+        juce::PopupMenu m;
+        m.addItem (1, TRANS ("Reset point"), resetLevel >= 0.0f && selected >= 0 && onEditNode != nullptr);
+        m.addItem (2, TRANS ("Reset all levels"), resetLevel >= 0.0f && onEditNode != nullptr);
+        m.addSeparator();
+        m.addItem (3, TRANS ("Copy envelope"), levels.size() > 0);
+        m.addItem (4, TRANS ("Paste envelope"), canPaste && onEditNode != nullptr);
+        const int node = selected;
+        juce::Component::SafePointer<EgGraphView> safe (this);
+        m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this),
+            [safe, node] (int r)
+            {
+                if (safe == nullptr || r == 0) return;
+                auto& v = *safe;
+                juce::Array<float> lv, wt;
+                v.computeData (lv, wt);
+                if (r == 1 && node >= 0) v.onEditNode (node, v.resetLevel, -1.0f);
+                else if (r == 2) for (int i = 0; i < lv.size(); ++i) v.onEditNode (i, v.resetLevel, -1.0f);
+                else if (r == 3) clipboard() = { v.maxLevel, lv, wt };
+                else if (r == 4)
+                {
+                    auto c = clipboard();   // copie : onEditNode peut re-entrer
+                    for (int i = 0; i < c.levels.size(); ++i)
+                        v.onEditNode (i, c.levels[i], i >= 1 ? c.weights[i - 1] : -1.0f);
+                }
+                v.repaint();
+            });
+    }
     int  selected = -1;
     int  hovered  = -1;
     bool dragged  = false;
+    bool popup    = false;
+    bool fine     = false;
+    juce::Point<float> anchorMouse, anchorPt, lastEff;
 };

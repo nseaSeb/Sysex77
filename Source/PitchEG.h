@@ -31,8 +31,7 @@ public:
         // d'element-commun documentes (OCR l.354/356, table 7010/7012), sans widget jusqu'ici.
         // Libelles = overlay PEGRange du TG77_Voice.json (ordre = valeur sysex = id-1).
         addAndMakeVisible (comboRange);
-        for (auto* n : { "8 oct", "2 oct", "1 oct", "1/2 oct" })
-            comboRange.addItem (n, comboRange.getNumItems() + 1);
+        fillRangeItems();
         labelRange.attachToComponent (&comboRange, true);
         addAndMakeVisible (labelRange);
         addAndMakeVisible (btVelSw);
@@ -93,6 +92,7 @@ public:
         // Édition à la souris sur le grand graphe d'EG (gauche) : niveau (Y) + rate (X).
         addAndMakeVisible (egGraph);
         egGraph.maxLevel = 127.0f;   // niveaux EG en octet filaire o/b 0..127 (centre 64)
+        egGraph.resetLevel = 64.0f;
         egGraph.getData = [this] (juce::Array<float>& levels, juce::Array<float>& weights)
         {
             levels = { (float) sliderL0.getValue(), (float) sliderL1.getValue(), (float) sliderL2.getValue(),
@@ -130,7 +130,10 @@ public:
         Logger::writeToLog( "PitchEg setElement");
         // Pitch EG = AFM Element Common (groupe 0x05). T2 = (element-1)<<5 (réglé par bloc ci-dessous).
         // Offsets spec Table 1-6 : FPR1-3=01-03, FPRR1=04, FPL0-3=05-08, FPRL1=09, FPRS(slope)=0B.
-        const int pitchGroup = (int) SyVoice::egGroupFor (SyVoice::EgKind::pitch);   // 0x05
+        // AFM : group 0x05, FPR1 01.. (Table 1-6). AWM : group 0x07, PPR1 06.. (Table 1-8,
+        // OCR l.492-503) -> tous les N2 decales de +5 ; PPRS s/m -7..+7 ; PPEGR 1~3.
+        const int pitchGroup = isAwm ? 0x07 : (int) SyVoice::egGroupFor (SyVoice::EgKind::pitch);
+        const int o = isAwm ? 5 : 0;
         int sysexdata2[9] = { 0x43, 0X10, 0x34, pitchGroup, 0x00, 0x00, 0x01, 0x00, 0x00 }; // rates
         int sysexdata[9]  = { 0x43, 0X10, 0x34, pitchGroup, 0x00, 0x00, 0x05, 0x00, 0x00 }; // levels
         
@@ -218,8 +221,10 @@ public:
             
         }
         // --- Sysex Pitch EG (groupe 0x05). On n'émet QUE les paramètres documentés. ---
-        sysexdata[6] = 0x0B;                        // FPRS (rate scaling) -> slider "slope"
+        sysexdata[6] = 0x0B + o;                    // FPRS 0..7 / PPRS s/m -7..+7 -> slider "slope"
         sliderSlope.setMidiSysex(sysexdata);
+        sliderSlope.setRangeAndRound (isAwm ? -7 : 0, 7, 0);
+        sliderSlope.setSliderStyle (Slider::SliderStyle::LinearHorizontal);   // min<0 force Rotary
         {
             // Le referTo re-publie la valeur liee : ComboBox::valueChanged re-emet via
             // setSelectedId(sendNotificationAsync) et Button::valueChanged via setToggleState
@@ -228,12 +233,13 @@ public:
             const ScopedEchoSuppress noSend;
             auto P = [&] (const String& suffix) -> Value
             { return valueTreeVoice.getPropertyAsValue (Identifier ("ELEMENT" + String (element) + suffix), &um); };
-            sysexdata[6] = 0x0A;                    // FPEGR (range 0..3) : MidiCombo emet id-1
+            fillRangeItems();
+            sysexdata[6] = 0x0A + o;                // FPEGR 0..3 / PPEGR 1..3 : MidiCombo emet id-1
             comboRange.setMidiSysex (sysexdata);
             comboRange.getSelectedIdAsValue().referTo (P ("PEGRANGE"));
             if (comboRange.getSelectedItemIndex() < 0)
-                comboRange.setSelectedId (1, dontSendNotification);   // jamais vide (cf. AfmLfo)
-            sysexdata[6] = 0x0C;                    // FYPSW (velocity switch on/off)
+                comboRange.setSelectedId (isAwm ? 2 : 1, dontSendNotification);   // jamais vide (cf. AfmLfo)
+            sysexdata[6] = 0x0C + o;                   // FYPSW (velocity switch on/off)
             btVelSw.setMidiSysex (sysexdata);
             btVelSw.getToggleStateValue().referTo (P ("PEGVELSW"));
         }
@@ -245,17 +251,17 @@ public:
         // Centre par défaut = 64. Plage 0..127 -> le slider atteint enfin TOUTE la plage du synthé.
         for (auto* s : { &sliderL0, &sliderL1, &sliderL2, &sliderL3, &sliderL4, &sliderRL1, &sliderRL2 })
             SyVoice::applyEgLevelDisplay (*s);
-        sysexdata[6] = 0x05; sliderL0.setMidiSysex(sysexdata);  sliderL0.setRangeAndRound(0, 127, 64);
-        sysexdata[6] = 0x06; sliderL1.setMidiSysex(sysexdata);  sliderL1.setRangeAndRound(0, 127, 64);
-        sysexdata[6] = 0x07; sliderL2.setMidiSysex(sysexdata);  sliderL2.setRangeAndRound(0, 127, 64);
-        sysexdata[6] = 0x08; sliderL3.setMidiSysex(sysexdata);  sliderL3.setRangeAndRound(0, 127, 64);
-        sysexdata[6] = 0x09; sliderRL1.setMidiSysex(sysexdata); sliderRL1.setRangeAndRound(0, 127, 64);
+        sysexdata[6] = 0x05 + o; sliderL0.setMidiSysex(sysexdata);  sliderL0.setRangeAndRound(0, 127, 64);
+        sysexdata[6] = 0x06 + o; sliderL1.setMidiSysex(sysexdata);  sliderL1.setRangeAndRound(0, 127, 64);
+        sysexdata[6] = 0x07 + o; sliderL2.setMidiSysex(sysexdata);  sliderL2.setRangeAndRound(0, 127, 64);
+        sysexdata[6] = 0x08 + o; sliderL3.setMidiSysex(sysexdata);  sliderL3.setRangeAndRound(0, 127, 64);
+        sysexdata[6] = 0x09 + o; sliderRL1.setMidiSysex(sysexdata); sliderRL1.setRangeAndRound(0, 127, 64);
 
         // Rates FPR1-3 (01-03) + release rate FPRR1 (04)
-        sysexdata2[6] = 0x01; sliderR1.setMidiSysex(sysexdata2);  sliderR1.setRangeAndRound(0, 63, 0);
-        sysexdata2[6] = 0x02; sliderR2.setMidiSysex(sysexdata2);  sliderR2.setRangeAndRound(0, 63, 0);
-        sysexdata2[6] = 0x03; sliderR3.setMidiSysex(sysexdata2);  sliderR3.setRangeAndRound(0, 63, 0);
-        sysexdata2[6] = 0x04; sliderRR1.setMidiSysex(sysexdata2); sliderRR1.setRangeAndRound(0, 63, 0);
+        sysexdata2[6] = 0x01 + o; sliderR1.setMidiSysex(sysexdata2);  sliderR1.setRangeAndRound(0, 63, 0);
+        sysexdata2[6] = 0x02 + o; sliderR2.setMidiSysex(sysexdata2);  sliderR2.setRangeAndRound(0, 63, 0);
+        sysexdata2[6] = 0x03 + o; sliderR3.setMidiSysex(sysexdata2);  sliderR3.setRangeAndRound(0, 63, 0);
+        sysexdata2[6] = 0x04 + o; sliderRR1.setMidiSysex(sysexdata2); sliderRR1.setRangeAndRound(0, 63, 0);
 
         // Sliders sans équivalent dans le Pitch EG SY77 (pas de L4 ; pas de 4e on-rate ;
         // pas de 2e release) : affichés et persistés mais NON émis vers le synthé.
@@ -337,7 +343,19 @@ private:
     
     Label   labelSlope {"test", "Slope"};
     Label   labelRange {"", "Range"};
-    MidiCombo   comboRange;   // FPEGR 0x0A (0..3)
+    MidiCombo   comboRange;   // FPEGR 0x0A (0..3) / PPEGR 0x0F (1..3)
+    bool isAwm = false;       // onglet monte dans la vue AWM (WaveVue) -> adressage group 0x07
+    void fillRangeItems()
+    {
+        // id = valeur sysex + 1. AWM n'a pas "8 oct" (PPEGR 1~3) : memes ids 2..4, meme sens.
+        comboRange.clear (dontSendNotification);
+        const char* names[] = { "8 oct", "2 oct", "1 oct", "1/2 oct" };
+        for (int v = isAwm ? 1 : 0; v < 4; ++v)
+            comboRange.addItem (names[v], v + 1);
+    }
+public:
+    void setAwmMode (bool b) override { isAwm = b; }
+private:
     MidiButton  btVelSw;      // FYPSW 0x0C (on/off)
     MidiKeyDraw keyDraw;
     MidiSlider  sliderSlope;

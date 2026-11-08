@@ -75,6 +75,7 @@ public:
         // Édition à la souris du grand graphe d'EG (niveau Y + rate X), comme Filter1.
         addAndMakeVisible (egGraph);
         egGraph.maxLevel = 63.0f;   // octet filaire o/b 0..63 (centre 32)
+        egGraph.resetLevel = 32.0f;
         egGraph.getData = [this] (juce::Array<float>& levels, juce::Array<float>& weights)
         {
             levels = { (float) sliderL0.getValue(), (float) sliderL1.getValue(), (float) sliderL2.getValue(),

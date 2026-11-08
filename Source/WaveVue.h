@@ -73,6 +73,7 @@ public:
                 we->setAwmMode (true);
             if (auto* filterTab = dynamic_cast<ElementComponent*> (content))
             {
+                filterTab->setAwmMode (true);   // PitchEg : PEG AWM = group 0x07 (pas 0x05 AFM)
                 filterTab->setElementNumber (number, undoman);
             }
         }
