@@ -80,16 +80,23 @@ public:
     // Câblage : group 0x05, addrHi = élément<<5 (4 éléments), param = N2 de la Table 1-6.
     void setElementNumber (int element, UndoManager& um) override
     {
+        // Les referTo re-publient les valeurs liees (combo/bouton : renvoi synchrone ou async) :
+        // aucun envoi au synthe sans geste utilisateur ([[feedback-hardware-safety]]).
+        const ScopedEchoSuppress noSend;
         const int aH = (element - 1) << 5;   // 0x00 / 0x20 / 0x40 / 0x60
+        // AWM (vue Wave) : multi LFO group 0x07, N2 = AFM + 5 (PLFSPO 0x12 .. PLINTP 0x18,
+        // Table 1-8 OCR l.505-511), pas de Sub LFO, props propres (prefixe AWM).
+        const int grp = isAwm ? 0x07 : 0x05, o = isAwm ? 5 : 0;
+        for (Component* c : subComponents()) c->setVisible (! isAwm);
 
         // Identifiers par élément (affichage/persistance), via Identifier construit.
         auto P = [&] (const String& suffix) -> Value
-        { return valueTreeVoice.getPropertyAsValue (Identifier ("ELEMENT" + String (element) + suffix), &um); };
+        { return valueTreeVoice.getPropertyAsValue (Identifier ("ELEMENT" + String (element) + (isAwm ? "AWM" : "") + suffix), &um); };
 
         // Slider : referTo + adresse sysex (group 0x05) + plage.
         auto wireS = [&] (MidiSlider& s, int param, int maxv, const String& suffix)
         {
-            int sx[9] = { 0x43, 0X10, 0x34, 0x05, aH, 0x00, param, 0x00, 0x00 };
+            int sx[9] = { 0x43, 0X10, 0x34, grp, aH, 0x00, param + o, 0x00, 0x00 };
             s.setMidiSysex (sx);
             s.setRangeAndRound (0, maxv, 0);
             s.getValueObject().referTo (P (suffix));
@@ -116,7 +123,7 @@ public:
         // sélection valide après le referTo, on pose le wave 0 (id 1) -> jamais vide.
         // (Reliability-first : on ne touche PAS à l'encodage d'envoi, juste l'init d'affichage.)
         {
-            int sxM[9] = { 0x43, 0X10, 0x34, 0x05, aH, 0x00, 0x12, 0x00, 0x00 };   // Main wave
+            int sxM[9] = { 0x43, 0X10, 0x34, grp, aH, 0x00, 0x12 + o, 0x00, 0x00 };   // Main wave
             mlfoWave.setMidiSysex (sxM);
             mlfoWave.getSelectedIdAsValue().referTo (P ("MLFOWAVE"));
             if (mlfoWave.getSelectedItemIndex() < 0)
@@ -142,7 +149,7 @@ public:
         g.fillAll (getLookAndFeel().findColour (ResizableWindow::backgroundColourId));
         // Séparateur entre Main et Sub (repère visuel comme l'original).
         g.setColour (SYPal.panelBorder);
-        g.drawHorizontalLine (subTop - 6, 0.0f, (float) getWidth());
+        if (! isAwm) g.drawHorizontalLine (subTop - 6, 0.0f, (float) getWidth());
     }
 
     void resized() override
@@ -223,6 +230,13 @@ private:
           lblSPmd  { "", "PMD" }, lblSMode { "", "Mode" };
 
     int subTop = 0;   // y du bloc Sub (séparateur dessiné dans paint)
+    bool isAwm = false;
+public:
+    void setAwmMode (bool b) override { isAwm = b; }
+private:
+    juce::Array<Component*> subComponents()
+    { return { &lblSub, &slfoWave, &slfoSpeed, &slfoTime, &slfoPmd, &slfoMode,
+               &lblSWave, &lblSSpd, &lblSTime, &lblSPmd, &lblSMode }; }
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AfmLfo)
 };

@@ -64,6 +64,11 @@ public:
         { const int i = roundToInt (v); return i >= 3 ? String ("Off") : "L" + String (i + 1); };
         sliderHold.textFromValueFunction = [] (double v) { return String (63 - roundToInt (v)); };
         labelLoop.attachToComponent (&sliderLoop, true);
+        // AWM : mode HOLD de l'amp-EG (PAEGMD 0x4F, normal/hold) : au lieu d'une attaque, le son
+        // demarre a plein niveau et R1 devient un temps de maintien (Table 1-8, manuel Swayed).
+        btHold.setTextOnOff ("Hold", "Hold");
+        btHold.setClickingTogglesState (true);
+        addChildComponent (btHold);
         labelHold.attachToComponent (&sliderHold, true);
         for (auto* s : { &sliderL0, &sliderL1, &sliderL2, &sliderL3, &sliderL4,
                          &sliderR1, &sliderR2, &sliderR3, &sliderR4,
@@ -275,6 +280,14 @@ public:
             for (int i = 0; i < 7; ++i) opTab[i].setVisible (false);
             sliderLoop.setVisible (false);   // amp-EG AWM : pas de SLP/HT (mode HOLD = PAEGMD, a part)
             sliderHold.setVisible (false);
+            {
+                const ScopedEchoSuppress noSendHold;   // referTo -> setToggleState synchrone
+                int sx[9] = { 0x43, 0X10, 0x34, 0x07, aH, 0x00, 0x4F, 0x00, 0x00 };
+                btHold.setMidiSysex (sx);
+                btHold.getToggleStateValue().referTo (valueTreeVoice.getPropertyAsValue (
+                    Identifier ("ELEMENT" + String (element) + "AWMEGHOLD"), &um));
+                btHold.setVisible (true);
+            }
             egGraph.loopNode = -1;
             const ScopedEchoSuppress noSend;   // le referTo re-publie la valeur liee
             // Plages AVANT le referTo (sinon plage JUCE par defaut 0..10 -> valeurs AFM
@@ -318,6 +331,7 @@ public:
         for (int i = 0; i < 7; ++i) opTab[i].setVisible (true);
         sliderLoop.setVisible (true);
         sliderHold.setVisible (true);
+        btHold.setVisible (false);
         applyOpBinding();
     }
     // Rectangle du grand graphe. Partage par paint() et resized() ET decale sous la barre
@@ -392,6 +406,7 @@ public:
         // fenetre mini (640) laisse ~150 px a chacun.
         const int lx = (int) (W * 0.03f) + 44;
         sliderLoop.setBounds (lx, kbTop - 30, jlimit (0, 130, sliderSlope.getX() - 50 - lx), 22);
+        btHold.setBounds (lx - 40, kbTop - 30, 80, 22);   // AWM : a la place de Loop
         const int hx = sliderSlope.getRight() + 48;
         sliderHold.setBounds (hx, kbTop - 30, jlimit (0, 160, W - hx - 12), 22);
 
@@ -416,6 +431,7 @@ private:
     Label   labelSlope {"test", "Slope"};
     Label   labelLoop  {"", "Loop"};
     Label   labelHold  {"", "Hold"};
+    MidiButton btHold;       // AWM : PAEGMD 0x4F (normal / hold)
     MidiSlider sliderLoop;   // SLP 0x0C (0..3, 3 = pas de boucle)
     MidiSlider sliderHold;   // HT  0x0D (0..63, affiche 63..0)
     // SLP v -> noeud v+1 (L1..L3) ; 3 = L4 = sustain = pas de boucle.

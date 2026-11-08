@@ -15,6 +15,7 @@
 #include "AWMVue.h"
 #include "WaveEg.h"
 #include "PitchEG.h"
+#include "AfmLfo.h"
 //==============================================================================
 
 struct TabWave  : public TabbedComponent
@@ -26,6 +27,7 @@ struct TabWave  : public TabbedComponent
         addTab (TRANS("WAVE"),     colour, new AWMVue (), true);
         addTab (TRANS("Volume EG"),     colour, new WaveEg (), true);
         addTab (TRANS("Pitch EG"),     colour, new PitchEg (), true);
+        addTab (TRANS("LFO"),          colour, new AfmLfo (), true);   // multi LFO AWM (0x07/0x12-0x18)
         addTab  (TRANS("Close"), colour, nullptr,false);
         
     }
@@ -101,7 +103,7 @@ public:
     void timerCallback() override
     {
         
-        if(tabs.getCurrentTabIndex()==3)
+        if (tabs.getCurrentTabIndex() == tabs.getNumTabs() - 1)   // onglet "Close" = dernier
         {
             tabs.setCurrentTabIndex(0);
             setVisible(false);
