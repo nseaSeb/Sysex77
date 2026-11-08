@@ -484,6 +484,9 @@ public:
 void buttonClicked (Button* button) override
     {
         Logger::writeToLog("MidiRadio Button clic");
+        // JUCE eteint l'ancien bouton (avec notification) AVANT d'allumer le nouveau : sans ce
+        // filtre, chaque clic envoyait d'abord l'ANCIEN mode puis le nouveau.
+        if (! button->getToggleState()) return;
         for(auto i =0; i < arrayButton.size();i++)
             if(arrayButton[i]->getToggleState())
                 valueRadio.setValue(i);
@@ -620,6 +623,18 @@ public:
         
     }
     
+    /** Lie le combo a une Value SANS emettre : ni le referTo (sous garde), ni la notification
+        asynchrone que ComboBox::valueChanged programme ensuite. */
+    void bindTo (const Value& v)
+    {
+        const int before = getSelectedId();
+        { const ScopedEchoSuppress noSend; getSelectedIdAsValue().referTo (v); }
+        rebindPending = (getSelectedId() != before);
+        rebindId = getSelectedId();
+    }
+    bool rebindPending = false;
+    int  rebindId = 0;
+
    void comboBoxChanged (ComboBox* comboBoxThatHasChanged) override
     {
              Logger::writeToLog("midiCombo  changed");
@@ -629,6 +644,10 @@ public:
         // ré-envoi tombe HORS du garde synchrone (ScopedEchoSuppress), on le bloque ici via
         // l'état de suppression du bus -> aucune ré-émission d'un changement issu d'une RX.
         if (SysexBus::get().suppressSend.load (std::memory_order_acquire) > 0)
+            return;
+        // Notification ASYNC differee d'un rebind (referTo hors geste) : arrive apres la fin
+        // du ScopedEchoSuppress -> on l'ignore si l'id est celui pose par le rebind.
+        if (std::exchange (rebindPending, false) && getSelectedId() == rebindId)
             return;
         sysexData[8] = getSelectedId() -1;
 

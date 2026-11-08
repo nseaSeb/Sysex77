@@ -289,6 +289,7 @@ public:
                 btHold.setVisible (true);
             }
             egGraph.loopNode = -1;
+            egGraph.egKind = "awmamp";   // pas de collage AFM <-> AWM (l'AWM n'emet que R1-4/RR1/L2/L3)
             const ScopedEchoSuppress noSend;   // le referTo re-publie la valeur liee
             // Plages AVANT le referTo (sinon plage JUCE par defaut 0..10 -> valeurs AFM
             // de Loop/Hold tronquees et reecrites dans les props partagees).
@@ -332,6 +333,7 @@ public:
         sliderLoop.setVisible (true);
         sliderHold.setVisible (true);
         btHold.setVisible (false);
+        egGraph.egKind = {};
         applyOpBinding();
     }
     // Rectangle du grand graphe. Partage par paint() et resized() ET decale sous la barre

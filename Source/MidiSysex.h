@@ -211,16 +211,7 @@ void oscMessageReceived (const OSCMessage& message)
                     // non sollicitée + risque de boucle). Suppression d'envoi sur tout le replay.
                     {
                         const ScopedEchoSuppress noEcho;
-                        // SLP/HT (EG AFM, 0x0C/0x0D) ne sont pas decodes du dump : sans ce reset,
-                        // la voix precedente laisserait ses valeurs affichees. Defauts = pas de
-                        // boucle (3) / hold 0. Rien n'est emis (ScopedEchoSuppress).
-                        for (int el = 1; el <= 4; ++el)
-                            for (int op = 0; op <= 6; ++op)
-                            {
-                                const String pre = "ELEMENT" + String (el) + (op > 0 ? "OP" + String (op) : String());
-                                valueTreeVoice.setProperty (Identifier (pre + "EGVOLSLP"), 3, nullptr);
-                                valueTreeVoice.setProperty (Identifier (pre + "EGVOLHT"),  0, nullptr);
-                            }
+                        // SLP/HT sont decodes du dump (record op @12/@13) : plus de reset force.
                         for (auto& vp : SyVoice::voiceBlobToParams (d, sz))
                         {
                             valueSysexIn = make_var_array (vp.group, vp.addrHi, vp.addrLo, vp.param, vp.v1, vp.value);

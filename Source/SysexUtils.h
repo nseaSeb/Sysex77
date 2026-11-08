@@ -212,6 +212,7 @@ namespace SyVoice
             { 0x06, 6 }, { 0x07, 7 }, { 0x08, 8 }, { 0x09, 9 },   // L1-L4
             { 0x0A, 10 }, { 0x0B, 11 },                           // RL1, RL2
             { 0x0E, 14 },                                         // L0
+            { 0x0C, 12 }, { 0x0D, 13 },                           // SLP (3 = pas de boucle, 97 %), HT
             { 0x1B, 29 },                                         // TL (niveau de sortie)
             { 0x25, 43 },                                         // FPC (Coarse) -> colonne COARSE
             { 0x17, 24 },                                         // PWAVE (waveform 0..15) -> colonne WAVE
@@ -305,8 +306,10 @@ namespace SyVoice
                 // PPEGR 1..3, BP croissants 36/55/76/96, switches 0/1). Octets filaires bruts.
                 for (int n2 = 0x02; n2 <= 0x18; ++n2)        // PPM, PNOTE, PPF, PMS, pitch-EG, LFO
                     out.add ({ 0x07, aH, 0, n2, (int) d[base + n2 + 1] });
-                for (int n2 : { 0x4F, 0x57, 0x58, 0x59, 0x5A, 0x5B, 0x60, 0x61, 0x62 })
-                    out.add ({ 0x07, aH, 0, n2, (int) d[base + n2 + 9] }); // HOLD, PARS, BP1-4, VEL, ARVSW, AMS
+                for (int n2 : { 0x4F, 0x57, 0x58, 0x59, 0x5A, 0x5B })
+                    out.add ({ 0x07, aH, 0, n2, (int) d[base + n2 + 9] }); // HOLD, PARS, BP1-4
+                for (int n2 : { 0x60, 0x61, 0x62 })               // VEL, ARVSW, AMS : apres les 4 PAOS
+                    out.add ({ 0x07, aH, 0, n2, (int) d[base + n2 + 13] }); // (2 octets chacun) -> +13
                 for (int k = 0; k < 4; ++k)                     // PAOS1-4 (0x5C-0x5F) : o/b2, MSB @101+2k
                     out.add ({ 0x07, aH, 0, 0x5C + k, (int) d[base + 102 + 2 * k], (int) d[base + 101 + 2 * k] });
                 base += 112;   // bloc AWM
@@ -700,7 +703,7 @@ namespace SyVoice
 
     /** Offset-binary 2 octets (FOS / break-point offsets) : display -127..+127.
         combined = display + 128 (1..255) ; V1 = bit7, V2 = low7 (cf. lua OB2). */
-    inline int   ob2Combined  (int display) noexcept { return juce::jlimit (-127, 127, display) + 128; }
+    inline int   ob2Combined  (int display) noexcept { return juce::jlimit (-128, 127, display) + 128; }
     inline juce::uint8 ob2V1   (int display) noexcept { return (juce::uint8) ((ob2Combined (display) >> 7) & 0x01); }
     inline juce::uint8 ob2V2   (int display) noexcept { return (juce::uint8) (ob2Combined (display) & 0x7F); }
     inline int   ob2ToDisplay (int v1, int v2) noexcept { return (((v1 & 0x01) << 7) | (v2 & 0x7F)) - 128; }

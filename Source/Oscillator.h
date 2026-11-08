@@ -600,7 +600,7 @@ public:
                     // dumps). Le chemin auto du widget n'envoie qu'un octet (et s/m pour min<0) :
                     // envoi ET reception a la main. Groupe sentinelle 0x7F = RX widget inerte.
                     offScl[o][k].setAutoSend (false);
-                    offScl[o][k].setRangeAndRound (-127, 127, 0);
+                    offScl[o][k].setRangeAndRound (-128, 127, 0);   // (V1,V2)=(0,0) = -128
                     offScl[o][k].setSliderStyle (Slider::LinearBar);
                     { int dead[9] = { 0x43, 0x10, 0x34, 0x7F, 0x7F, 0x00, 0x7F, 0x00, 0x00 };
                       offScl[o][k].setMidiSysex (dead); }

@@ -858,7 +858,7 @@ public:
         int bp[4], off[4]; data (bp, off);
         const int lo = active > 0 ? bp[active - 1] : 0, hi = active < 3 ? bp[active + 1] : 127;
         const int note = juce::jlimit (lo, hi, juce::roundToInt ((lastEff.x - plot.getX()) / plot.getWidth() * 127.0f));
-        const int o = juce::jlimit (-127, 127, juce::roundToInt ((plot.getCentreY() - lastEff.y) / (plot.getHeight() * 0.5f) * 127.0f));
+        const int o = juce::jlimit (-128, 127, juce::roundToInt ((plot.getCentreY() - lastEff.y) / (plot.getHeight() * 0.5f) * 127.0f));
         onEdit (active, note, o);
         repaint();
     }
@@ -877,7 +877,7 @@ private:
     {
         for (int k = 0; k < 4; ++k) { bp[k] = 32 * k + 16; off[k] = 0; }
         if (getData) getData (bp, off);
-        for (int k = 0; k < 4; ++k) { bp[k] = juce::jlimit (0, 127, bp[k]); off[k] = juce::jlimit (-127, 127, off[k]); }
+        for (int k = 0; k < 4; ++k) { bp[k] = juce::jlimit (0, 127, bp[k]); off[k] = juce::jlimit (-128, 127, off[k]); }
     }
     float xForNote (float n) const { return plot.getX() + plot.getWidth() * n / 127.0f; }
     float yForOff  (int o) const   { return plot.getCentreY() - plot.getHeight() * 0.5f * (float) o / 127.0f; }

@@ -125,13 +125,13 @@ public:
         {
             int sxM[9] = { 0x43, 0X10, 0x34, grp, aH, 0x00, 0x12 + o, 0x00, 0x00 };   // Main wave
             mlfoWave.setMidiSysex (sxM);
-            mlfoWave.getSelectedIdAsValue().referTo (P ("MLFOWAVE"));
+            mlfoWave.bindTo (P ("MLFOWAVE"));
             if (mlfoWave.getSelectedItemIndex() < 0)
                 mlfoWave.setSelectedId (1, dontSendNotification);   // wave 0 par défaut
 
             int sxS[9] = { 0x43, 0X10, 0x34, 0x05, aH, 0x00, 0x15, 0x00, 0x00 };   // Sub wave
             slfoWave.setMidiSysex (sxS);
-            slfoWave.getSelectedIdAsValue().referTo (P ("SLFOWAVE"));
+            slfoWave.bindTo (P ("SLFOWAVE"));
             if (slfoWave.getSelectedItemIndex() < 0)
                 slfoWave.setSelectedId (1, dontSendNotification);   // wave 0 par défaut
         }

@@ -242,13 +242,13 @@ public:
             comboRange.setMidiSysex (sysexdata);
             // AWM : props PROPRES (plage 1..3 et Slope -7..7) ; partagees avec l'editeur AFM
             // du meme element, elles etaient ecrasees par ses plages (0..3 / 0..7).
-            comboRange.getSelectedIdAsValue().referTo (P (isAwm ? "AWMPEGRANGE" : "PEGRANGE"));
+            comboRange.bindTo (P (isAwm ? "AWMPEGRANGE" : "PEGRANGE"));
             if (isAwm) sliderSlope.getValueObject().referTo (P ("AWMSLOPEPITCH"));
             if (comboRange.getSelectedItemIndex() < 0)
                 comboRange.setSelectedId (isAwm ? 2 : 1, dontSendNotification);   // jamais vide (cf. AfmLfo)
             sysexdata[6] = 0x0C + o;                   // FYPSW (velocity switch on/off)
             btVelSw.setMidiSysex (sysexdata);
-            btVelSw.getToggleStateValue().referTo (P ("PEGVELSW"));
+            btVelSw.getToggleStateValue().referTo (P (isAwm ? "AWMPEGVELSW" : "PEGVELSW"));
         }
 
         // Levels FPL0-3 (05-08) + release level FPRL1 (09). Encodage offset-binary (o/b) :
