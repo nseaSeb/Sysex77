@@ -188,9 +188,16 @@ public:
         mainWindow = nullptr; }
 
 private:
-    class MainWindow    : public DocumentWindow
+    class MainWindow    : public DocumentWindow, private KeyListener
     {
     public:
+        bool keyPressed (const KeyPress& k, Component*) override
+        {
+            const auto id = Shortcuts::find (k);
+            if (id.isEmpty()) return false;
+            if (auto* d = dynamic_cast<MidiDemo*> (getContentComponent())) return d->handleShortcut (id);
+            return false;
+        }
         MainWindow (const String& name, Component* c, JUCEApplication& a)
             : DocumentWindow (name, Desktop::getInstance().getDefaultLookAndFeel()
                                                           .findColour (ResizableWindow::backgroundColourId),
@@ -199,6 +206,9 @@ private:
         {
             setUsingNativeTitleBar (true);
             setContentOwned (c, true);
+            // Raccourcis configurables (Shortcuts.h) : recoit les touches qu'aucun enfant n'a
+            // consommees (une saisie de texte ou une capture de raccourci les garde).
+            addKeyListener (this);
         
            #if JUCE_ANDROID || JUCE_IOS
             setFullScreen (true);

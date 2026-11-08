@@ -14,6 +14,7 @@
 #include "Updater.h"
 #include "Themes.h"
 #include "ThemeBuilder.h"
+#include "Shortcuts.h"
 
 //==============================================================================
 // Langue de l'UI : applique (ou retire) les mappings LocalisedStrings. Les clés source sont en
@@ -141,6 +142,18 @@ struct ConfigPage   : public Component, public ComboBox::Listener
         };
 
         // Réinitialiser : thème + couleurs + canal MIDI aux valeurs par défaut (confirmation).
+        addAndMakeVisible (btShortcuts);
+        btShortcuts.onClick = []
+        {
+            DialogWindow::LaunchOptions o;
+            o.content.setOwned (new Shortcuts::ShortcutsEditor());
+            o.dialogTitle = TRANS("Keyboard shortcuts");
+            o.dialogBackgroundColour = SYPal.background;
+            o.escapeKeyTriggersCloseButton = false;   // Echap peut etre capture comme raccourci
+            o.useNativeTitleBar = true;
+            o.resizable = false;
+            o.launchAsync();
+        };
         addAndMakeVisible (btReset);
         btReset.onClick = [this]
         {
@@ -485,13 +498,15 @@ struct ConfigPage   : public Component, public ComboBox::Listener
         }
         right.removeFromTop (gap);
 
-        const int genH = titleH + labH + rowH + vgap + rowH + pad;
+        const int genH = titleH + labH + rowH + vgap + rowH + vgap + rowH + pad;
         cardGeneral = right.removeFromTop (genH);
         {
             auto c = cardGeneral.reduced (pad);
             c.removeFromTop (titleH - pad);
             labStartTab.setBounds (c.removeFromTop (labH));
             comboStartTab.setBounds (c.removeFromTop (rowH));
+            c.removeFromTop (vgap);
+            btShortcuts.setBounds (c.removeFromTop (rowH));
             c.removeFromTop (vgap);
             btReset.setBounds (c.removeFromTop (rowH));
         }
@@ -583,6 +598,7 @@ struct ConfigPage   : public Component, public ComboBox::Listener
     Label      labStartTab { "", TRANS("Startup tab") };
     ComboBox   comboStartTab;
     TextButton btReset { TRANS("Default settings") };
+    TextButton btShortcuts { TRANS("Keyboard shortcuts...") };
 
     // Carte Développeur
     ToggleButton devBtn { TRANS("Developer mode") };

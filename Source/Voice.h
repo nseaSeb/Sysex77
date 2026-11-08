@@ -248,6 +248,18 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         voiceNameVal.removeListener(this);
     }
     
+    /** Ferme tout editeur ouvert par-dessus l'ecran (raccourci "close"). true si un etait ouvert. */
+    bool closeEditors()
+    {
+        bool any = false;
+        for (Component* c : { (Component*) &editAfm1, (Component*) &editAfm2, (Component*) &editAfm3, (Component*) &editAfm4,
+                              (Component*) &editWave1, (Component*) &editWave2, (Component*) &editWave3, (Component*) &editWave4,
+                              (Component*) &editFilter1, (Component*) &editFilter2, (Component*) &editFilter3, (Component*) &editFilter4,
+                              (Component*) &editPan1, (Component*) &editPan2, (Component*) &editPan3, (Component*) &editPan4 })
+            if (c->isVisible()) { c->setVisible (false); any = true; }
+        if (any) repaint();
+        return any;
+    }
     #include "ValueTrees.h"
     
         virtual void broughtToFront() override

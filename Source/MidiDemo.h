@@ -354,6 +354,23 @@ private TextButton::Listener,
  public Value::Listener
 {
 public:
+    /** Action de raccourci clavier (cf. Shortcuts.h). true si traitee. */
+    bool handleShortcut (const juce::String& id)
+    {
+        if (id.startsWith ("tab"))
+        {
+            const int i = id.substring (3).getIntValue();
+            if (i < 0 || i >= tabs.getNumTabs()) return false;
+            tabs.setCurrentTabIndex (i);
+            return true;
+        }
+        if (id == "close")
+            for (int i = 0; i < tabs.getNumTabs(); ++i)
+                if (auto* vp = dynamic_cast<VoicePage*> (tabs.getTabContentComponent (i)))
+                    return vp->closeEditors();
+        return false;
+    }
+
     //==============================================================================
     MidiDemo (bool isRunningComponenTransformsDemo = false)
     :  midiKeyboard       (keyboardState, MidiKeyboardComponent::horizontalKeyboard),
