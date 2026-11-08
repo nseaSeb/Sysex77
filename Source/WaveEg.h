@@ -47,6 +47,21 @@ public:
         addAndMakeVisible(sliderSlope);
         sliderSlope.setSliderStyle(Slider::SliderStyle::LinearHorizontal);
         sliderSlope.addListener(this);
+        // Loop point (SLP 0x0C, 0~3) + Hold time (HT 0x0D, 0~63, affiche 63~0 sur le synthe),
+        // Table 1-7 OCR l.409-410. SLP : boucle de L4 (sustain) vers L1..L3 tant que la note est
+        // tenue ; 3 = L4 = pas de boucle (semantique : manuel Swayed p.~23). Non verifies hardware.
+        for (auto* sl : { &sliderLoop, &sliderHold })
+        {
+            sl->setPopupDisplayEnabled (true, true, this);
+            sl->setSliderStyle (Slider::SliderStyle::LinearHorizontal);
+            sl->addListener (this);
+            addAndMakeVisible (*sl);
+        }
+        sliderLoop.textFromValueFunction = [] (double v)
+        { const int i = roundToInt (v); return i >= 3 ? String ("Off") : "L" + String (i + 1); };
+        sliderHold.textFromValueFunction = [] (double v) { return String (63 - roundToInt (v)); };
+        labelLoop.attachToComponent (&sliderLoop, true);
+        labelHold.attachToComponent (&sliderHold, true);
         for (auto* s : { &sliderL0, &sliderL1, &sliderL2, &sliderL3, &sliderL4,
                          &sliderR1, &sliderR2, &sliderR3, &sliderR4,
                          &sliderRL1, &sliderRL2, &sliderRR1, &sliderRR2 })
@@ -129,6 +144,8 @@ public:
         
         if(slider == &sliderSlope)
             resized();
+        if (slider == &sliderLoop)
+            updateLoopMarker();
         // Mode ALL : un geste UTILISATEUR recopie la valeur dans les 6 proprietes par op (sinon
         // l'onglet OPn afficherait une valeur perimee). PAS en contexte RX/chargement
         // (suppressSend > 0) : la valeur recue ne concerne qu'un op, deja stocke par valueChanged().
@@ -150,7 +167,8 @@ public:
                  { &sliderR4, 0x03, "EGVOLR4" }, { &sliderRR1, 0x04, "EGVOLRR1" }, { &sliderRR2, 0x05, "EGVOLRR2" },
                  { &sliderL1, 0x06, "EGVOLLEVEL1" }, { &sliderL2, 0x07, "EGVOLLEVEL2" }, { &sliderL3, 0x08, "EGVOLLEVEL3" },
                  { &sliderL4, 0x09, "EGVOLLEVEL4" }, { &sliderRL1, 0x0A, "EGVOLRL1" }, { &sliderRL2, 0x0B, "EGVOLRL2" },
-                 { &sliderL0, 0x0E, "EGVOLLEVEL0" }, { &sliderSlope, 0x0F, "SLOPEVOL" } };
+                 { &sliderL0, 0x0E, "EGVOLLEVEL0" }, { &sliderSlope, 0x0F, "SLOPEVOL" },
+                 { &sliderLoop, 0x0C, "EGVOLSLP" }, { &sliderHold, 0x0D, "EGVOLHT" } };
     }
     // op 0 = partage (ALL, noms historiques ELEMENT<e>EGVOL* lus aussi par la vignette Element.h) ;
     // op 1..6 = ELEMENT<e>OP<n>EGVOL*.
@@ -180,6 +198,10 @@ public:
             // 1er passage sur OPn : amorce depuis la valeur partagee (sinon slider a 0).
             if (selOp > 0 && valueTreeVoice.getProperty (id).isVoid())
                 valueTreeVoice.setProperty (id, valueTreeVoice.getProperty (propId (curElement, 0, r.suffix)), nullptr);
+            // SLP jamais recu/regle (absent du decodage de dump) : affiche "Off" (3), pas L1.
+            // Affichage seul, rien n'est emis (ScopedEchoSuppress).
+            if (r.s == &sliderLoop && valueTreeVoice.getProperty (id).isVoid())
+                valueTreeVoice.setProperty (id, 3, nullptr);
             int sx[9] = { 0x43, 0X10, 0x34, group, aH, 0x00, r.n2, 0x00, 0x00 };
             r.s->setMidiSysex (sx);
             r.s->setMidiBroadcastGroups (selOp == 0 ? ops : Array<int>());
@@ -191,12 +213,15 @@ public:
                 r.s->setRangeAndRound (-7, 7, 0);
                 r.s->setSliderStyle (Slider::SliderStyle::LinearHorizontal);
             }
+            else if (r.s == &sliderLoop)
+                r.s->setRangeAndRound (0, 3, 3);
             else
                 r.s->setRangeAndRound (0, 63, 0);
             r.s->getValueObject().referTo (valueTreeVoice.getPropertyAsValue (id, curUm));
         }
         for (int i = 0; i < 7; ++i)
             opTab[i].setToggleState (i == selOp, dontSendNotification);
+        updateLoopMarker();
         resized();
         repaint();
     }
@@ -245,6 +270,9 @@ public:
         if (isAwm)
         {
             for (int i = 0; i < 7; ++i) opTab[i].setVisible (false);
+            sliderLoop.setVisible (false);   // amp-EG AWM : pas de SLP/HT (mode HOLD = PAEGMD, a part)
+            sliderHold.setVisible (false);
+            egGraph.loopNode = -1;
             const ScopedEchoSuppress noSend;   // le referTo re-publie la valeur liee
             for (auto& r : rows())
                 r.s->getValueObject().referTo (valueTreeVoice.getPropertyAsValue (propId (element, 0, r.suffix), &um));
@@ -281,6 +309,8 @@ public:
         // (groupes 0x06..0x56), OPn = un seul groupe. Offsets : R1-4=00-03, RR1=04, RR2=05,
         // L1-4=06-09, RL1=0A, RL2=0B, L0=0E, RS(slope)=0F.
         for (int i = 0; i < 7; ++i) opTab[i].setVisible (true);
+        sliderLoop.setVisible (true);
+        sliderHold.setVisible (true);
         applyOpBinding();
     }
     // Rectangle du grand graphe. Partage par paint() et resized() ET decale sous la barre
@@ -350,6 +380,11 @@ public:
         // Slope : taille FIXE, placé AU-DESSUS du clavier (avant il était en y=0.92 -> chevauchait
         // le clavier). Le label « Slope » est attaché à sa gauche.
         sliderSlope.setBounds (jmax (90, (int) (W * 0.42f)), kbTop - 30, 160, 22);
+        // Loop a gauche du Slope, Hold a droite (meme rangee, au-dessus du clavier).
+        sliderLoop.setBounds ((int) (W * 0.03f) + 44, kbTop - 30,
+                              jmax (60, jmin (130, sliderSlope.getX() - 50 - ((int) (W * 0.03f) + 44))), 22);
+        sliderHold.setBounds (sliderSlope.getRight() + 48, kbTop - 30,
+                              jmax (60, jmin (160, W - (sliderSlope.getRight() + 48) - 12)), 22);
 
         // Sliders L/R : tailles FIXES (largeur 26 px, hauteur plafonnée) -> ils n'enflent plus avec
         // la fenêtre (setBoundsRelative donnait une largeur = 0,04 × largeur fenêtre = « fat »).
@@ -370,6 +405,17 @@ public:
 private:
     
     Label   labelSlope {"test", "Slope"};
+    Label   labelLoop  {"", "Loop"};
+    Label   labelHold  {"", "Hold"};
+    MidiSlider sliderLoop;   // SLP 0x0C (0..3, 3 = pas de boucle)
+    MidiSlider sliderHold;   // HT  0x0D (0..63, affiche 63..0)
+    // SLP v -> noeud v+1 (L1..L3) ; 3 = L4 = sustain = pas de boucle.
+    void updateLoopMarker()
+    {
+        const int v = roundToInt (sliderLoop.getValue());
+        egGraph.loopNode = (! isAwm && v >= 0 && v < 3) ? v + 1 : -1;
+        egGraph.repaint();
+    }
     MidiKeyDraw keyDraw;
     MidiSlider  sliderSlope;
     MidiPath    samplePathLeft;

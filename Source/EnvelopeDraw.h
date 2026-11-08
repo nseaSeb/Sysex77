@@ -585,6 +585,8 @@ public:
     // Premier noeud de release (key-off) : trait pointille "KEY OFF" sur le noeud precedent.
     // -1 => rien. Les EG SY77 a 7 noeuds (L0..L4, RL1, RL2) => 5.
     int   releaseNode = 5;
+    // Debut de boucle (SLP) : fleche du noeud de sustain vers ce noeud + "LOOP". -1 => rien.
+    int   loopNode = -1;
 
     EgGraphView() { setMouseCursor (juce::MouseCursor::PointingHandCursor); }
 
@@ -650,6 +652,19 @@ public:
             g.setFont (10.0f);
             g.drawText ("KEY OFF", juce::Rectangle<float> (x + 3.0f, 2.0f, 60.0f, 12.0f),
                         juce::Justification::centredLeft, false);
+        }
+        if (loopNode >= 0 && releaseNode >= 1 && loopNode < releaseNode - 1 && releaseNode < pts.size())
+        {
+            const float x0 = pts[loopNode].x, x1 = pts[releaseNode - 1].x, y = 22.0f;
+            g.setColour (SYColSelected.withAlpha (0.8f));
+            juce::Path arr;
+            arr.addArrow ({ x1, y, x0 + 1.0f, y }, 1.5f, 8.0f, 7.0f);
+            g.fillPath (arr);
+            g.drawLine (x0, y - 5.0f, x0, pts[loopNode].y, 1.0f);
+            g.drawLine (x1, y, x1, y + 6.0f, 1.0f);
+            g.setFont (10.0f);
+            g.drawText ("LOOP", juce::Rectangle<float> (x0, y - 15.0f, juce::jmax (30.0f, x1 - x0), 12.0f),
+                        juce::Justification::centred, false);
         }
         const int h = (dragged && selected >= 0) ? selected : hovered;
         if (h < 0 || h >= pts.size()) return;
