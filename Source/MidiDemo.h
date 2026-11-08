@@ -160,6 +160,7 @@ int intTabIndex;
 #include "LookAndFeel.h"
 #include "Controller.h"
 #include "Config.h"
+#include "Sequencer.h"            // bottom-bar phrase player (Seq mode)
 #include "BankSendProgress.h"      // fenêtre de progression de l'envoi de banque
 #include "BankReceiveProgress.h"   // fenêtre de progression de la réception de banque
 #include "Voice.h"
@@ -364,6 +365,12 @@ public:
             tabs.setCurrentTabIndex (i);
             return true;
         }
+        if (id == "seqplay")
+        {
+            if (barMode != 2) setBarMode (2);
+            seqPanel.togglePlay();
+            return true;
+        }
         if (id == "close")
             for (int i = 0; i < tabs.getNumTabs(); ++i)
                 if (auto* vp = dynamic_cast<VoicePage*> (tabs.getTabContentComponent (i)))
@@ -405,18 +412,28 @@ public:
         btBulk.setClickingTogglesState(true);
         btBulk.addListener(this);
 
-        // Toggle d'affichage du clavier (gardé en bas) — masque/affiche le clavier.
-        addAndMakeVisible (btToggleKeyboard);
-        btToggleKeyboard.setAlwaysOnTop (true);   // reste visible au-dessus des onglets (barre de nav)
-        btToggleKeyboard.setClickingTogglesState (true);
-        btToggleKeyboard.setToggleState (getAppSettings()->getBoolValue ("KeyboardVisible", true), dontSendNotification);
-        btToggleKeyboard.onClick = [this]
+        // Bottom bar mode selector [None | Keys | Seq] (replaces the old keyboard toggle).
+        // Default migrated from the former "KeyboardVisible" setting.
+        barMode = jlimit (0, 2, getAppSettings()->getIntValue ("BottomBarMode",
+                                getAppSettings()->getBoolValue ("KeyboardVisible", true) ? 1 : 0));
         {
-            midiKeyboard.setVisible (btToggleKeyboard.getToggleState());
-            getAppSettings()->setValue ("KeyboardVisible", btToggleKeyboard.getToggleState());
-            getAppSettings()->saveIfNeeded();
-            resized();
-        };
+            TextButton* modeButtons[3] = { &btModeNone, &btModeKeys, &btModeSeq };
+            for (int i = 0; i < 3; ++i)
+            {
+                auto* b = modeButtons[i];
+                addAndMakeVisible (*b);
+                b->setAlwaysOnTop (true);   // stays above the tab bar
+                b->setClickingTogglesState (true);
+                b->setRadioGroupId (7701);
+                b->setConnectedEdges ((i > 0 ? Button::ConnectedOnLeft : 0) | (i < 2 ? Button::ConnectedOnRight : 0));
+                b->setToggleState (i == barMode, dontSendNotification);
+                b->onClick = [this, i, b] { if (b->getToggleState()) setBarMode (i); };
+            }
+            btModeNone.setTooltip (TRANS ("Hide the bottom bar"));
+            btModeKeys.setTooltip (TRANS ("On-screen keyboard"));
+            btModeSeq .setTooltip (TRANS ("Phrase player: loops a phrase while you edit"));
+        }
+        addChildComponent (seqPanel);
 
         // INTERRUPTEURS écoute/envoi TOUJOURS VISIBLES (à gauche du toggle clavier).
         // Ce ne sont PLUS des menus de choix de périphérique (celui-ci reste dans l'onglet
@@ -451,7 +468,7 @@ public:
 
         midiKeyboard.setName ("MIDI Keyboard");
         addAndMakeVisible (midiKeyboard);
-        midiKeyboard.setVisible (btToggleKeyboard.getToggleState()); // applique l'état mémorisé
+        midiKeyboard.setVisible (barMode != 0); // applique l'état mémorisé
         
         midiMonitor.setMultiLine (true);
         midiMonitor.setReturnKeyStartsNewLine (false);
@@ -684,13 +701,17 @@ public:
 
     ~MidiDemo()
     {
+        seqPlayer.shutdown();   // its thread sends through sendToOutputs: stop it first
         stopTimer();
         Updater::get().onUpdateAvailable = nullptr;
         Updater::get().onMessage = nullptr;
         SysexBus::get().onMessage = nullptr;   // lambda posée dans MidiSysex.h (capture this)
 
         midiInputs .clear();
-        midiOutputs.clear();
+        {
+            const ScopedLock sl (outLock);
+            midiOutputs.clear();
+        }
         keyboardState.removeListener (this);
         btBulk.removeListener(this);
       
@@ -827,6 +848,12 @@ public:
     
     void handleNoteOn (MidiKeyboardState*, int midiChannel, int midiNoteNumber, float velocity) override
     {
+        if (barMode == 2)   // Seq mode: a key sets the phrase root instead of sounding
+        {
+            seqPlayer.setChannel (midiChannel);
+            seqPanel.setRoot (midiNoteNumber);
+            return;
+        }
         MidiMessage m (MidiMessage::noteOn (midiChannel, midiNoteNumber, velocity));
         m.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
         sendToOutputs (m);
@@ -834,6 +861,7 @@ public:
     
     void handleNoteOff (MidiKeyboardState*, int midiChannel, int midiNoteNumber, float velocity) override
     {
+        if (barMode == 2) return;
         MidiMessage m (MidiMessage::noteOff (midiChannel, midiNoteNumber, velocity));
         m.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
         sendToOutputs (m);
@@ -896,15 +924,18 @@ public:
 
         // Bandeau bas (clavier + pédale/molette) repliable : quand on le masque,
         // tout le bandeau disparaît ET la vue s'étend pour combler la place.
-        const bool kb = btToggleKeyboard.getToggleState();
+        const bool kb = barMode != 0, seq = barMode == 2;
         midiKeyboard.setVisible (kb);
-        labelFoot.setVisible (kb); comboFoot.setVisible (kb);
-        labelMod .setVisible (kb); comboMod .setVisible (kb);
+        seqPanel.setVisible (seq);
+        labelFoot.setVisible (kb && ! seq); comboFoot.setVisible (kb && ! seq);
+        labelMod .setVisible (kb && ! seq); comboMod .setVisible (kb && ! seq);
 
         if (kb)
         {
+            const int leftW = seq ? 290 : 140;   // Seq panel is wider than the pedal/wheel block
             tabs.setBounds (0, 10, getWidth(), getHeight() - 84);
-            midiKeyboard.setBounds (margin + 140, getHeight() - 70, getWidth() - (2 * margin) - 140, 70);
+            midiKeyboard.setBounds (margin + leftW, getHeight() - 70, getWidth() - (2 * margin) - leftW, 70);
+            seqPanel.setBounds (margin, getHeight() - 74, leftW - 8, 72);
             labelFoot.setBounds (margin, getHeight() - 77, 134, 20);
             comboFoot.setBounds (margin, getHeight() - 58, 134, 20);
             labelMod .setBounds (margin, getHeight() - 40, 134, 20);
@@ -918,9 +949,13 @@ public:
 
         // Bouton de toggle calé à droite, sur la rangée d'onglets (barre de nav en bas).
         const int barTop = tabs.getBottom() - 32; // 32 = profondeur de la barre d'onglets
-        const int toggleX = getWidth() - margin - 70;
-        btToggleKeyboard.setBounds (toggleX, barTop + 3, 70, 26);
-        btToggleKeyboard.toFront (false); // au-dessus de la barre d'onglets (sinon le clic part dans les onglets)
+        const int modeW = 50;
+        const int toggleX = getWidth() - margin - 3 * modeW;
+        btModeNone.setBounds (toggleX,             barTop + 3, modeW, 26);
+        btModeKeys.setBounds (toggleX + modeW,     barTop + 3, modeW, 26);
+        btModeSeq .setBounds (toggleX + 2 * modeW, barTop + 3, modeW, 26);
+        for (auto* b : { &btModeNone, &btModeKeys, &btModeSeq })
+            b->toFront (false);   // above the tab bar (else clicks go to the tabs)
 
         // Sélecteurs in/out TOUJOURS VISIBLES, à GAUCHE du toggle clavier, sur la même rangée.
         // Compacts (54 px) ; ordre [In][Out][Clavier] de gauche à droite.
@@ -995,6 +1030,7 @@ public:
         }
         else
         {
+            const ScopedLock sl (outLock);
             jassert (midiOutputs[index]->outDevice.get() == nullptr);
             midiOutputs[index]->outDevice = MidiOutput::openDevice (midiOutputs[index]->deviceInfo.identifier);
             
@@ -1017,6 +1053,7 @@ public:
         }
         else
         {
+            const ScopedLock sl (outLock);
             jassert (midiOutputs[index]->outDevice.get() != nullptr);
             midiOutputs[index]->outDevice.reset();
         }
@@ -1341,6 +1378,10 @@ public:
         // unique -> couvre notes, param-changes/sysex, bulk ET le MIDI Thru (qui passe par ici),
         // donc OFF = rien ne sort, Thru compris (cohérence demandée).
         if (! midiSend) return;
+        // The sequencer thread, the bank-send thread and the message thread all send here:
+        // serialise so messages never interleave on a port (and the port list is stable).
+        const ScopedLock sl (outLock);
+        if (msg.isSysEx()) seqPlayer.editHappened();   // Retrig mode: restart after edits
         // Anti-écho assuré à la RÉCEPTION par dontSendNotification dans chaque widget Midi*
         // (et par setValue() sans renvoi pour Segment) ; pas de flag global non thread-safe.
         for (auto midiOutput : midiOutputs)
@@ -1436,6 +1477,7 @@ public:
 
         if (hasDeviceListChanged (availableDevices, isInputDeviceList))
         {
+            const ScopedLock sl (outLock);   // outputs list is read by the sequencer thread
 
             ReferenceCountedArray<MidiDeviceListEntry>& midiDevices
             = isInputDeviceList ? midiInputs : midiOutputs;
@@ -1539,7 +1581,20 @@ public:
     TextButton pairButton   { TRANS("MIDI Bluetooth devices...") };
     
     TextButton  btBulk {"Bulk Protect"};
-    TextButton  btToggleKeyboard {"Clavier"};
+    TextButton  btModeNone { TRANS ("None") }, btModeKeys { TRANS ("Keys") }, btModeSeq { TRANS ("Seq") };
+    int barMode = 1;   // 0 = none, 1 = keyboard, 2 = phrase player
+
+    void setBarMode (int m)
+    {
+        barMode = jlimit (0, 2, m);
+        TextButton* bs[3] = { &btModeNone, &btModeKeys, &btModeSeq };
+        bs[barMode]->setToggleState (true, dontSendNotification);
+        if (barMode != 2) seqPanel.stopPlaying();
+        keyboardState.allNotesOff (0);
+        getAppSettings()->setValue ("BottomBarMode", barMode);
+        getAppSettings()->saveIfNeeded();
+        resized();
+    }
     // Sélecteurs de ports MIDI TOUJOURS VISIBLES (bandeau bas, à gauche du toggle clavier).
     // Ouvrent un PopupMenu à cases cochables ; même source de vérité que l'onglet Midi Setting
     // (midiInputs/midiOutputs + openDevice/closeDevice + saveEnabledDevices). Cf. showMidiPortMenu.
@@ -1548,6 +1603,9 @@ public:
     std::unique_ptr<MidiDeviceListBox> midiInputSelector, midiOutputSelector;
     std::unique_ptr<MidiSettingsPage>  midiSettingsPage;
     ReferenceCountedArray<MidiDeviceListEntry> midiInputs, midiOutputs;
+    CriticalSection outLock;   // guards midiOutputs + sendMessageNow (see sendToOutputs)
+    Seq::Player seqPlayer { [this] (const MidiMessage& m) { sendToOutputs (m); } };
+    Seq::Panel  seqPanel  { seqPlayer };
     
     CriticalSection midiMonitorLock;
     Array<MidiMessage> incomingMessages;

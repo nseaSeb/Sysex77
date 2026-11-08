@@ -42,6 +42,7 @@ struct BankSendProgressWindow : public juce::ThreadWithProgressWindow
 
     void run() override
     {
+        Seq::ScopedBulk bulk;   // silences the phrase player during the transfer
         const int n = blocks.size();
         for (int i = 0; i < n; ++i)
         {

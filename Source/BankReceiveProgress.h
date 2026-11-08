@@ -37,6 +37,7 @@ struct BankReceiveProgressWindow : public juce::ThreadWithProgressWindow
 
     void run() override
     {
+        Seq::ScopedBulk bulk;   // silences the phrase player during the transfer
         for (int mem = 0; mem < expected; ++mem)
         {
             if (threadShouldExit())                 // bouton « Annuler »
