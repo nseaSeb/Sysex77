@@ -19,7 +19,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14
+          - os: macos-latest
             name: macos
           - os: windows-latest
             name: windows
@@ -59,7 +59,9 @@ jobs:
         run: |
           # Appli GUI : pas de console -> on attend la fin et on lit le code de sortie.
           $p = Start-Process -FilePath "build/Sysex77_artefacts/Release/Sysex77.exe" `
-                             -ArgumentList "--test" -Wait -PassThru
+                             -ArgumentList "--test" -Wait -PassThru `
+                             -RedirectStandardOutput test-out.txt
+          Get-Content test-out.txt -Tail 40
           Write-Host "Code de sortie des tests : $($p.ExitCode)"
           exit $p.ExitCode
 

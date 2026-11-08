@@ -161,7 +161,17 @@ public:
 
     void runUnitTestsAndQuit()
     {
-        UnitTestRunner runner;
+        // Echo every runner message to stdout (flushed) so a crash on CI shows the last test reached.
+        struct EchoRunner : UnitTestRunner
+        {
+            void logMessage (const String& m) override
+            {
+                UnitTestRunner::logMessage (m);
+                std::printf ("%s\n", m.toRawUTF8());
+                std::fflush (stdout);
+            }
+        };
+        EchoRunner runner;
         runner.setAssertOnFailure (false);
         runner.runAllTests();
 
