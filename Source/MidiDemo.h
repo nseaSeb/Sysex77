@@ -165,6 +165,7 @@ int intTabIndex;
 #include "Voice.h"
 #include "Librairie.h"
 #include "Effects.h"
+#include "ControllersPage.h"
 #include "DumpDiffView.h"   // outil RE : comparer 2 dumps .syx
 #include "MidiObjects.h"
 
@@ -193,6 +194,7 @@ struct DemoTabbedComponent  : public TabbedComponent
        // addTab (TRANS("Midi"),     colour, new ControllerPage (), true);
         addTab (TRANS("Voice"), colour, new VoicePage(), true);
         addTab (TRANS("Effects"), colour, new EffectsPage(), true);
+        addTab (TRANS("Controllers"), colour, new ControllersPage(), true);
         // L'onglet "Midi Setting" (index 3) est ajouté par MidiDemo avec un vrai
         // contenu (MidiSettingsPage), car il réutilise des composants de MidiDemo.
 
@@ -1296,6 +1298,7 @@ private:
                         const int g = data[3];
                         int target = -1;
                         if (g == 0x08)                                   target = 3; // Effets
+                        else if (g == 0x02 && data[6] >= 0x28 && data[6] <= 0x3D) target = 4; // Controleurs
                         else if (g == 0x02 || g == 0x03 || g == 0x05 || g == 0x07
                                  || g == 0x09 || g == 0x0A || g == 0x00
                                  || (g & 0x0F) == 0x06)                  target = 2; // Voice

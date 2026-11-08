@@ -297,6 +297,12 @@ namespace SyVoice
         }
 
         out.add ({ 0x02, 0, 0, 0x3F, (int) d[95] });   // VVOL — volume de voix (commun)
+        // Contrôleurs / voix commune N2 0x28..0x3D : bloc commun = d[32 + N2] (mode @32 = N2 0x00,
+        // nom @33..42 = N2 0x01..0x0A, VVOL @95 = N2 0x3F). Vérifié sur 14 911 voix réelles
+        // (docs/SY77_AllTheWeb) : WPBR = 2 dans 94 %, ATPBR s/m 17/18 (bit 16), assigns 1/13/121,
+        // MCTUN <= 65, PORM 0/1. Valeur filaire brute (ATPBR s/m décodé par le widget).
+        for (int n2 = 0x28; n2 <= 0x3D; ++n2)
+            out.add ({ 0x02, 0, 0, n2, (int) d[32 + n2] });
         // Volontairement OMIS (offset connu, encodage/câblage non vérifié) : type filtre @+296
         // (bulk≠enum), FFVSON/FFCMS (s/m), coarse/detune/RS/SLP opérateur, LFO, effets,
         // AWM fine/fixed/filtre, niveaux EG (o/b) ; voix drum (type 10).

@@ -130,7 +130,11 @@ public:
                        // if(sysexData[7] ==  val)
                         
                 Logger::writeToLog ("Slider rexeive val " + String(val));
-                        if(boolNegative)
+                        if (boolNegative && smSignBit > 0)
+                        {
+                            if (val & smSignBit) val = -(val & (smSignBit - 1));   // s/m explicite
+                        }
+                        else if(boolNegative)
                         {
                             if(val > (intNegativeDelta -2))
                             {
@@ -154,6 +158,10 @@ public:
    
     }
   
+    /** Sign-magnitude a bit de signe explicite. Le chemin par defaut deduit bit = max+1
+        (juste pour ±7 / ±15) ; ±12 utilise le bit 16 (ATPBR, Table 1-3 + dumps reels). */
+    void setSignMagBit (int bit) { smSignBit = bit; }
+
     void setBoolInvert(bool boolSigned)
     {
         boolInvert = boolSigned;
@@ -190,7 +198,9 @@ public:
      
         int value = slider->getValue();
         Logger::writeToLog ("Slider Value changed " + String(value));
-        if(value<0)
+        if (value < 0 && smSignBit > 0)
+            value = smSignBit | (-value);          // s/m explicite (ex. ATPBR ±12, bit 16)
+        else if(value<0)
         {
             if(!boolInvert)
             value = ~value;
@@ -270,6 +280,7 @@ public:
 private:
     bool boolNegative = false;   // set if neg value like pan
     bool boolInvert = false;
+    int  smSignBit  = 0;    // 0 = chemin s/m historique (max+1)
     bool autoSend = true;        // false = octet packé, l'hôte émet (cf. setAutoSend)
     int intNegativeDelta = 0; // correction for sysex
     int midiTxOffset = 0;     // décalage affichage<->sysex (cf. setMidiValueOffset)

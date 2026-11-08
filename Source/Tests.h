@@ -80,6 +80,8 @@ static EchoLoopTests echoLoopTests;
 //==============================================================================
 struct SysexUtilsTests : public juce::UnitTest
 {
+    // Contrôleurs voix commune N2 0x28..0x3D décodés de chaque dump (d[32 + N2]).
+    static constexpr int kCtrl = 0x3D - 0x28 + 1;   // 22
     SysexUtilsTests() : juce::UnitTest ("SysexUtils") {}
 
     // Construit un faux dump : pour chaque voix, 0xF0 puis 32 octets, puis 10 chars de nom.
@@ -552,10 +554,10 @@ struct SysexUtilsTests : public juce::UnitTest
                 expectEquals (ob2ToDisplay (ob2V1 (d), ob2V2 (d)), d);   // inversibilité 2 octets
         }
 
-        beginTest ("SyParamTable — dico déclaratif : 221 entrées, ui uniques, codec aller-retour");
+        beginTest ("SyParamTable — dico déclaratif : 228 entrées, ui uniques, codec aller-retour");
         {
             using namespace SyVoice;
-            expectEquals (SyParam::kNumParams, 221);
+            expectEquals (SyParam::kNumParams, 228);
             std::set<int> uis;
             for (const auto& e : SyParam::kParams)
             {
@@ -746,7 +748,7 @@ struct SysexUtilsTests : public juce::UnitTest
             auto params = SyVoice::voiceBlobToParams (steel, (int) sizeof (steel));
             // 6 op×29 + (ELVL,ALGNUM,FCTOF1,FCTOF2,FFRES,FYPSW) + 4 pitch-rates + 5 pitch-levels
             // (FPL0-3+FPRL1) + 2×7 filtre-rates + 2×7 filtre-niveaux + VVOL.
-            expectEquals (params.size(), 6 * 29 + 6 + 4 + 5 + 14 + 14 + 1);
+            expectEquals (params.size(), 6 * 29 + 6 + 4 + 5 + 14 + 14 + 1 + kCtrl);
 
             auto val = [&params] (int group, int param) -> int
             {
@@ -813,7 +815,7 @@ struct SysexUtilsTests : public juce::UnitTest
             juce::MemoryBlock mono (steel, sizeof (steel));
             ((juce::uint8*) mono.getData())[32] = 0x00;
             expectEquals (SyVoice::voiceBlobToParams ((const juce::uint8*) mono.getData(),
-                                                      (int) mono.getSize()).size(), 6 * 29 + 6 + 4 + 5 + 14 + 14 + 1);
+                                                      (int) mono.getSize()).size(), 6 * 29 + 6 + 4 + 5 + 14 + 14 + 1 + kCtrl);
 
             // 2 AFM / 4 AFM : N « layers » identiques (Table 2). On vérifie le compte et que
             // l'adressage par élément (addrHi = élément<<5) est bien produit.
@@ -822,12 +824,12 @@ struct SysexUtilsTests : public juce::UnitTest
                 juce::MemoryBlock two; two.setSize (832, true);
                 ((juce::uint8*) two.getData())[32] = 0x01;   // 2 AFM
                 auto p2 = SyVoice::voiceBlobToParams ((const juce::uint8*) two.getData(), 832);
-                expectEquals (p2.size(), perElem * 2 + 1);   // + VVOL commun
+                expectEquals (p2.size(), perElem * 2 + 1 + kCtrl);   // + VVOL + controleurs
 
                 juce::MemoryBlock four; four.setSize (1564, true);
                 ((juce::uint8*) four.getData())[32] = 0x02;  // 4 AFM
                 auto p4 = SyVoice::voiceBlobToParams ((const juce::uint8*) four.getData(), 1564);
-                expectEquals (p4.size(), perElem * 4 + 1);
+                expectEquals (p4.size(), perElem * 4 + 1 + kCtrl);
                 bool e2 = false, e4 = false;
                 for (auto& q : p4) { if (q.addrHi == 32) e2 = true; if (q.addrHi == 96) e4 = true; }
                 expect (e2);   // élément 2 (addrHi 0x20)
@@ -862,8 +864,8 @@ struct SysexUtilsTests : public juce::UnitTest
             };
 
             auto p = SyVoice::voiceBlobToParams (awm, (int) sizeof (awm));
-            // 1 AWM : par élément = ELVL + waveform + 7 params amp-EG ; + VVOL commun = 10.
-            expectEquals (p.size(), 10);
+            // 1 AWM : par élément = ELVL + waveform + 7 params amp-EG ; + VVOL commun = 10 ; + contrôleurs.
+            expectEquals (p.size(), 10 + kCtrl);
 
             auto val = [&p] (int g, int h, int prm) -> int {
                 for (auto& q : p) if (q.group == g && q.addrHi == h && q.param == prm) return q.value;
@@ -889,7 +891,7 @@ struct SysexUtilsTests : public juce::UnitTest
             auto* p = (juce::uint8*) mb.getData();
             p[0] = 0xF0; p[32] = 0x08;
             auto params = SyVoice::voiceBlobToParams (p, 586);
-            expectEquals (params.size(), 217 + 9 + 1);   // AFM él.(217, dont niveaux EG o/b) + AWM él.(9) + VVOL
+            expectEquals (params.size(), 217 + 9 + 1 + kCtrl);   // AFM él.(217, dont niveaux EG o/b) + AWM él.(9) + VVOL
 
             bool afmE1 = false, awmE2 = false;
             for (auto& q : params)
