@@ -21,7 +21,18 @@ Inspiré, côté fonctionnalités, de l'éditeur *SynthWorks SY77*.
 - **Rendu de la forme d'onde FM** reproduisant la topologie réelle des **45 algorithmes** du SY77.
 - **Édition à la souris des graphes** : glisser sur la réponse du **filtre** (cutoff/résonance) et
   sur les nœuds des **enveloppes** (niveau + rate) — vignettes d'élément et éditeurs complets.
-- **Onglet Effets** : Effect Mode + 2 unités Modulation + 2 unités Reverb.
+- **Enveloppes** : clic droit (reset du point / des niveaux, copier-coller entre EG du même genre),
+  Shift = réglage fin, double-clic = remise au centre, repère KEY OFF ; **loop point** et **hold
+  time** de l'EG d'amplitude AFM (flèche LOOP sur le graphe).
+- **Level Scaling graphique** : 4 break-points × offset au-dessus d'une bande clavier (offsets envoyés
+  sur 2 octets comme le veut la spec).
+- **Algorithme** : niveaux d'entrée (SHIFT) et correction de sortie (COR) par opérateur.
+- **Onglet Contrôleurs** (Controller Set du SY77) : pitch bend molette/aftertouch, modulations
+  pitch/amp/filtre, pan LFO/bias, cutoff/EG bias, volume, micro tuning, random pitch, portamento.
+- **AWM** : Pitch EG, onglet LFO, mode Hold de l'EG, chargement complet depuis le dump.
+- **Onglet Effets** : Effect Mode (0..3, topologie du mode affichée) + 2 unités Modulation + 2 unités Reverb.
+- **Raccourcis clavier configurables** : Cmd+1..6 pour les onglets, Échap ferme l'éditeur
+  (Réglages > Général > Raccourcis clavier ; compatible AZERTY).
 - **Librairie de banques** (`.SYX`) moderne : **envoi/réception** avec barre de progression,
   **suppression** de banque, **recherche** (banques et presets), **tri**, **métadonnées par preset**
   (tags, notes, favoris), **recherche globale + filtre par tag** transversale à toutes les banques,
@@ -141,7 +152,10 @@ protect to allow bank exchanges. The Library sends/receives sound banks (`.SYX`)
 bar; double-clicking a voice auditions it on the synth (edit buffer) and opens it in the editor.
 
 Highlights: AFM/AWM voice editor, FM-waveform render of the real 45 algorithms, mouse-editable
-filter & envelope graphs, output groups + routing, an Effects tab, and persistence of settings &
+filter & envelope graphs (right-click reset/copy/paste, Shift fine, AFM EG loop point & hold),
+graphical level scaling, algorithm input shift/output correction, a Controllers tab (pitch bend,
+modulation, pan, bias, portamento, micro tuning), AWM pitch EG/LFO/hold, configurable keyboard
+shortcuts (Cmd+1..6 tabs, Esc closes the editor), output groups + routing, an Effects tab, and persistence of settings &
 custom colours. **Modern library**: bank send/receive with progress, delete, search & sort,
 **per-preset metadata** (tags, notes, favourites) in `library.json`, **global preset search +
 tag filter** across all banks, per-synth filter, and copy-a-preset-to-a-user-bank (send/edit

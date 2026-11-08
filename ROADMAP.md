@@ -99,6 +99,18 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
 ---
 
 ## Journal
+- **2026-11-08 (v1.4.0 — écrans inspirés de Swayed + chargement des dumps)** — Comparaison avec
+  le manuel de l'émulation Swayed (organisation des écrans, UX des graphes) : EG (clic droit, Shift,
+  double-clic, KEY OFF, loop point SLP + hold HT), graphe de Level Scaling (EGOS en o/b 2 octets,
+  corrige l'envoi 1 octet), SHIFT/COR d'algo, onglet Contrôleurs (voix commune 0x28..0x3D), Effect
+  Mode en radios + topologie, AWM (Pitch EG groupe 0x07, LFO, Hold, Fine en o/b). **Méthode
+  nouvelle : offsets de dump vérifiés par statistiques sur ~15 000 voix réelles** (`docs/
+  SY77_AllTheWeb`) : voix commune = d[32+N2], op SLP/HT @12-13, SHIFT/COR @22-23, EGOS 2 octets
+  @34+2k, bloc AWM N2+1 / N2+9 / N2+13. Correctifs : feedback effacé au passage en algo libre,
+  rates inversés de la vignette, Effect Mode envoyé deux fois (MidiRadio), envois parasites des
+  combos au rebind (`MidiCombo::bindTo`). Raccourcis clavier configurables (Shortcuts.h). Trois
+  passes de revue. À valider sur hardware : sens du portamento, HT, SLP, toutes les nouvelles
+  lectures de dump.
 - **2026-06-30 (architecture — dico déclaratif, Phase 1)** — Décision : passer d'une RE paramètre
   par paramètre à un **dictionnaire de paramètres déclaratif** (source de vérité unique), inspiré du
   modèle Electra One / lua. AUDIT DE RÉCONCILIATION d'abord (`docs/reconciliation_audit.md`, script
