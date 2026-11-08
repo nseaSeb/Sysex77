@@ -473,8 +473,11 @@ public:
         
         sysexdata[6] = 0x04;
         sliderFine.setMidiSysex(sysexdata);
-        sliderFine.setRangeAndRound(-64, 63,0);
-        sliderFine.setBoolInvert(true);
+        // PPF = offset-binary -64..+63 (OCR l.488 ; dumps : centre 64). Octet filaire stocke
+        // 0..127, affichage signe (meme codec que les niveaux d'EG pitch). Avant : chemin s/m
+        // inverse (0 envoyait 0 = -64 sur le synthe).
+        sliderFine.setRangeAndRound(0, 127, 64);
+        SyVoice::applyEgLevelDisplay (sliderFine);
         sliderFine.setPopupDisplayEnabled(true, true, this);
         addAndMakeVisible(sliderFine);
         

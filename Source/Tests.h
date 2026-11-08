@@ -82,6 +82,8 @@ struct SysexUtilsTests : public juce::UnitTest
 {
     // Contrôleurs voix commune N2 0x28..0x3D décodés de chaque dump (d[32 + N2]).
     static constexpr int kCtrl = 0x3D - 0x28 + 1;   // 22
+    // Par élément AWM : N2 0x02..0x18 (23) + HOLD, PARS, BP1-4, VEL, ARVSW, AMS (9).
+    static constexpr int kAwmExtra = 23 + 9;
     SysexUtilsTests() : juce::UnitTest ("SysexUtils") {}
 
     // Construit un faux dump : pour chaque voix, 0xF0 puis 32 octets, puis 10 chars de nom.
@@ -865,12 +867,17 @@ struct SysexUtilsTests : public juce::UnitTest
 
             auto p = SyVoice::voiceBlobToParams (awm, (int) sizeof (awm));
             // 1 AWM : par élément = ELVL + waveform + 7 params amp-EG ; + VVOL commun = 10 ; + contrôleurs.
-            expectEquals (p.size(), 10 + kCtrl);
+            expectEquals (p.size(), 10 + kCtrl + kAwmExtra);
 
             auto val = [&p] (int g, int h, int prm) -> int {
                 for (auto& q : p) if (q.group == g && q.addrHi == h && q.param == prm) return q.value;
                 return -1; };
             expectEquals (val (0x07, 0, 0x01), 105);   // AWMWAVE @109 (low7) -> wave "106" (0-indexé)
+            // Bloc AWM N2+1 / N2+9 : plages de la spec sur ce dump réel.
+            expect (val (0x07, 0, 0x0F) >= 1 && val (0x07, 0, 0x0F) <= 3);   // PPEGR 1~3
+            expect (val (0x07, 0, 0x17) >= 0 && val (0x07, 0, 0x17) <= 5);   // PLFWAV 0~5
+            expect (val (0x07, 0, 0x4F) == 0 || val (0x07, 0, 0x4F) == 1);   // PAEGMD normal/hold
+            expect (val (0x07, 0, 0x58) <= val (0x07, 0, 0x5B));            // BP1 <= BP4
             expectEquals (val (0x03, 0, 0x00), 127);   // ELVL0 @98
             expectEquals (val (0x02, 0, 0x3F), 127);   // VVOL  @95
             // amp-EG AWM (offsets @base+89.., valeurs confirmées par l'utilisateur).
@@ -891,7 +898,7 @@ struct SysexUtilsTests : public juce::UnitTest
             auto* p = (juce::uint8*) mb.getData();
             p[0] = 0xF0; p[32] = 0x08;
             auto params = SyVoice::voiceBlobToParams (p, 586);
-            expectEquals (params.size(), 229 + 9 + 1 + kCtrl);   // AFM él.(217, dont niveaux EG o/b) + AWM él.(9) + VVOL
+            expectEquals (params.size(), 229 + 9 + kAwmExtra + 1 + kCtrl);   // AFM él.(217, dont niveaux EG o/b) + AWM él.(9) + VVOL
 
             bool afmE1 = false, awmE2 = false;
             for (auto& q : params)

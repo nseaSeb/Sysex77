@@ -294,7 +294,13 @@ namespace SyVoice
                 out.add ({ 0x07, aH, 0, 0x54, (int) d[base + 93] });   // PARR1
                 out.add ({ 0x07, aH, 0, 0x55, (int) d[base + 94] });   // PAL2
                 out.add ({ 0x07, aH, 0, 0x56, (int) d[base + 95] });   // PAL3
-                // PPF/fine (@+5 o/b) & PPM/fixed (@+3) & PARS (@+96 s/m) : encodage à lever -> omis.
+                // Bloc AWM : offset = N2 + 1 pour N2 0x02..0x18 (AWMWAVE occupe 2 octets) et
+                // N2 + 9 pour N2 >= 0x4F. Vérifié sur 339 voix AWM réelles (PNOTE 60, PPF o/b 64,
+                // PPEGR 1..3, BP croissants 36/55/76/96, switches 0/1). Octets filaires bruts.
+                for (int n2 = 0x02; n2 <= 0x18; ++n2)        // PPM, PNOTE, PPF, PMS, pitch-EG, LFO
+                    out.add ({ 0x07, aH, 0, n2, (int) d[base + n2 + 1] });
+                for (int n2 : { 0x4F, 0x57, 0x58, 0x59, 0x5A, 0x5B, 0x60, 0x61, 0x62 })
+                    out.add ({ 0x07, aH, 0, n2, (int) d[base + n2 + 9] }); // HOLD, PARS, BP1-4, VEL, ARVSW, AMS
                 base += 112;   // bloc AWM
             }
         }
