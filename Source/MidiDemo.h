@@ -195,7 +195,7 @@ struct DemoTabbedComponent  : public TabbedComponent
         addTab (TRANS("Voice"), colour, new VoicePage(), true);
         addTab (TRANS("Effects"), colour, new EffectsPage(), true);
         addTab (TRANS("Controllers"), colour, new ControllersPage(), true);
-        // L'onglet "Midi Setting" (index 3) est ajouté par MidiDemo avec un vrai
+        // L'onglet "Midi Setting" (index 5, mode développeur) est ajouté par MidiDemo avec un vrai
         // contenu (MidiSettingsPage), car il réutilise des composants de MidiDemo.
 
         // ConfigPage (1er onglet) a appliqué le thème pendant sa construction :

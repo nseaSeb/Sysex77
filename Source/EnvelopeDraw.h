@@ -587,6 +587,9 @@ public:
     int   releaseNode = 5;
     // Debut de boucle (SLP) : fleche du noeud de sustain vers ce noeud + "LOOP". -1 => rien.
     int   loopNode = -1;
+    // Genre d'EG pour le copier/coller (ex. "amp", "pitch", "filter", "pan") : on ne colle
+    // qu'entre EG du MEME genre (echelle + formule rate<->poids identiques). Vide = "amp".
+    juce::String egKind;
 
     EgGraphView() { setMouseCursor (juce::MouseCursor::PointingHandCursor); }
 
@@ -732,14 +735,14 @@ private:
     // Presse-papiers partage entre editeurs, compatible seulement a echelle + nb de noeuds egaux
     // (pas de collage pitch -> amplitude). Coller rejoue onEditNode noeud par noeud : poids et
     // niveaux sont des entiers (rate = 66 - poids), l'aller-retour est exact.
-    struct Clip { float maxLevel = 0; juce::Array<float> levels, weights; };
+    struct Clip { juce::String kind; float maxLevel = 0; juce::Array<float> levels, weights; };
     static Clip& clipboard() { static Clip c; return c; }
     void showMenu()
     {
         juce::Array<float> levels, weights;
         computeData (levels, weights);
         auto& clip = clipboard();
-        const bool canPaste = clip.maxLevel == maxLevel && clip.levels.size() == levels.size()
+        const bool canPaste = clip.kind == egKind && clip.maxLevel == maxLevel && clip.levels.size() == levels.size()
                               && clip.weights.size() == weights.size() && levels.size() > 0;
         juce::PopupMenu m;
         m.addItem (1, TRANS ("Reset point"), resetLevel >= 0.0f && selected >= 0 && onEditNode != nullptr);
@@ -758,7 +761,7 @@ private:
                 v.computeData (lv, wt);
                 if (r == 1 && node >= 0) v.onEditNode (node, v.resetLevel, -1.0f);
                 else if (r == 2) for (int i = 0; i < lv.size(); ++i) v.onEditNode (i, v.resetLevel, -1.0f);
-                else if (r == 3) clipboard() = { v.maxLevel, lv, wt };
+                else if (r == 3) clipboard() = { v.egKind, v.maxLevel, lv, wt };
                 else if (r == 4)
                 {
                     auto c = clipboard();   // copie : onEditNode peut re-entrer

@@ -382,7 +382,9 @@ private:
     int  opProp (const char* f, int op = -1) const
     { return jlimit (0, 7, (int) valueTreeVoice.getProperty (SyAlgo::algoId (elem, f, (op < 0 ? selOp : op) + 1), 0)); }
     void setOpProp (const char* f, int v, int op = -1)
-    { valueTreeVoice.setProperty (SyAlgo::algoId (elem, f, (op < 0 ? selOp : op) + 1), jlimit (0, 7, v), undo); }
+    // Sans UndoManager : les sliders ne sont pas lies aux props (un Cmd-Z changerait la prop sans
+    // rafraichir le slider ni renvoyer au synthe), et le replay d'un dump empilerait ~72 pas.
+    { valueTreeVoice.setProperty (SyAlgo::algoId (elem, f, (op < 0 ? selOp : op) + 1), jlimit (0, 7, v), nullptr); }
     void onShiftEdited()
     {
         const int a = (int) sliderSh0.getValue(), b = (int) sliderSh1.getValue();

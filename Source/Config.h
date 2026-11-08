@@ -131,7 +131,8 @@ struct ConfigPage   : public Component, public ComboBox::Listener
         comboStartTab.addItem (TRANS("Librairie"), 3);
         comboStartTab.addItem (TRANS("Voice"),     4);
         comboStartTab.addItem (TRANS("Effects"),   5);
-        comboStartTab.setSelectedId (jlimit (1, 5, getAppSettings()->getIntValue ("StartupTab", 1)),
+        comboStartTab.addItem (TRANS("Controllers"), 6);
+        comboStartTab.setSelectedId (jlimit (1, 6, getAppSettings()->getIntValue ("StartupTab", 1)),
                                      dontSendNotification);
         comboStartTab.onChange = [this]
         {

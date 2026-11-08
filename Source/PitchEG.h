@@ -93,6 +93,7 @@ public:
         addAndMakeVisible (egGraph);
         egGraph.maxLevel = 127.0f;   // niveaux EG en octet filaire o/b 0..127 (centre 64)
         egGraph.resetLevel = 64.0f;
+        egGraph.egKind = "pitch";
         egGraph.getData = [this] (juce::Array<float>& levels, juce::Array<float>& weights)
         {
             levels = { (float) sliderL0.getValue(), (float) sliderL1.getValue(), (float) sliderL2.getValue(),
@@ -239,7 +240,10 @@ public:
             fillRangeItems();
             sysexdata[6] = 0x0A + o;                // FPEGR 0..3 / PPEGR 1..3 : MidiCombo emet id-1
             comboRange.setMidiSysex (sysexdata);
-            comboRange.getSelectedIdAsValue().referTo (P ("PEGRANGE"));
+            // AWM : props PROPRES (plage 1..3 et Slope -7..7) ; partagees avec l'editeur AFM
+            // du meme element, elles etaient ecrasees par ses plages (0..3 / 0..7).
+            comboRange.getSelectedIdAsValue().referTo (P (isAwm ? "AWMPEGRANGE" : "PEGRANGE"));
+            if (isAwm) sliderSlope.getValueObject().referTo (P ("AWMSLOPEPITCH"));
             if (comboRange.getSelectedItemIndex() < 0)
                 comboRange.setSelectedId (isAwm ? 2 : 1, dontSendNotification);   // jamais vide (cf. AfmLfo)
             sysexdata[6] = 0x0C + o;                   // FYPSW (velocity switch on/off)

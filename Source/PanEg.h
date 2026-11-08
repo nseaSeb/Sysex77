@@ -76,6 +76,7 @@ public:
         addAndMakeVisible (egGraph);
         egGraph.maxLevel = 63.0f;   // octet filaire o/b 0..63 (centre 32)
         egGraph.resetLevel = 32.0f;
+        egGraph.egKind = "pan";
         egGraph.getData = [this] (juce::Array<float>& levels, juce::Array<float>& weights)
         {
             levels = { (float) sliderL0.getValue(), (float) sliderL1.getValue(), (float) sliderL2.getValue(),

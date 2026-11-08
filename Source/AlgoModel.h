@@ -58,7 +58,9 @@ namespace SyAlgo
     }
 
     /** Amorce les props custom de l'élément à partir d'un preset 1..45 (« Dériver du
-        preset N ») : copie kAlgo[N-1] dans INA/INB/OUT/ACCA/ACCB, shifts à 0. */
+        preset N ») : copie kAlgo[N-1] dans INA/INB/OUT/ACCA/ACCB. Les SHIFT (SHA/SHB) sont
+        CONSERVÉS : ils sont chargés du dump / reçus du synthé ; les remettre à 0 effaçait le
+        feedback de la voix au passage en libre (0x15=0 envoyé aux 6 ops). */
     inline void seedCustomFromPreset (int element, int presetN)
     {
         const SyDraw::AlgoDef& A = SyDraw::kAlgo[ ((presetN - 1) % 45 + 45) % 45 ];
@@ -71,8 +73,6 @@ namespace SyAlgo
             set ("OUT",  A.outd[o]);
             set ("ACCA", A.acc0[o]);
             set ("ACCB", A.acc1[o]);
-            set ("SHA",  0);
-            set ("SHB",  0);
         }
     }
 

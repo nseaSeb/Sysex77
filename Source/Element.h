@@ -225,21 +225,9 @@ public:
         };
         egGraph.maxLevel = 63.0f;                        // niveaux EG AFM/AWM 0..63 (spec), comme WaveEg
         egGraph.releaseNode = -1;                        // vignette : pas de repere KEY OFF
-        egGraph.onEditNode = [this] (int node, float levelF, float segWeightF)
-        {
-            const int level = roundToInt (levelF);
-            const int rateWeight = (segWeightF < 0.0f) ? -1 : roundToInt (segWeightF);
-            if (node < 0 || node > 4) return;
-            auto setP = [this] (const String& suffix, int v)
-            { valueTreeVoice.setProperty (Identifier ("ELEMENT" + String (operatorID) + suffix), v, nullptr); };
-
-            const char* lvlIds[5] = { "EGVOLLEVEL0", "EGVOLLEVEL1", "EGVOLLEVEL2", "EGVOLLEVEL3", "EGVOLLEVEL4" };
-            const char* rIds[4]   = { "EGVOLR1", "EGVOLR2", "EGVOLR3", "EGVOLR4" };
-
-            setP (lvlIds[node], jlimit (0, 63, level));
-            if (rateWeight >= 0 && node >= 1)            // rate du segment entrant (nœuds 1..4)
-                setP (rIds[node - 1], jlimit (0, 63, 66 - rateWeight));   // poids = 66 - rate (cf. WaveEg)
-        };
+        // Vignette en LECTURE (clic = ouvre l'editeur) : l'edition directe ecrivait les props
+        // ELEMENT<e>EGVOL* sans rien envoyer au SY77 ni mettre a jour les EG par op (OPn).
+        egGraph.onEditNode = nullptr;
    
     
   

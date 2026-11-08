@@ -84,13 +84,12 @@ private:
         content.addAndMakeVisible (l);
         return l;
     }
-    static void wire (juce::Component& c, int ui, std::function<void (int*)> set)
+    template <typename W> static void wire (W& w, int ui)
     {
-        juce::ignoreUnused (c);
         const auto a = SyVoice::syTranslate (ui, 0, 0);
         jassert (a.ok);
         int sx[9] = { 0x43, 0x10, 0x34, a.group, a.t2, 0x00, a.n2, 0x00, 0x00 };
-        set (sx);
+        w.setMidiSysex (sx);
     }
     static juce::Identifier propFor (int ui) { return juce::Identifier ("VC" + juce::String (ui)); }
 
@@ -103,7 +102,7 @@ private:
         s->setSliderStyle (juce::Slider::LinearHorizontal);   // min<0 force Rotary
         s->setTextBoxStyle (juce::Slider::TextBoxRight, false, 44, 18);
         if (smBit > 0) s->setSignMagBit (smBit);
-        wire (*s, ui, [s] (int* sx) { s->setMidiSysex (sx); });
+        wire (*s, ui);
         s->getValueObject().referTo (valueTreeVoice.getPropertyAsValue (propFor (ui), nullptr));
         content.addAndMakeVisible (s);
         return s;
@@ -113,9 +112,10 @@ private:
         auto* c = combos.add (new MidiCombo());
         for (int i = 0; i < items.size(); ++i)
             c->addItem (items[i], firstValue + i + 1);     // id = valeur filaire + 1 (MidiCombo emet id-1)
-        wire (*c, ui, [c] (int* sx) { c->setMidiSysex (sx); });
+        wire (*c, ui);
         c->getSelectedIdAsValue().referTo (valueTreeVoice.getPropertyAsValue (propFor (ui), nullptr));
-        if (c->getSelectedItemIndex() < 0) c->setSelectedId (firstValue + 1, juce::dontSendNotification);
+        // Pas de valeur par defaut forcee : vide tant qu'aucune voix n'est chargee (sinon on
+        // ecrirait "CC 0" dans la voix sans que le synthe l'ait).
         content.addAndMakeVisible (c);
         return c;
     }
@@ -176,7 +176,7 @@ private:
                     r.b->setBounds (line);
                 }
                 else
-                    r.a->setBounds (line.removeFromLeft (juce::jmin (line.getWidth(), r.a == nullptr ? 0 : 260)));
+                    r.a->setBounds (line.removeFromLeft (juce::jmin (line.getWidth(), 260)));
             }
             if (nNote)
             {

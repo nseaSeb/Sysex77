@@ -84,6 +84,7 @@ public:
         addAndMakeVisible (egGraph);
         egGraph.maxLevel = 127.0f;   // niveaux EG filtre 2 en octet filaire o/b 0..127 (centre 64)
         egGraph.resetLevel = 64.0f;
+        egGraph.egKind = "filter";
         egGraph.getData = [this] (juce::Array<float>& levels, juce::Array<float>& weights)
         {
             levels = { (float) sliderL0.getValue(), (float) sliderL1.getValue(), (float) sliderL2.getValue(),
