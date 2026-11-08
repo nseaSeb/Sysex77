@@ -590,6 +590,7 @@ namespace SyVoice
     {
         filter,         // Filtre 1 & 2 (group 0x09 ; le n° de filtre va dans addrHi, pas le group)
         pitch,          // AFM pitch-EG (élément commun, group 0x05)
+        awmPitch,       // AWM pitch-EG (élément AWM, group 0x07, N2 0x06..0x11)
         afmAmplitude,   // AFM amp-EG = PAR OPÉRATEUR (group (op<<4)|6) ; op 0..5 = OP6..OP1
         awmAmplitude    // AWM amp-EG (élément, group 0x07)
     };
@@ -598,6 +599,10 @@ namespace SyVoice
         Spec SY77/TG77 (cf. [[project-sy77-addresses]] / [[project-eg-sysex-bug]] §RESOLUTION).
         Pour `afmAmplitude`, l'EG est par opérateur -> passer op (0..5, OP6..OP1) ; ignoré
         pour les autres types. Ne renvoie JAMAIS 0x00 (le group invalide à l'origine du bug). */
+    /** Pitch EG : N2 du 1er rate (FPR1 0x01 AFM, Table 1-6 / PPR1 0x06 AWM, Table 1-8, OCR
+        l.492). Tous les N2 du PEG AWM = ceux de l'AFM + 5 (rates, levels, range, RS, vel SW). */
+    inline int pitchEgN2Offset (bool awm) noexcept { return awm ? 5 : 0; }
+
     inline juce::uint8 egGroupFor (EgKind kind, int afmOp = 0)
     {
         switch (kind)
@@ -606,6 +611,7 @@ namespace SyVoice
             case EgKind::pitch:         return 0x05;
             case EgKind::afmAmplitude:  return afmOperatorGroup (afmOp);   // (op<<4)|6
             case EgKind::awmAmplitude:  return 0x07;
+            case EgKind::awmPitch:      return 0x07;
         }
         return 0x09;   // défaut sûr (un group valide), jamais 0x00
     }

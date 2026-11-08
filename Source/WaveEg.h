@@ -35,6 +35,9 @@ public:
         }
         opTab[0].setToggleState (true, dontSendNotification);
         valueSysexIn.addListener (this);   // stocke les EG par op recus (synthe / chargement dump)
+        // Repere LOOP a jour aussi sur RX / undo / chargement (setValue sans notification
+        // slider) : on ecoute la Value du slider (les listeners survivent au referTo).
+        sliderLoop.getValueObject().addListener (this);
         addAndMakeVisible(keyDraw);
         addAndMakeVisible(samplePathLeft);
         addAndMakeVisible(samplePathRight);
@@ -112,7 +115,7 @@ public:
         // Édition à la souris sur le grand graphe d'EG (gauche) : glisser un nœud =
         // niveau (Y, 0..64) + rate du segment entrant (X). Les sliders (droite) restent.
         addAndMakeVisible (egGraph);
-        egGraph.maxLevel = 64.0f;
+        egGraph.maxLevel = 63.0f;   // niveaux EG 0..63 (spec), comme les sliders et la vignette
         egGraph.getData = [this] (juce::Array<float>& levels, juce::Array<float>& weights)
         {
             levels = { (float) sliderL0.getValue(), (float) sliderL1.getValue(), (float) sliderL2.getValue(),
@@ -127,15 +130,16 @@ public:
             MidiSlider* L[7] = { &sliderL0, &sliderL1, &sliderL2, &sliderL3, &sliderL4, &sliderRL1, &sliderRL2 };
             MidiSlider* R[6] = { &sliderR1, &sliderR2, &sliderR3, &sliderR4, &sliderRR1, &sliderRR2 };
             if (node < 0 || node > 6) return;
-            L[node]->setValue (jlimit (0, 64, roundToInt (levelF)));
+            L[node]->setValue (jlimit (0, 63, roundToInt (levelF)));
             if (node >= 1 && segWeightF >= 0.0f)                       // rate = 66 - poids dessiné
                 R[node - 1]->setValue (jlimit (0, 64, roundToInt (66.0f - segWeightF)));
         };
     }
     
-    ~WaveEg()
+    ~WaveEg() override
     {
         valueSysexIn.removeListener (this);
+        sliderLoop.getValueObject().removeListener (this);
         sliderSlope.removeListener(this);
     }
     void 	sliderValueChanged (Slider *slider) override
@@ -144,8 +148,6 @@ public:
         
         if(slider == &sliderSlope)
             resized();
-        if (slider == &sliderLoop)
-            updateLoopMarker();
         // Mode ALL : un geste UTILISATEUR recopie la valeur dans les 6 proprietes par op (sinon
         // l'onglet OPn afficherait une valeur perimee). PAS en contexte RX/chargement
         // (suppressSend > 0) : la valeur recue ne concerne qu'un op, deja stocke par valueChanged().
@@ -231,6 +233,7 @@ public:
     // distincts d'un dump survivent (avant : un seul jeu de sliders, dernier op replay gagnant).
     void valueChanged (Value& v) override
     {
+        if (v.refersToSameSourceAs (sliderLoop.getValueObject())) { updateLoopMarker(); return; }
         if (isAwm || curUm == nullptr) return;
         const var arr = v.getValue();
         if (! arr.isArray() || arr.size() < 6) return;
@@ -253,7 +256,7 @@ public:
     }
     // En contexte AWM (vue Wave), l'EG de volume cible l'amp-EG AWM (group 0x07, Table 1-8)
     // au lieu de diffuser aux opérateurs AFM. Activé par WaveVue. À appeler AVANT setElementNumber.
-    void setAwmMode (bool b) { isAwm = b; }
+    void setAwmMode (bool b) override { isAwm = b; }
     bool isAwm = false;
 
     void setElementNumber ( int element, UndoManager& um) override
@@ -274,6 +277,10 @@ public:
             sliderHold.setVisible (false);
             egGraph.loopNode = -1;
             const ScopedEchoSuppress noSend;   // le referTo re-publie la valeur liee
+            // Plages AVANT le referTo (sinon plage JUCE par defaut 0..10 -> valeurs AFM
+            // de Loop/Hold tronquees et reecrites dans les props partagees).
+            sliderLoop.setRangeAndRound (0, 3, 3);
+            sliderHold.setRangeAndRound (0, 63, 0);
             for (auto& r : rows())
                 r.s->getValueObject().referTo (valueTreeVoice.getPropertyAsValue (propId (element, 0, r.suffix), &um));
 
@@ -348,7 +355,7 @@ public:
                                        rateWeight (sliderR3.getValue()), rateWeight (sliderR4.getValue()),
                                        rateWeight (sliderRR1.getValue()), rateWeight (sliderRR2.getValue()) };
 
-        SyDraw::drawEnvelope (g, egArea, egLevels, egWeights, 64.0f, SYColSelected, "Wave EG");
+        SyDraw::drawEnvelope (g, egArea, egLevels, egWeights, 63.0f, SYColSelected, "Wave EG");
         
     }
     void buttonClicked (Button* button) override
@@ -381,10 +388,12 @@ public:
         // le clavier). Le label « Slope » est attaché à sa gauche.
         sliderSlope.setBounds (jmax (90, (int) (W * 0.42f)), kbTop - 30, 160, 22);
         // Loop a gauche du Slope, Hold a droite (meme rangee, au-dessus du clavier).
-        sliderLoop.setBounds ((int) (W * 0.03f) + 44, kbTop - 30,
-                              jmax (60, jmin (130, sliderSlope.getX() - 50 - ((int) (W * 0.03f) + 44))), 22);
-        sliderHold.setBounds (sliderSlope.getRight() + 48, kbTop - 30,
-                              jmax (60, jmin (160, W - (sliderSlope.getRight() + 48) - 12)), 22);
+        // Largeur bornee par la place reelle (jamais de debordement / chevauchement) ; la
+        // fenetre mini (640) laisse ~150 px a chacun.
+        const int lx = (int) (W * 0.03f) + 44;
+        sliderLoop.setBounds (lx, kbTop - 30, jlimit (0, 130, sliderSlope.getX() - 50 - lx), 22);
+        const int hx = sliderSlope.getRight() + 48;
+        sliderHold.setBounds (hx, kbTop - 30, jlimit (0, 160, W - hx - 12), 22);
 
         // Sliders L/R : tailles FIXES (largeur 26 px, hauteur plafonnée) -> ils n'enflent plus avec
         // la fenêtre (setBoundsRelative donnait une largeur = 0,04 × largeur fenêtre = « fat »).

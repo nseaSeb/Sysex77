@@ -132,10 +132,15 @@ public:
         // Offsets spec Table 1-6 : FPR1-3=01-03, FPRR1=04, FPL0-3=05-08, FPRL1=09, FPRS(slope)=0B.
         // AFM : group 0x05, FPR1 01.. (Table 1-6). AWM : group 0x07, PPR1 06.. (Table 1-8,
         // OCR l.492-503) -> tous les N2 decales de +5 ; PPRS s/m -7..+7 ; PPEGR 1~3.
-        const int pitchGroup = isAwm ? 0x07 : (int) SyVoice::egGroupFor (SyVoice::EgKind::pitch);
-        const int o = isAwm ? 5 : 0;
+        const int pitchGroup = (int) SyVoice::egGroupFor (isAwm ? SyVoice::EgKind::awmPitch
+                                                                : SyVoice::EgKind::pitch);
+        const int o = SyVoice::pitchEgN2Offset (isAwm);
         int sysexdata2[9] = { 0x43, 0X10, 0x34, pitchGroup, 0x00, 0x00, 0x01, 0x00, 0x00 }; // rates
         int sysexdata[9]  = { 0x43, 0X10, 0x34, pitchGroup, 0x00, 0x00, 0x05, 0x00, 0x00 }; // levels
+        // Plage du Slope AVANT le referTo : sinon une valeur AWM negative stockee serait
+        // ramenee a 0 par l'ancienne plage 0..7 et reecrite dans la propriete.
+        sliderSlope.setRangeAndRound (isAwm ? -7 : 0, 7, 0);
+        sliderSlope.setSliderStyle (Slider::SliderStyle::LinearHorizontal);   // min<0 force Rotary
         
         if(element == 1)
         {
@@ -223,8 +228,6 @@ public:
         // --- Sysex Pitch EG (groupe 0x05). On n'émet QUE les paramètres documentés. ---
         sysexdata[6] = 0x0B + o;                    // FPRS 0..7 / PPRS s/m -7..+7 -> slider "slope"
         sliderSlope.setMidiSysex(sysexdata);
-        sliderSlope.setRangeAndRound (isAwm ? -7 : 0, 7, 0);
-        sliderSlope.setSliderStyle (Slider::SliderStyle::LinearHorizontal);   // min<0 force Rotary
         {
             // Le referTo re-publie la valeur liee : ComboBox::valueChanged re-emet via
             // setSelectedId(sendNotificationAsync) et Button::valueChanged via setToggleState
@@ -345,9 +348,15 @@ private:
     Label   labelRange {"", "Range"};
     MidiCombo   comboRange;   // FPEGR 0x0A (0..3) / PPEGR 0x0F (1..3)
     bool isAwm = false;       // onglet monte dans la vue AWM (WaveVue) -> adressage group 0x07
+    int filledFor = -1;       // mode (0 AFM / 1 AWM) des items actuels du combo
     void fillRangeItems()
     {
         // id = valeur sysex + 1. AWM n'a pas "8 oct" (PPEGR 1~3) : memes ids 2..4, meme sens.
+        // Ne regarnit QUE si le mode change, et combo DETACHE d'abord : clear() remet
+        // currentId a 0, ce qui ecrirait 0 dans la propriete PEGRANGE encore liee.
+        if (filledFor == (int) isAwm) return;
+        filledFor = (int) isAwm;
+        comboRange.getSelectedIdAsValue().referTo (Value());
         comboRange.clear (dontSendNotification);
         const char* names[] = { "8 oct", "2 oct", "1 oct", "1/2 oct" };
         for (int v = isAwm ? 1 : 0; v < 4; ++v)

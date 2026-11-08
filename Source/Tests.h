@@ -421,6 +421,11 @@ struct SysexUtilsTests : public juce::UnitTest
             expectEquals ((int) SyVoice::egGroupFor (EG::filter),       0x09);  // Filtre 1 & 2
             expectEquals ((int) SyVoice::egGroupFor (EG::pitch),        0x05);  // AFM pitch-EG
             expectEquals ((int) SyVoice::egGroupFor (EG::awmAmplitude), 0x07);  // AWM amp-EG
+            expectEquals ((int) SyVoice::egGroupFor (EG::awmPitch),     0x07);  // AWM pitch-EG
+            // PEG : PPR1 = FPR1 + 5 (0x01 -> 0x06), PPEGR 0x0F, PPRS 0x10, PVPSW 0x11 (OCR l.492-503).
+            expectEquals (0x01 + SyVoice::pitchEgN2Offset (true), 0x06);
+            expectEquals (0x0C + SyVoice::pitchEgN2Offset (true), 0x11);
+            expectEquals (SyVoice::pitchEgN2Offset (false), 0);
 
             // AFM amp-EG = PAR OPÉRATEUR : group = (op<<4)|6, op 0..5 = OP6..OP1.
             const int expectedOp[6] = { 0x06, 0x16, 0x26, 0x36, 0x46, 0x56 };
@@ -432,7 +437,7 @@ struct SysexUtilsTests : public juce::UnitTest
                               (int) SyVoice::afmOperatorGroup (op));
 
             // INVARIANT CLÉ : aucun type d'EG ne doit JAMAIS renvoyer 0x00 (le group du bug).
-            for (auto k : { EG::filter, EG::pitch, EG::afmAmplitude, EG::awmAmplitude })
+            for (auto k : { EG::filter, EG::pitch, EG::afmAmplitude, EG::awmAmplitude, EG::awmPitch })
                 expect (SyVoice::egGroupFor (k, 0) != 0x00);
         }
 

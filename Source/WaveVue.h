@@ -68,12 +68,10 @@ public:
         for(auto i =0; i<tabs.getNumTabs();i++)
         {
             auto* content = tabs.getTabContentComponent (i);
-            // Dans la vue Wave, l'onglet « Volume EG » = amp-EG AWM (group 0x07), pas opérateur AFM.
-            if (auto* we = dynamic_cast<WaveEg*> (content))
-                we->setAwmMode (true);
+            // Vue Wave : Volume EG = amp-EG AWM (0x07), Pitch EG = PEG AWM (0x07), pas AFM.
             if (auto* filterTab = dynamic_cast<ElementComponent*> (content))
             {
-                filterTab->setAwmMode (true);   // PitchEg : PEG AWM = group 0x07 (pas 0x05 AFM)
+                filterTab->setAwmMode (true);
                 filterTab->setElementNumber (number, undoman);
             }
         }
