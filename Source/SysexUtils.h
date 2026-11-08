@@ -154,7 +154,8 @@ namespace SyVoice
         équivalent (mêmes group/addrHi/addrLo/param que les widgets de l'éditeur).
         Injecté dans `valueSysexIn` au chargement -> chaque widget se met à jour via
         son propre chemin de réception, déjà vérifié hardware (cf. Track A). */
-    struct VoiceParam { int group, addrHi, addrLo, param, value; };
+    // v1 = octet V1 (index [7]) pour les params 2 octets (offsets de scaling o/b2) ; 0 sinon.
+    struct VoiceParam { int group, addrHi, addrLo, param, value; int v1 = 0; };
 
     /** Décode les paramètres FIABLES (vérifiés contre de vrais dumps SY77) d'un bloc
         voix 1AFM (F0…F7, 466 octets, type@32 == 0x03) et les renvoie sous forme de
@@ -220,7 +221,6 @@ namespace SyVoice
             { 0x11, 17 }, { 0x10, 16 },                           // SENSIT VEL / AM (PM=0x18 NON chargé :
             // packé avec le MODE freq (Fixed/Ratio) -> le charger basculait MODE. Bit-split à faire.
             { 0x1C, 30 }, { 0x1D, 31 }, { 0x1E, 32 }, { 0x1F, 33 }, // SCALING break-points BP1-4
-            { 0x20, 35 }, { 0x21, 37 }, { 0x22, 39 }, { 0x23, 41 }, // SCALING offset-levels (LSB EGOS)
             { 0x24, 42 },                                         // VEL SW (RVSW, 0/1)
             // SHIFT0/1 (0x15, sh0<<3|sh1) @22 et COR (0x16, 0..7) @23 : ALGSRC occupe 19-20,
             // ALGDST/OAC 21. Vérifié sur 9 833 voix AFM réelles (octet 22 = 7/63/56/0, 23 <= 7).
@@ -242,6 +242,12 @@ namespace SyVoice
                 for (int op = 0; op < 6; ++op)
                     for (auto& m : pm)
                         out.add ({ opGroup[op], aH, 0, m.param, (int) d[base + op * 45 + m.intOff] });
+                // SCALING offsets EGOS1-4 (0x20-0x23) : 2 octets o/b centre 128, MSB @34+2k, LSB
+                // @35+2k (9 833 voix : (1,0) = 0 domine, (0,127) = -1). V1 = MSB, V2 = LSB.
+                for (int op = 0; op < 6; ++op)
+                    for (int k = 0; k < 4; ++k)
+                        out.add ({ opGroup[op], aH, 0, 0x20 + k,
+                                   (int) d[base + op * 45 + 35 + 2 * k], (int) d[base + op * 45 + 34 + 2 * k] });
                 out.add ({ 0x05, aH,        0, 0x00, (int) d[base + 270] }); // ALGNUM
                 // Pitch EG rates (element commun, group 0x05). Bloc element-commun = base+270+N2
                 // (bornes vérifiées : ALGNUM@+270 ... avant le filtre @+296).
@@ -301,6 +307,8 @@ namespace SyVoice
                     out.add ({ 0x07, aH, 0, n2, (int) d[base + n2 + 1] });
                 for (int n2 : { 0x4F, 0x57, 0x58, 0x59, 0x5A, 0x5B, 0x60, 0x61, 0x62 })
                     out.add ({ 0x07, aH, 0, n2, (int) d[base + n2 + 9] }); // HOLD, PARS, BP1-4, VEL, ARVSW, AMS
+                for (int k = 0; k < 4; ++k)                     // PAOS1-4 (0x5C-0x5F) : o/b2, MSB @101+2k
+                    out.add ({ 0x07, aH, 0, 0x5C + k, (int) d[base + 102 + 2 * k], (int) d[base + 101 + 2 * k] });
                 base += 112;   // bloc AWM
             }
         }

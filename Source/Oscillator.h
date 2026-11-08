@@ -122,6 +122,24 @@ public:
         // garde la liste d'écouteurs du Value -> on s'abonne une fois ici (cf. Operator::sliderAlgo).
         for (MidiSlider* s : { &sliderOsc1,&sliderOsc2,&sliderOsc3,&sliderOsc4,&sliderOsc5,&sliderOsc6 })
             s->getValueObject().addListener (this);
+        // SCALING : le graphe suit les 8 valeurs de chaque op (RX, undo, chargement) ; les
+        // offsets o/b2 sont recus a la main (valueSysexIn), cf. handleScalingRx.
+        for (int o = 0; o < 6; ++o)
+            for (int k = 0; k < 4; ++k)
+            { bpScl[o][k].getValueObject().addListener (this); offScl[o][k].getValueObject().addListener (this); }
+        valueSysexIn.addListener (this);
+        lsGraph.getData = [this] (int bp[4], int off[4])
+        {
+            for (int k = 0; k < 4; ++k)
+            { bp[k] = (int) bpScl[selOp][k].getValue(); off[k] = (int) offScl[selOp][k].getValue(); }
+        };
+        lsGraph.onEdit = [this] (int k, int bp, int off)
+        {
+            // setValue avec notification : BP = auto-send 0x1C+k (plain) ; offset = onValueChange
+            // -> sendScalingOffset (o/b2). Les deux suivent leur propriete liee (undo).
+            if ((int) bpScl[selOp][k].getValue() != bp)   bpScl[selOp][k].setValue (bp);
+            if ((int) offScl[selOp][k].getValue() != off) offScl[selOp][k].setValue (off);
+        };
 
        // addAndMakeVisible(labelOsc1);
        // labelOsc1.attachToComponent(&sliderOsc1, false);
@@ -211,6 +229,7 @@ public:
                 detailContent.addChildComponent (comp);
             for (int k = 0; k < 4; ++k)
             { detailContent.addChildComponent (bpScl[i][k]); detailContent.addChildComponent (offScl[i][k]); }
+            if (i == 0) detailContent.addAndMakeVisible (lsGraph);
             detailContent.addChildComponent (velSw[i]);
             detailContent.addChildComponent (pegSw[i]);
         }
@@ -250,8 +269,9 @@ public:
         slider.setPopupDisplayEnabled(true, true, this);
     }
 
-    ~Oscillator()
+    ~Oscillator() override
     {
+        valueSysexIn.removeListener (this);
 
     }
     void setSliderDetune (MidiSlider& slider)
@@ -576,6 +596,15 @@ public:
                 {
                     wireS (bpScl[o][k],  0x1C + k, 0, 127, "BP"  + String (k + 1) + "_");
                     wireS (offScl[o][k], 0x20 + k, 0, 127, "OFF" + String (k + 1) + "_");
+                    // EGOS = o/b sur 2 octets (-127..+127 ; V1 = bit7, V2 = low7 ; spec l.448 +
+                    // dumps). Le chemin auto du widget n'envoie qu'un octet (et s/m pour min<0) :
+                    // envoi ET reception a la main. Groupe sentinelle 0x7F = RX widget inerte.
+                    offScl[o][k].setAutoSend (false);
+                    offScl[o][k].setRangeAndRound (-127, 127, 0);
+                    offScl[o][k].setSliderStyle (Slider::LinearBar);
+                    { int dead[9] = { 0x43, 0x10, 0x34, 0x7F, 0x7F, 0x00, 0x7F, 0x00, 0x00 };
+                      offScl[o][k].setMidiSysex (dead); }
+                    offScl[o][k].onValueChange = [this, o, k] { sendScalingOffset (o, k); };
                 }
                 int sv[9] = { 0x43, 0X10, 0x34, grp[o], aH, 0x00, 0x24, 0x00, 0x00 };   // RVSW
                 velSw[o].setMidiSysex (sv);
@@ -708,7 +737,7 @@ public:
             c.crs->setVisible (sel); c.fin->setVisible (sel);
             c.det->setVisible (sel); c.pha->setVisible (sel); c.syn->setVisible (sel); c.mod->setVisible (sel);
             for (MidiSlider* s : { &sensVel[i], &sensAm[i], &sensPm[i] }) s->setVisible (sel);
-            for (int k = 0; k < 4; ++k) { bpScl[i][k].setVisible (sel); offScl[i][k].setVisible (sel); }
+            for (int k = 0; k < 4; ++k) { bpScl[i][k].setVisible (false); offScl[i][k].setVisible (false); }   // graphe lsGraph a la place
             velSw[i].setVisible (sel); pegSw[i].setVisible (sel);
 
             Label* L[4]; opLabels (i, L);
@@ -856,17 +885,9 @@ public:
                 { sl->setSliderStyle (Slider::LinearBar); sl->setTextBoxStyle (Slider::NoTextBox, true, 0, 0); }
 
             lblScaling.setBounds (r3.removeFromTop (16));
-            const int w = jmax (1, r3.getWidth() / 8);
             g_scalingTags.clear();
-            for (int k = 0; k < 4; ++k)
-            {
-                auto cellBp = Rectangle<int> (r3.getX() + k       * w, r3.getY(), w, r3.getHeight());
-                auto cellOf = Rectangle<int> (r3.getX() + (4 + k) * w, r3.getY(), w, r3.getHeight());
-                g_scalingTags.add ({ cellBp.removeFromTop (14), "BP" + String (k + 1) });
-                g_scalingTags.add ({ cellOf.removeFromTop (14), "OF" + String (k + 1) });
-                bpScl [selOp][k].setBounds (cellBp.withSizeKeepingCentre (cellBp.getWidth() - 8, jmin (22, cellBp.getHeight() - 4)));
-                offScl[selOp][k].setBounds (cellOf.withSizeKeepingCentre (cellOf.getWidth() - 8, jmin (22, cellOf.getHeight() - 4)));
-            }
+            lsGraph.setBounds (r3.reduced (2, 0));
+            lsGraph.repaint();
         }
     }
     void roundSize (Slider& slider)
@@ -939,6 +960,7 @@ private:
     MidiSlider sensVel[6], sensAm[6], sensPm[6];   // SENSIT VEL/AM/PM (params 0x11/0x10/0x18)
     MidiButton velSw[6], pegSw[6];                 // VEL SW (RVSW 0x24), PEG SW (PES, octet packé 0x18 b1, par op)
     MidiSlider bpScl[6][4], offScl[6][4];          // SCALING : break-points (0x1C-1F) + offsets (0x20-23)
+    LevelScalingView lsGraph;                      // edition graphique du scaling de l'op selectionne
     Label lblSensVel { "", "Vel" }, lblSensAm { "", "AM" }, lblSensPm { "", "PM" },
           lblVelSw { "", "Vel SW" }, lblPegSw { "", "PEG SW" }, lblScaling { "", "Scaling (BP / Offset)" };
 
@@ -1026,9 +1048,31 @@ private:
     }
 
     // Une valeur PWAVE a changé (drag ou chargement de voix) : si c'est l'op affiché, rafraîchir.
-    void valueChanged (Value&) override
+    void valueChanged (Value& v) override
     {
+        if (handleScalingRx (v)) return;
         updateWaveLabel();
+        lsGraph.repaint();
+    }
+    // RX d'un offset de scaling (0x20-0x23) pour un op de CET element : V1 = arr[4], V2 = arr[5].
+    bool handleScalingRx (Value& v)
+    {
+        if (! v.refersToSameSourceAs (valueSysexIn)) return false;
+        const var arr = v.getValue();
+        if (! arr.isArray() || arr.size() < 6) return true;
+        const int g = (int) arr[0], aH = (int) arr[1], n2 = (int) arr[3];
+        if (aH != packedAddrHi || n2 < 0x20 || n2 > 0x23) return true;
+        for (int o = 0; o < 6; ++o)
+            if (packedGroup[o] == g)
+                offScl[o][n2 - 0x20].setValue (SyVoice::ob2ToDisplay ((int) arr[4], (int) arr[5]), dontSendNotification);
+        return true;
+    }
+    void sendScalingOffset (int o, int k)
+    {
+        const int d = (int) offScl[o][k].getValue();
+        uint8 b[9] = { 0x43, 0x10, 0x34, (uint8) packedGroup[o], (uint8) packedAddrHi,
+                       0x00, (uint8) (0x20 + k), SyVoice::ob2V1 (d), SyVoice::ob2V2 (d) };
+        packedSender.sendParam9 ("/SYSEX", b);
     }
 
     // MUTE éditeur d'un opérateur via le niveau TL (param 0x1B, 0x1B déjà câblé sur sliderLevel*).

@@ -223,7 +223,7 @@ void oscMessageReceived (const OSCMessage& message)
                             }
                         for (auto& vp : SyVoice::voiceBlobToParams (d, sz))
                         {
-                            valueSysexIn = make_var_array (vp.group, vp.addrHi, vp.addrLo, vp.param, 0, vp.value);
+                            valueSysexIn = make_var_array (vp.group, vp.addrHi, vp.addrLo, vp.param, vp.v1, vp.value);
                             valueSysexIn.getValueSource().sendChangeMessage (true);
                         }
                     }

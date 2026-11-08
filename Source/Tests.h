@@ -83,7 +83,7 @@ struct SysexUtilsTests : public juce::UnitTest
     // Contrôleurs voix commune N2 0x28..0x3D décodés de chaque dump (d[32 + N2]).
     static constexpr int kCtrl = 0x3D - 0x28 + 1;   // 22
     // Par élément AWM : N2 0x02..0x18 (23) + HOLD, PARS, BP1-4, VEL, ARVSW, AMS (9).
-    static constexpr int kAwmExtra = 23 + 9;
+    static constexpr int kAwmExtra = 23 + 9 + 4;   // + PAOS1-4 (o/b2)
     SysexUtilsTests() : juce::UnitTest ("SysexUtils") {}
 
     // Construit un faux dump : pour chaque voix, 0xF0 puis 32 octets, puis 10 chars de nom.
@@ -748,6 +748,15 @@ struct SysexUtilsTests : public juce::UnitTest
             };
 
             auto params = SyVoice::voiceBlobToParams (steel, (int) sizeof (steel));
+            // Offsets de scaling EGOS (0x20-0x23) : 2 octets o/b2, V1 = MSB (0/1) porte par vp.v1.
+            for (auto& q : params)
+                if ((q.group & 0x0F) == 0x06 && q.param >= 0x20 && q.param <= 0x23)
+                {
+                    expect (q.v1 == 0 || q.v1 == 1);
+                    const int d = SyVoice::ob2ToDisplay (q.v1, q.value);
+                    expect (d >= -128 && d <= 127);
+                    expectEquals ((int) SyVoice::ob2V1 (juce::jlimit (-127, 127, d)), q.v1 & 1);   // aller-retour
+                }
             // 6 op×29 + (ELVL,ALGNUM,FCTOF1,FCTOF2,FFRES,FYPSW) + 4 pitch-rates + 5 pitch-levels
             // (FPL0-3+FPRL1) + 2×7 filtre-rates + 2×7 filtre-niveaux + VVOL.
             expectEquals (params.size(), 6 * 31 + 6 + 4 + 5 + 14 + 14 + 1 + kCtrl);

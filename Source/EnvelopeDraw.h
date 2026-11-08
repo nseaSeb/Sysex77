@@ -778,3 +778,127 @@ private:
     bool fine     = false;
     juce::Point<float> anchorMouse, anchorPt, lastEff;
 };
+
+//==============================================================================
+/** Graphe de LEVEL SCALING (facon Swayed) : 4 break-points (X = note 0..127) avec un offset
+    de niveau (Y = -127..+127, 0 au centre), courbe prolongee a plat jusqu'aux bords, bande
+    clavier en bas. Glisser = deplacer le point (BP borne entre ses voisins), Shift = fin,
+    double-clic = offset 0. Donnees/edition par callbacks (l'hote porte l'envoi sysex). */
+class LevelScalingView : public juce::Component
+{
+public:
+    std::function<void (int bp[4], int off[4])>       getData;
+    std::function<void (int k, int bp, int off)>      onEdit;
+
+    LevelScalingView() { setMouseCursor (juce::MouseCursor::PointingHandCursor); }
+
+    void paint (juce::Graphics& g) override
+    {
+        auto r = getLocalBounds().toFloat();
+        auto kb = r.removeFromBottom (juce::jmin (14.0f, r.getHeight() * 0.2f));
+        plot = r.reduced (4.0f, 4.0f);
+        g.setColour (SYPal.panelBorder);
+        g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (0.5f), 4.0f, 1.0f);
+        // Bande clavier (octaves C marquees).
+        for (int n = 0; n < 128; ++n)
+        {
+            const int pc = n % 12;
+            const bool black = (pc == 1 || pc == 3 || pc == 6 || pc == 8 || pc == 10);
+            const float x0 = xForNote ((float) n - 0.5f), x1 = xForNote ((float) n + 0.5f);
+            g.setColour (black ? juce::Colours::black.withAlpha (0.55f) : juce::Colours::white.withAlpha (0.18f));
+            g.fillRect (x0, kb.getY(), juce::jmax (1.0f, x1 - x0 - 0.5f), kb.getHeight());
+        }
+        // Ligne 0.
+        g.setColour (SYColSelected.withAlpha (0.25f));
+        g.drawHorizontalLine ((int) yForOff (0), plot.getX(), plot.getRight());
+        int bp[4], off[4]; data (bp, off);
+        juce::Path p;
+        p.startNewSubPath (plot.getX(), yForOff (off[0]));
+        for (int k = 0; k < 4; ++k) p.lineTo (xForNote ((float) bp[k]), yForOff (off[k]));
+        p.lineTo (plot.getRight(), yForOff (off[3]));
+        g.setColour (SYColSelected);
+        g.strokePath (p, juce::PathStrokeType (1.6f));
+        g.setFont (10.0f);
+        for (int k = 0; k < 4; ++k)
+        {
+            const float x = xForNote ((float) bp[k]), y = yForOff (off[k]);
+            const bool hot = (k == active);
+            g.setColour (SYColSelected.withAlpha (hot ? 1.0f : 0.8f));
+            g.fillEllipse (x - (hot ? 5.0f : 3.5f), y - (hot ? 5.0f : 3.5f), hot ? 10.0f : 7.0f, hot ? 10.0f : 7.0f);
+            g.drawText (juce::String (k + 1), juce::Rectangle<float> (x - 8.0f, y - 18.0f, 16.0f, 12.0f),
+                        juce::Justification::centred, false);
+        }
+        if (active >= 0)   // lecture de la valeur du point actif
+        {
+            const juce::String txt = "BP" + juce::String (active + 1) + "  " + noteName (bp[active])
+                                   + "  " + (off[active] > 0 ? "+" : "") + juce::String (off[active]);
+            g.setColour (SYColLabel);
+            g.drawText (txt, plot.reduced (4.0f).removeFromTop (12.0f), juce::Justification::topRight, false);
+        }
+    }
+
+    void mouseMove (const juce::MouseEvent& e) override { const int k = nearest (e.position); if (k != active) { active = k; repaint(); } }
+    void mouseExit (const juce::MouseEvent&) override   { if (! dragging) { active = -1; repaint(); } }
+    void mouseDown (const juce::MouseEvent& e) override
+    {
+        active = nearest (e.position);
+        int bp[4], off[4]; data (bp, off);
+        if (active < 0) return;
+        dragging = true;
+        anchorMouse = e.position;
+        anchorPt = lastEff = { xForNote ((float) bp[active]), yForOff (off[active]) };
+        fine = e.mods.isShiftDown();
+    }
+    void mouseDrag (const juce::MouseEvent& e) override
+    {
+        if (active < 0 || ! onEdit || plot.getWidth() < 4.0f) return;
+        const bool f = e.mods.isShiftDown();
+        if (f != fine) { anchorPt = lastEff; anchorMouse = e.position; fine = f; }
+        lastEff = anchorPt + (e.position - anchorMouse) * (fine ? 0.2f : 1.0f);
+        int bp[4], off[4]; data (bp, off);
+        const int lo = active > 0 ? bp[active - 1] : 0, hi = active < 3 ? bp[active + 1] : 127;
+        const int note = juce::jlimit (lo, hi, juce::roundToInt ((lastEff.x - plot.getX()) / plot.getWidth() * 127.0f));
+        const int o = juce::jlimit (-127, 127, juce::roundToInt ((plot.getCentreY() - lastEff.y) / (plot.getHeight() * 0.5f) * 127.0f));
+        onEdit (active, note, o);
+        repaint();
+    }
+    void mouseUp (const juce::MouseEvent&) override { dragging = false; }
+    void mouseDoubleClick (const juce::MouseEvent& e) override
+    {
+        const int k = nearest (e.position);
+        if (k < 0 || ! onEdit) return;
+        int bp[4], off[4]; data (bp, off);
+        onEdit (k, bp[k], 0);
+        repaint();
+    }
+
+private:
+    void data (int bp[4], int off[4]) const
+    {
+        for (int k = 0; k < 4; ++k) { bp[k] = 32 * k + 16; off[k] = 0; }
+        if (getData) getData (bp, off);
+        for (int k = 0; k < 4; ++k) { bp[k] = juce::jlimit (0, 127, bp[k]); off[k] = juce::jlimit (-127, 127, off[k]); }
+    }
+    float xForNote (float n) const { return plot.getX() + plot.getWidth() * n / 127.0f; }
+    float yForOff  (int o) const   { return plot.getCentreY() - plot.getHeight() * 0.5f * (float) o / 127.0f; }
+    int nearest (juce::Point<float> p) const
+    {
+        int bp[4], off[4]; data (bp, off);
+        int best = -1; float bd = 1.0e9f;
+        for (int k = 0; k < 4; ++k)
+        {   // <= : a egalite (points empiles, ex. voix INIT BP=0) le DERNIER gagne -> BP4 peut
+            // partir a droite et "deplier" les autres (BP1 serait bloque entre ses voisins).
+            const float d = p.getDistanceFrom ({ xForNote ((float) bp[k]), yForOff (off[k]) });
+            if (d <= bd) { bd = d; best = k; } }
+        return bd < 40.0f ? best : -1;
+    }
+    static juce::String noteName (int n)
+    {
+        static const char* nm[12] = { "C","C#","D","D#","E","F","F#","G","G#","A","A#","B" };
+        return juce::String (nm[n % 12]) + juce::String (n / 12 - 2);   // convention SY77 : 0 = C-2
+    }
+    juce::Rectangle<float> plot;
+    int  active = -1;
+    bool dragging = false, fine = false;
+    juce::Point<float> anchorMouse, anchorPt, lastEff;
+};
