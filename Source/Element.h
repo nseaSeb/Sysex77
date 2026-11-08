@@ -223,7 +223,7 @@ public:
             elementValue.setValue (operatorMode == mode::AWM ? (int) commande::VolumeEdit
                                                              : (int) commande::VolumeAFM);
         };
-        egGraph.maxLevel = 127.0f;                       // vignette : niveaux EGVOL 0..127
+        egGraph.maxLevel = 63.0f;                        // niveaux EG AFM/AWM 0..63 (spec), comme WaveEg
         egGraph.releaseNode = -1;                        // vignette : pas de repere KEY OFF
         egGraph.onEditNode = [this] (int node, float levelF, float segWeightF)
         {
@@ -236,22 +236,9 @@ public:
             const char* lvlIds[5] = { "EGVOLLEVEL0", "EGVOLLEVEL1", "EGVOLLEVEL2", "EGVOLLEVEL3", "EGVOLLEVEL4" };
             const char* rIds[4]   = { "EGVOLR1", "EGVOLR2", "EGVOLR3", "EGVOLR4" };
 
-            // EG jamais réglé (tous niveaux à 0) -> on "fige" d'abord la forme par défaut
-            // pour ne pas faire s'effondrer les autres nœuds au 1er glissement.
-            bool unset = true;
-            for (int i = 0; i < 5; ++i)
-                if ((int) valueTreeVoice.getProperty (Identifier ("ELEMENT" + String (operatorID) + lvlIds[i]), 0) != 0)
-                    unset = false;
-            if (unset)
-            {
-                juce::Array<float> l, w;
-                getVolEg (l, w);
-                for (int i = 0; i < 5; ++i) setP (lvlIds[i], roundToInt (l[i]));
-                for (int i = 0; i < 4; ++i) setP (rIds[i],   roundToInt (w[i]));
-            }
-            setP (lvlIds[node], level);
+            setP (lvlIds[node], jlimit (0, 63, level));
             if (rateWeight >= 0 && node >= 1)            // rate du segment entrant (nœuds 1..4)
-                setP (rIds[node - 1], rateWeight);
+                setP (rIds[node - 1], jlimit (0, 63, 66 - rateWeight));   // poids = 66 - rate (cf. WaveEg)
         };
    
     
@@ -569,11 +556,10 @@ public:
         auto id = [this] (const char* s) { return Identifier (String ("ELEMENT") + String (operatorID) + s); };
         auto eg = [&] (const char* s) { return (float) (int) valueTreeVoice.getProperty (id (s), 0); };
         levels  = { eg ("EGVOLLEVEL0"), eg ("EGVOLLEVEL1"), eg ("EGVOLLEVEL2"), eg ("EGVOLLEVEL3"), eg ("EGVOLLEVEL4") };
-        weights = { jmax (1.0f, eg ("EGVOLR1")), jmax (1.0f, eg ("EGVOLR2")),
-                    jmax (1.0f, eg ("EGVOLR3")), jmax (1.0f, eg ("EGVOLR4")) };
-        float maxL = 0.0f;
-        for (auto l : levels) maxL = jmax (maxL, l);
-        if (maxL <= 0.0f) { levels = { 0.0f, 120.0f, 84.0f, 84.0f, 0.0f }; weights = { 1.0f, 2.0f, 4.0f, 3.0f }; }
+        // Valeurs REELLES (plus de forme d'exemple quand tout est a 0). Largeur d'un segment
+        // = 66 - rate, meme convention que l'editeur WaveEg (rate eleve = rapide = court).
+        auto rw = [&] (const char* s) { return 66.0f - eg (s); };
+        weights = { rw ("EGVOLR1"), rw ("EGVOLR2"), rw ("EGVOLR3"), rw ("EGVOLR4") };
     }
 
     void paint (Graphics& g) override
@@ -607,7 +593,7 @@ public:
             {
                 juce::Array<float> levels, weights;
                 getVolEg (levels, weights);
-                SyDraw::drawEnvelope (g, vb, levels, weights, 127.0f, SYColSelected);
+                SyDraw::drawEnvelope (g, vb, levels, weights, 63.0f, SYColSelected);
             }
         }
 
