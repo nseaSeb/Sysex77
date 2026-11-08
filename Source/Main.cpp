@@ -193,9 +193,13 @@ public:
     {
 
     }
-    void shutdown() override                         {
-        
-        mainWindow = nullptr; }
+    void shutdown() override
+    {
+        mainWindow = nullptr;
+        // Save + delete the PropertiesFile (it owns a Timer) while JUCE is still alive:
+        // left to static destruction it touches the dead TimerThread (crash 0xC0000005 on Windows).
+        getAppProps().closeFiles();
+    }
 
 private:
     class MainWindow    : public DocumentWindow, private KeyListener
