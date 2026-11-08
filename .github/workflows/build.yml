@@ -1,0 +1,103 @@
+# Build + tests sur macOS / Windows / Linux à chaque push et PR.
+# Sur un tag vX.Y.Z (poussé par release.sh), ajoute les binaires Windows et Linux à la
+# GitHub Release. Le .app macOS reste produit et publié par release.sh (signature ad-hoc).
+name: build
+
+on:
+  push:
+    branches: [ master ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write   # upload des assets sur la release (tags)
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            name: macos
+          - os: windows-latest
+            name: windows
+          - os: ubuntu-24.04
+            name: linux
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dépendances Linux
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libasound2-dev libjack-jackd2-dev libfreetype-dev libfontconfig1-dev \
+            libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev \
+            libxrandr-dev libxrender-dev libglu1-mesa-dev mesa-common-dev xvfb
+
+      - name: Configure (JUCE téléchargé par FetchContent)
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+
+      - name: Tests (macOS)
+        if: runner.os == 'macOS'
+        run: build/Sysex77_artefacts/Release/Sysex77.app/Contents/MacOS/Sysex77 --test
+
+      - name: Tests (Linux, écran virtuel)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a build/Sysex77_artefacts/Release/Sysex77 --test
+
+      - name: Tests (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # Appli GUI : pas de console -> on attend la fin et on lit le code de sortie.
+          $p = Start-Process -FilePath "build/Sysex77_artefacts/Release/Sysex77.exe" `
+                             -ArgumentList "--test" -Wait -PassThru
+          Write-Host "Code de sortie des tests : $($p.ExitCode)"
+          exit $p.ExitCode
+
+      - name: Paquet Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $v = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME.TrimStart('v') } else { 'dev' }
+          New-Item -ItemType Directory -Force pkg | Out-Null
+          Copy-Item build/Sysex77_artefacts/Release/Sysex77.exe pkg/
+          Copy-Item LICENSE pkg/
+          Compress-Archive -Path pkg/* -DestinationPath "Sysex77-$v-windows-x64.zip"
+          "PKG=Sysex77-$v-windows-x64.zip" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Paquet Linux
+        if: runner.os == 'Linux'
+        run: |
+          v=dev; [ "$GITHUB_REF_TYPE" = tag ] && v="${GITHUB_REF_NAME#v}"
+          mkdir -p pkg && cp build/Sysex77_artefacts/Release/Sysex77 LICENSE pkg/
+          tar -czf "Sysex77-$v-linux-x64.tar.gz" -C pkg .
+          echo "PKG=Sysex77-$v-linux-x64.tar.gz" >> "$GITHUB_ENV"
+
+      - name: Artefact du build
+        if: runner.os != 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sysex77-${{ matrix.name }}
+          path: ${{ env.PKG }}
+
+      - name: Ajout à la release (tag)
+        if: runner.os != 'macOS' && github.ref_type == 'tag'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # release.sh pousse le tag AVANT de créer la release : on attend qu'elle existe.
+          for i in $(seq 1 40); do
+            gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 && break
+            sleep 15
+          done
+          gh release upload "$GITHUB_REF_NAME" "$PKG" --clobber
