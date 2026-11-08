@@ -74,7 +74,7 @@ public:
                     for (auto& a : *assets)
                     {
                         const auto n = a.getProperty ("name", {}).toString();
-                        if (n.endsWithIgnoreCase (".zip"))
+                        if (n.endsWithIgnoreCase (".app.zip"))   // macOS bundle only: the CI also attaches a -windows-x64.zip
                         {
                             info.assetUrl = a.getProperty ("browser_download_url", {}).toString();
                             break;
