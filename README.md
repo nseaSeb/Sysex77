@@ -175,6 +175,16 @@ create a custom theme; hit **Reload** in *Setting* to pick it up without restart
 - `SY77_PARAMETERS.md` — référence sysex (format, groupes, adresses) croisée code + spec officielle.
 - La spec Yamaha *SY77 MIDI Data Format* et les captures SynthWorks sont sous `docs/` (non versionné).
 
+## Licence
+
+Le code source de Sysex77 est sous licence **MIT** (voir [LICENSE](LICENSE)).
+L'application est construite avec le framework **[JUCE](https://juce.com)**, utilisé sous licence
+**AGPLv3** : les binaires distribués (application compilée) sont donc soumis aux termes de l'AGPLv3,
+dont le code source complet est celui de ce dépôt.
+
+*English:* Sysex77 source code is MIT-licensed. It is built with JUCE under the AGPLv3, so the
+distributed binaries are covered by the AGPLv3 (full source: this repository).
+
 ## Soutien & remerciements
 
 Un grand merci au **forum JUCE**, en particulier : Daniel, Jules, McMartin, matkatmusic, Xenakios, dqthebt.
