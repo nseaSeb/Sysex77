@@ -27,12 +27,26 @@
 #include "MidiObjects.h"
 #include "SyParam.h"     // dictionnaire déclaratif : adresse (syTranslate) + plage (table)
 
-class EffectsPage : public juce::Component
+class EffectsPage : public juce::Component, private juce::Value::Listener
 {
 public:
     EffectsPage()
     {
-        setupParam (sliderMode, IDs::EFFECTMODE, 7400, "Effect Mode");
+        // Effect Mode : radios 0..3 (comme la carte ROUTAGE de Voice) + topologie en clair.
+        addAndMakeVisible (radioMode);
+        for (auto* t : { "0", "1", "2", "3" }) radioMode.addRadio (t, 7778);
+        {
+            const auto a = SyVoice::syTranslate (7400, 0, 0);   // group 0x08 / N2 0x00
+            int sx[9] = { 0x43, 0x10, 0x34, a.group, a.t2, 0x00, a.n2, 0x00, 0x00 };
+            radioMode.setMidiSysex (sx);
+        }
+        radioMode.getValueObject().referTo (valueTreeVoice.getPropertyAsValue (IDs::EFFECTMODE, nullptr));
+        modeValue.referTo (valueTreeVoice.getPropertyAsValue (IDs::EFFECTMODE, nullptr));
+        modeValue.addListener (this);
+        labelModeTitle.setText ("Effect Mode", juce::dontSendNotification);
+        addAndMakeVisible (labelModeTitle);
+        labelTopo.setFont (juce::FontOptions (13.0f));
+        addAndMakeVisible (labelTopo);
 
         // Chorus 1 (N2 0x01-0x07)
         setupParam (chr1Type, IDs::CHR1TYPE, 7401, "Type");
@@ -76,7 +90,9 @@ public:
         grpChr2.setText ("Chorus 2");  addAndMakeVisible (grpChr2);
         grpRev1.setText ("Reverb 1");  addAndMakeVisible (grpRev1);
         grpRev2.setText ("Reverb 2");  addAndMakeVisible (grpRev2);
+        updateMode();
     }
+    ~EffectsPage() override { modeValue.removeListener (this); }
 
     void paint (juce::Graphics& g) override
     {
@@ -89,9 +105,11 @@ public:
 
         auto top = r.removeFromTop (50);
         top.removeFromTop (14); // place pour le libellé attaché du Mode
-        sliderMode.setBounds (top.removeFromLeft (150).reduced (4, 0));
+        labelModeTitle.setBounds (top.getX(), top.getY() - 14, 150, 14);
+        radioMode.setBounds (top.removeFromLeft (150).reduced (4, 4));
         btMix1.setBounds (top.removeFromLeft (130).reduced (8, 4));
         btMix2.setBounds (top.removeFromLeft (130).reduced (8, 4));
+        labelTopo.setBounds (top.reduced (8, 0));
 
         r.removeFromTop (6);
         const int rowH = r.getHeight() / 2;
@@ -158,7 +176,31 @@ private:
             k->setBounds (b.getX() + i++ * kw, b.getY(), kw, b.getHeight());
     }
 
-    MidiSlider sliderMode;
+    // Topologies RELEVEES SUR LE SY77 (MAP.md, EFMODE ; meme source que Voice.h).
+    void valueChanged (juce::Value&) override { updateMode(); }
+    void updateMode()
+    {
+        const int mode = (int) modeValue.getValue();
+        static const char* topo[4] = {
+            "Bypass : G1 et G2 en direct",
+            "G1 : Chorus 1 > Reverb 1     G2 : Chorus 2 > Reverb 2",
+            "G1 : Chorus 1 > Reverb 1 > Reverb 2     G2 : Chorus 2",
+            "G1 : (Chorus 1 | Chorus 2) > Reverb 1 > Reverb 2     G2 : direct" };
+        labelTopo.setText (TRANS (topo[juce::jlimit (0, 3, mode)]), juce::dontSendNotification);
+        const float a = (mode == 0) ? 0.45f : 1.0f;     // bypass : effets sans action
+        for (juce::Component* c : { (juce::Component*) &grpChr1, (juce::Component*) &grpChr2,
+                                    (juce::Component*) &grpRev1, (juce::Component*) &grpRev2 })
+            c->setAlpha (a);
+        for (auto* k : { &chr1Type, &chr1Bal, &chr1Lvl, &chr1P1, &chr1P2, &chr1P3, &chr1P4,
+                         &chr2Type, &chr2Bal, &chr2Lvl, &chr2P1, &chr2P2, &chr2P3, &chr2P4,
+                         &rev1Type, &rev1Bal, &rev1Lvl, &rev1P1, &rev1P2, &rev1P3,
+                         &rev2Type, &rev2Bal, &rev2Lvl, &rev2P1, &rev2P2, &rev2P3 })
+            k->setAlpha (a);
+    }
+
+    MidiRadio  radioMode;
+    juce::Value modeValue;
+    juce::Label labelModeTitle, labelTopo;
 
     juce::GroupComponent grpChr1, grpChr2, grpRev1, grpRev2;
     MidiSlider chr1Type, chr1Bal, chr1Lvl, chr1P1, chr1P2, chr1P3, chr1P4;
