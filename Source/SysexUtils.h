@@ -221,7 +221,10 @@ namespace SyVoice
             // packé avec le MODE freq (Fixed/Ratio) -> le charger basculait MODE. Bit-split à faire.
             { 0x1C, 30 }, { 0x1D, 31 }, { 0x1E, 32 }, { 0x1F, 33 }, // SCALING break-points BP1-4
             { 0x20, 35 }, { 0x21, 37 }, { 0x22, 39 }, { 0x23, 41 }, // SCALING offset-levels (LSB EGOS)
-            { 0x24, 42 }                                          // VEL SW (RVSW, 0/1)
+            { 0x24, 42 },                                         // VEL SW (RVSW, 0/1)
+            // SHIFT0/1 (0x15, sh0<<3|sh1) @22 et COR (0x16, 0..7) @23 : ALGSRC occupe 19-20,
+            // ALGDST/OAC 21. Vérifié sur 9 833 voix AFM réelles (octet 22 = 7/63/56/0, 23 <= 7).
+            { 0x15, 22 }, { 0x16, 23 }
             // PHASE (0x19) NON chargé : octet packé phase+sync, le bouton SYNC lit l'octet brut
             // -> le charger corromprait le SYNC (extraction de bits à faire).
         };

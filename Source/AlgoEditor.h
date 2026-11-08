@@ -99,6 +99,26 @@ public:
         // Niveau (TL) de l'op sélectionné : barre éditable. autoSend OFF -> n'émet pas elle-même ;
         // elle partage la valeur AFMELEMENT<e>LEVEL<op> du slider Level du détail, qui émet le 0x1B.
         addAndMakeVisible (sliderLevel);
+
+        // Niveaux d'entree SHIFT0/1 (0x15, 0..7, V2 = sh0<<3 | sh1) et correction de sortie
+        // COR (0x16, 0..7) de l'op selectionne (Table 1-7, OCR l.424-427). Actifs aussi en
+        // algorithme preset (le niveau de feedback est le SHIFT de l'entree bouclee).
+        for (auto* sl : { &sliderSh0, &sliderSh1, &sliderCor })
+        {
+            sl->setRange (0, 7, 1);
+            sl->setSliderStyle (Slider::LinearHorizontal);
+            sl->setTextBoxStyle (Slider::TextBoxRight, false, 30, 18);
+            addAndMakeVisible (*sl);
+        }
+        for (auto* l : { &lblSh0, &lblSh1, &lblCor }) addAndMakeVisible (*l);
+        sliderSh0.onValueChange = [this] { onShiftEdited(); };
+        sliderSh1.onValueChange = [this] { onShiftEdited(); };
+        sliderCor.onValueChange = [this]
+        {
+            setOpProp ("COR", (int) sliderCor.getValue());
+            send9 (opGroup (selOp), (elem - 1) << 5, 0x16, 0x00, (int) sliderCor.getValue() & 7);
+        };
+        valueSysexIn.addListener (this);   // RX / chargement : SHIFT et COR par op
         sliderLevel.setSliderStyle (Slider::LinearBar);
         sliderLevel.setTextBoxStyle (Slider::TextBoxRight, false, 34, 16);
         sliderLevel.setRange (0, 127, 1);
@@ -123,6 +143,8 @@ public:
 
         refreshAll();
     }
+
+    ~AlgoEditorView() override { valueSysexIn.removeListener (this); }
 
     void paint (Graphics& g) override
     {
@@ -166,6 +188,9 @@ public:
         field (lblDst, cbDst);
         field (lblAcc, cbAcc);
         field (lblLvl, sliderLevel);
+        field (lblSh0, sliderSh0);
+        field (lblSh1, sliderSh1);
+        field (lblCor, sliderCor);
     }
 
 private:
@@ -216,6 +241,9 @@ private:
         cbAcc.setSelectedId (accItem, dontSendNotification);
 
         lblOpHdr.setText ("Operateur " + String (selOp + 1), dontSendNotification);
+        sliderSh0.setValue (opProp ("SHA"), dontSendNotification);
+        sliderSh1.setValue (opProp ("SHB"), dontSendNotification);
+        sliderCor.setValue (opProp ("COR"), dontSendNotification);
 
         // Niveau (TL) : partage la valeur du slider Level du détail (AFMELEMENT<e>LEVEL<op>),
         // qui porte l'envoi 0x1B. Re-referTo à CHAQUE changement d'op.
@@ -351,8 +379,36 @@ private:
         }
     }
 
+    int  opProp (const char* f, int op = -1) const
+    { return jlimit (0, 7, (int) valueTreeVoice.getProperty (SyAlgo::algoId (elem, f, (op < 0 ? selOp : op) + 1), 0)); }
+    void setOpProp (const char* f, int v, int op = -1)
+    { valueTreeVoice.setProperty (SyAlgo::algoId (elem, f, (op < 0 ? selOp : op) + 1), jlimit (0, 7, v), undo); }
+    void onShiftEdited()
+    {
+        const int a = (int) sliderSh0.getValue(), b = (int) sliderSh1.getValue();
+        setOpProp ("SHA", a);
+        setOpProp ("SHB", b);
+        send9 (opGroup (selOp), (elem - 1) << 5, 0x15, 0x00, ((a & 7) << 3) | (b & 7));
+    }
+    // RX (synthe ou replay de dump) de 0x15/0x16 sur un groupe d'op de CET element.
+    bool handleShiftRx (Value& v)
+    {
+        if (! v.refersToSameSourceAs (valueSysexIn)) return false;
+        const var arr = v.getValue();
+        if (! arr.isArray() || arr.size() < 6) return true;
+        const int g = (int) arr[0], aH = (int) arr[1], n2 = (int) arr[3], val = (int) arr[5];
+        if ((g & 0x0F) != 0x06 || (n2 != 0x15 && n2 != 0x16) || ((aH >> 5) + 1) != elem) return true;
+        const int op = 5 - ((g >> 4) & 0x0F);              // 0x56 = OP1 (op 0) ... 0x06 = OP6
+        if (op < 0 || op > 5) return true;
+        if (n2 == 0x15) { setOpProp ("SHA", (val >> 3) & 7, op); setOpProp ("SHB", val & 7, op); }
+        else              setOpProp ("COR", val & 7, op);
+        if (op == selOp) refreshOpControls();
+        return true;
+    }
+
     void valueChanged (Value& v) override
     {
+        if (handleShiftRx (v)) return;
         if (v.refersToSameSourceAs (freeValue)) { refreshAll(); return; }
         // sinon = valueObject du slider (chargement de voix) -> redraw preset.
         if (! isFree()) onPresetChanged();
@@ -368,6 +424,8 @@ private:
     Label lblOp { "", "Op" }, lblIn0 { "", "In 1" }, lblIn1 { "", "In 2" },
           lblDst { "", "Sortie" }, lblAcc { "", "Accum" }, lblLvl { "", "Niveau" };
     Label lblOpHdr { "", "Operateur 1" };   // titre de section « ce que vous editez »
+    Slider sliderSh0, sliderSh1, sliderCor;  // SHIFT0/1 (0x15) + COR (0x16), envoi manuel (send9)
+    Label  lblSh0 { "", "Niv In 1" }, lblSh1 { "", "Niv In 2" }, lblCor { "", "Correct." };
     MidiSlider sliderLevel;                 // niveau (TL) de l'op selectionne ; autoSend OFF
                                             // (l'envoi 0x1B passe par le slider Level du detail).
     Value freeValue;

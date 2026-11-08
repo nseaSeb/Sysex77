@@ -748,7 +748,7 @@ struct SysexUtilsTests : public juce::UnitTest
             auto params = SyVoice::voiceBlobToParams (steel, (int) sizeof (steel));
             // 6 op×29 + (ELVL,ALGNUM,FCTOF1,FCTOF2,FFRES,FYPSW) + 4 pitch-rates + 5 pitch-levels
             // (FPL0-3+FPRL1) + 2×7 filtre-rates + 2×7 filtre-niveaux + VVOL.
-            expectEquals (params.size(), 6 * 29 + 6 + 4 + 5 + 14 + 14 + 1 + kCtrl);
+            expectEquals (params.size(), 6 * 31 + 6 + 4 + 5 + 14 + 14 + 1 + kCtrl);
 
             auto val = [&params] (int group, int param) -> int
             {
@@ -815,11 +815,11 @@ struct SysexUtilsTests : public juce::UnitTest
             juce::MemoryBlock mono (steel, sizeof (steel));
             ((juce::uint8*) mono.getData())[32] = 0x00;
             expectEquals (SyVoice::voiceBlobToParams ((const juce::uint8*) mono.getData(),
-                                                      (int) mono.getSize()).size(), 6 * 29 + 6 + 4 + 5 + 14 + 14 + 1 + kCtrl);
+                                                      (int) mono.getSize()).size(), 6 * 31 + 6 + 4 + 5 + 14 + 14 + 1 + kCtrl);
 
             // 2 AFM / 4 AFM : N « layers » identiques (Table 2). On vérifie le compte et que
             // l'adressage par élément (addrHi = élément<<5) est bien produit.
-            const int perElem = 6 * 29 + 6 + 4 + 5 + 14 + 14;   // op + 6 + 4 pitch-rates + 5 pitch-levels + 2×7 filtre-rates + 2×7 filtre-niveaux
+            const int perElem = 6 * 31 + 6 + 4 + 5 + 14 + 14;   // op + 6 + 4 pitch-rates + 5 pitch-levels + 2×7 filtre-rates + 2×7 filtre-niveaux
             {
                 juce::MemoryBlock two; two.setSize (832, true);
                 ((juce::uint8*) two.getData())[32] = 0x01;   // 2 AFM
@@ -891,7 +891,7 @@ struct SysexUtilsTests : public juce::UnitTest
             auto* p = (juce::uint8*) mb.getData();
             p[0] = 0xF0; p[32] = 0x08;
             auto params = SyVoice::voiceBlobToParams (p, 586);
-            expectEquals (params.size(), 217 + 9 + 1 + kCtrl);   // AFM él.(217, dont niveaux EG o/b) + AWM él.(9) + VVOL
+            expectEquals (params.size(), 229 + 9 + 1 + kCtrl);   // AFM él.(217, dont niveaux EG o/b) + AWM él.(9) + VVOL
 
             bool afmE1 = false, awmE2 = false;
             for (auto& q : params)
