@@ -53,6 +53,13 @@ namespace Shortcuts
         for (int d = 0; d <= 9; ++d)
             if (c == juce::KeyPress::numberPad0 + d)
                 return juce::KeyPress ('0' + d, k.getModifiers(), k.getTextCharacter());
+        // Rangee des chiffres d'un Mac AZERTY (sans Maj) : & e-aigu " ' ( paragraphe e-grave
+        // ! c-cedille a-grave = 1 2 3 4 5 6 7 8 9 0. Codes Unicode (pas de litteral UTF-8 ici).
+        static const int azerty[10] = { 0xE0, '&', 0xE9, '"', '\'', '(', 0xA7, 0xE8, '!', 0xE7 };
+        const int lc = (int) juce::CharacterFunctions::toLowerCase ((juce::juce_wchar) c);
+        for (int d = 0; d <= 9; ++d)
+            if (lc == azerty[d])
+                return juce::KeyPress ('0' + d, k.getModifiers(), k.getTextCharacter());
         return k;
     }
     /** Id de l'action liee a cette touche, ou chaine vide. */
