@@ -145,6 +145,36 @@ struct SysexUtilsTests : public juce::UnitTest
             expect (SyVoice::getVoiceBlock (syx, sizeof (syx), 9).getSize() == 0);
         }
 
+        beginTest ("mixed bank: only LM  8101VC blocks are presets");
+        {
+            auto mk = [] (const char* id, const char* name)
+            {
+                juce::MemoryBlock b (50, true);
+                auto* d = (juce::uint8*) b.getData();
+                d[0] = 0xF0; d[1] = 0x43; d[2] = 0x00; d[3] = 0x7A;
+                for (int k = 0; k < 10; ++k) d[6 + k] = (juce::uint8) id[k];
+                for (int k = 0; k < 10; ++k) d[33 + k] = (juce::uint8) name[k];
+                d[49] = 0xF7;
+                return b;
+            };
+            juce::MemoryBlock bank;
+            bank.append (mk ("LM  8101MU", "MULTI 1   ").getData(), 50);
+            bank.append (mk ("LM  8101VC", "VOICE A   ").getData(), 50);
+            bank.append (mk ("LM  8101PN", "PAN 1     ").getData(), 50);
+            bank.append (mk ("LM  8101VC", "VOICE B   ").getData(), 50);
+            bank.append (mk ("LM  8101SY", "SYSTEM    ").getData(), 50);
+            const auto* d = (const juce::uint8*) bank.getData();
+            auto names = SyVoice::extractVoiceNames (d, bank.getSize());
+            expectEquals (names.size(), 2);
+            expectEquals (names[0].trim(), juce::String ("VOICE A"));
+            expectEquals (names[1].trim(), juce::String ("VOICE B"));
+            auto b1 = SyVoice::getVoiceBlock (d, bank.getSize(), 1);
+            expectEquals ((int) b1.getSize(), 50);
+            expectEquals ((int) ((const juce::uint8*) b1.getData())[33], (int) 'V');
+            expectEquals ((int) ((const juce::uint8*) b1.getData())[39], (int) 'B');
+            expect (SyVoice::getVoiceBlock (d, bank.getSize(), 2).getSize() == 0);
+        }
+
         beginTest ("yamahaChecksum sum+checksum mod 128 == 0");
         {
             const juce::uint8 data[] = { 0x12, 0x34, 0x7F, 0x01, 0x40 };

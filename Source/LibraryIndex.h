@@ -47,7 +47,7 @@ public:
         bool         fav = false;
     };
 
-    static constexpr int kVersion = 2;   // bump -> force la re-détection des synthés au prochain load
+    static constexpr int kVersion = 3;   // v3: only voice blocks (LM  8101VC) count as slots;   // bump -> force la re-détection des synthés au prochain load
 
     static LibraryIndex& get() { static LibraryIndex instance; return instance; }
 

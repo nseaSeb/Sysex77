@@ -14,6 +14,31 @@
 namespace SyVoice
 {
     //==============================================================================
+    /** Le message commencant en i est-il une VOIX SY77 (classifieur « LM  8101VC » @6) ? */
+    inline bool isVoiceMessageAt (const juce::uint8* d, size_t size, size_t i)
+    {
+        static const char id[] = "LM  8101VC";
+        if (i + 16 > size) return false;
+        for (int k = 0; k < 10; ++k) if (d[i + 6 + (size_t) k] != (juce::uint8) id[k]) return false;
+        return true;
+    }
+
+    /** Les banques .syx melangent parfois voix, multis (8101MU/8104MU), tables de pan (8101PN)
+        et systeme (8101SY). Si le fichier contient au moins une voix SY77, seuls les messages
+        voix comptent comme presets ; sinon (autre synthe) tous les F0 comptent (comportement
+        historique). Meme regle pour les noms ET les blocs -> index de slot coherents. */
+    inline bool countsAsPreset (const juce::uint8* d, size_t size, size_t i, bool voicesOnly)
+    {
+        return ! voicesOnly || isVoiceMessageAt (d, size, i);
+    }
+
+    inline bool containsSy77Voice (const juce::uint8* d, size_t size)
+    {
+        for (size_t i = 0; i < size; ++i)
+            if (d[i] == 0xF0 && isVoiceMessageAt (d, size, i)) return true;
+        return false;
+    }
+
     /** Extrait les noms de voix (10 caractères) d'un dump de banque .syx du SY77.
 
         Chaque voix commence par 0xF0 ; le nom se trouve 33 octets après le 0xF0.
@@ -26,9 +51,10 @@ namespace SyVoice
         if (data == nullptr || size == 0)
             return names;
 
+        const bool voicesOnly = containsSy77Voice (data, size);
         for (size_t i = 0; i + 1 < size; ++i)
         {
-            if (data[i] == 0xF0)
+            if (data[i] == 0xF0 && countsAsPreset (data, size, i, voicesOnly))
             {
                 const size_t nameStart = i + 33;
                 if (nameStart + 10 <= size)
@@ -56,9 +82,10 @@ namespace SyVoice
             return block;
 
         int count = 0;
+        const bool voicesOnly = containsSy77Voice (data, size);
         for (size_t i = 0; i < size; ++i)
         {
-            if (data[i] == 0xF0)
+            if (data[i] == 0xF0 && countsAsPreset (data, size, i, voicesOnly))
             {
                 if (count == index)
                 {
