@@ -236,6 +236,10 @@ void openVoiceBlock (MemoryBlock block)
                 }
                 onVoiceLoaded (block);   // edit history + A/B original
             }
+            else
+            {
+                discardLoadedVoice();    // previous voice no longer in the edit buffer
+            }
 
             // Bascule sur l'éditeur (onglet Voice = index 2) pour éditer la voix ouverte.
             tabs.setCurrentTabIndex (2);

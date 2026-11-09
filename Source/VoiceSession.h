@@ -68,7 +68,7 @@ public:
         stamp device + retarget $7F -> settle -> envoi bulk -> beforeReplay (props UI :
         VOICEMODE/VOICENAME/titre) -> rejeu des params decodes -> onVoiceLoaded.
         Renvoie false si sz <= 42 : le bulk est envoye (et settle pose) mais ni rejeu ni
-        historique (l'historique et l'original PRECEDENTS restent en place).
+        historique ; l'historique et l'original precedents sont oublies (discardLoadedVoice).
         typeOut = octet 32 brut (le shell ne pose VOICEMODE que pour 0..9), nameOut = 33..42. */
     bool loadBlock (juce::MemoryBlock block, int& typeOut, juce::String& nameOut,
                     std::function<void (int type, const juce::String& name)> beforeReplay = nullptr)
@@ -81,7 +81,7 @@ public:
 
         const juce::uint8* d = (const juce::uint8*) block.getData();
         const int sz = (int) block.getSize();
-        if (sz <= 42) return false;
+        if (sz <= 42) { discardLoadedVoice(); return false; }
 
         typeOut = d[32];
         juce::String name;
@@ -277,6 +277,17 @@ private:
         noteBulkSent (editBufferBlock);
         editHistory.load (toKV (SyVoice::voiceBlobToParams ((const juce::uint8*) editBufferBlock.getData(),
                                                             (int) editBufferBlock.getSize())));
+        publishHistoryState ({});
+    }
+
+    /** Bloc trop court (sz <= 42) envoye dans l'edit buffer : l'historique et l'original de
+        la voix precedente ne correspondent plus au synthe -> on les oublie (rien n'est envoye). */
+    void discardLoadedVoice()
+    {
+        if (showingA) { showingA = false; ports.lockEditing (false); }
+        originalVoiceBlock.reset();
+        ++historyGen;          // any pending delayed B send is now stale
+        editHistory.unload();
         publishHistoryState ({});
     }
 

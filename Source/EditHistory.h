@@ -56,6 +56,18 @@ namespace EditHist
         }
         bool isLoaded() const { return loaded; }
 
+        /** The edit buffer no longer holds a decodable voice (short/unknown block was sent):
+            forget original, state and steps so undo/A-B/revert cannot resend a stale voice. */
+        void unload()
+        {
+            original.clear();
+            state.clear();
+            steps.clear();
+            pos = 0;
+            open = false;
+            loaded = false;
+        }
+
         /** A user edit went out. mouseDown keeps the current step open (one drag = one step). */
         void recordEdit (Key k, int v, double nowMs, bool mouseDown)
         {

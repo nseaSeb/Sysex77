@@ -1503,7 +1503,7 @@ public:
             expectEquals (bus.suppressSend.load(), depth0);
         }
 
-        beginTest ("sz <= 42: bulk still sent + settle, no replay, previous history kept");
+        beginTest ("sz <= 42: bulk still sent + settle, no replay, previous history discarded");
         {
             juce::uint8 small[40] = { 0xF0, 0x43, 0x00, 0x7A };
             small[39] = 0xF7;
@@ -1517,7 +1517,9 @@ public:
                 expect (! ok && ! called && type == -1 && name.isEmpty());
                 expectEquals ((int) r.out.size(), 1);
                 expect (r.out[0] == e);
-                expect (r.replay.empty() && ! r.s->history().isLoaded() && r.states.empty());
+                expect (r.replay.empty() && ! r.s->history().isLoaded());
+                // L'etat publie dit « rien de charge » (HistoryBar desactivee).
+                expect (r.states.size() == 1 && ! r.states.back().loaded);
                 expectEquals (bus.suppressSend.load(), depth0 + 1);
                 r.drain();
                 expectEquals (bus.suppressSend.load(), depth0);
@@ -1528,9 +1530,17 @@ public:
                 int type = 0; juce::String name;
                 r.s->loadBlock (juce::MemoryBlock (small, 40), type, name);
                 r.drain();
-                expect (r.s->history().canUndo() && r.s->hasUnsavedEdits());
+                // L'edit buffer ne contient plus la voix precedente : rien a annuler ni a
+                // comparer, et A / undo / revert n'emettent plus rien.
+                expect (! r.s->history().isLoaded() && ! r.s->history().canUndo());
+                expect (! r.s->hasUnsavedEdits() && ! r.s->canRevert());
+                const auto sent = r.out.size();
                 r.s->setShowingA (true);
-                expect (r.out.back() == expectedLoadBulk (tpl, 3));   // original = voix precedente
+                r.s->undo();
+                r.s->revert();
+                r.drain();
+                expectEquals ((int) r.out.size(), (int) sent);
+                expect (! r.s->isShowingA());
             }
         }
 

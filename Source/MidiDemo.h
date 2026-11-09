@@ -1890,6 +1890,18 @@ public:
         publishHistoryState ({});
     }
 
+    /** A block too short to decode (sz <= 42) replaced the edit buffer: the previous
+        voice's history/original no longer match the synth, so A, undo and revert must not
+        resend it. Presentation/state only: nothing is sent here. */
+    void discardLoadedVoice()
+    {
+        if (showingA) { showingA = false; lockEditing (false); }
+        originalVoiceBlock.reset();
+        ++historyGen;          // any pending delayed B send is now stale
+        editHistory.unload();
+        publishHistoryState ({});
+    }
+
     void replayToUi (const std::vector<EditHist::KV>& kvs)
     {
         const ScopedEchoSuppress noEcho;   // UI follows, nothing is re-emitted by the widgets
