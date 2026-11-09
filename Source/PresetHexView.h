@@ -114,6 +114,9 @@ namespace PresetHex
 
         juce::MemoryBlock copy (block);
         auto* m = (juce::uint8*) copy.getData();
+        // 1er passage : quels params ont un octet V1 (2 octets) ; 2e : etiquetage V1/V2.
+        std::vector<std::pair<int, int>> hits;   // (offset, index param) ; index < 0 = V1
+        std::vector<bool> twoByte ((size_t) ref.size(), false);
         for (int o = 33; o < n - 2; ++o)            // ni en-tete, ni type (change le layout), ni checksum/F7
         {
             m[o] ^= 0x01;
@@ -124,9 +127,16 @@ namespace PresetHex
             {
                 const auto& a = ref.getReference (i);
                 const auto& b = alt.getReference (i);
-                if (a.value != b.value)  notes[(size_t) o].add (paramLabel (a) + (a.v1 != 0 || b.v1 != 0 ? " (V2)" : ""));
-                else if (a.v1 != b.v1)   notes[(size_t) o].add (paramLabel (a) + " (V1)");
+                if (a.value != b.value)  hits.push_back ({ o, i });
+                else if (a.v1 != b.v1) { hits.push_back ({ o, -1 - i }); twoByte[(size_t) i] = true; }
             }
+        }
+        for (auto& h : hits)
+        {
+            const bool isV1 = h.second < 0;
+            const int i = isV1 ? -1 - h.second : h.second;
+            notes[(size_t) h.first].add (paramLabel (ref.getReference (i))
+                                         + (isV1 ? " (V1)" : twoByte[(size_t) i] ? " (V2)" : ""));
         }
         return notes;
     }
