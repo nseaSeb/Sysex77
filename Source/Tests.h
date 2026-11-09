@@ -87,6 +87,7 @@ struct SysexUtilsTests : public juce::UnitTest
     static constexpr int kCtrl = 0x3D - 0x28 + 1;   // 22
     static constexpr int kFx = 0x1C + 1;            // effets group 0x08 N2 0x00..0x1C (29)
     static constexpr int kElemCom = 8;              // element commun group 0x03 N2 0x01..0x08
+    static constexpr int kFilt = 2 * (1 + 5 + 4) + 2;  // FTYPE, FRS, BP1-4, FOS1-4 x2 filtres + FVSON/FCMS
     static constexpr int kAfmLfo = 14;              // PEG range/RS + Main LFO 0x0D-13 + Sub LFO 0x15-19
     // Par élément AWM : N2 0x02..0x18 (23) + HOLD, PARS, BP1-4, VEL, ARVSW, AMS (9).
     static constexpr int kAwmExtra = 23 + 9 + 4;   // + PAOS1-4 (o/b2)
@@ -765,7 +766,7 @@ struct SysexUtilsTests : public juce::UnitTest
                 }
             // 6 op×29 + (ELVL,ALGNUM,FCTOF1,FCTOF2,FFRES,FYPSW) + 4 pitch-rates + 5 pitch-levels
             // (FPL0-3+FPRL1) + 2×7 filtre-rates + 2×7 filtre-niveaux + VVOL.
-            expectEquals (params.size(), 6 * 36 + 6 + 4 + 5 + 14 + 14 + kElemCom + kAfmLfo + 1 + kCtrl + kFx);
+            expectEquals (params.size(), 6 * 36 + 6 + 4 + 5 + 14 + 14 + kElemCom + kAfmLfo + kFilt + 1 + kCtrl + kFx);
 
             auto val = [&params] (int group, int param) -> int
             {
@@ -832,11 +833,11 @@ struct SysexUtilsTests : public juce::UnitTest
             juce::MemoryBlock mono (steel, sizeof (steel));
             ((juce::uint8*) mono.getData())[32] = 0x00;
             expectEquals (SyVoice::voiceBlobToParams ((const juce::uint8*) mono.getData(),
-                                                      (int) mono.getSize()).size(), 6 * 36 + 6 + 4 + 5 + 14 + 14 + kElemCom + kAfmLfo + 1 + kCtrl + kFx);
+                                                      (int) mono.getSize()).size(), 6 * 36 + 6 + 4 + 5 + 14 + 14 + kElemCom + kAfmLfo + kFilt + 1 + kCtrl + kFx);
 
             // 2 AFM / 4 AFM : N « layers » identiques (Table 2). On vérifie le compte et que
             // l'adressage par élément (addrHi = élément<<5) est bien produit.
-            const int perElem = 6 * 36 + 6 + 4 + 5 + 14 + 14 + kElemCom + kAfmLfo;   // op + 6 + 4 pitch-rates + 5 pitch-levels + 2×7 filtre-rates + 2×7 filtre-niveaux
+            const int perElem = 6 * 36 + 6 + 4 + 5 + 14 + 14 + kElemCom + kAfmLfo + kFilt;   // op + 6 + 4 pitch-rates + 5 pitch-levels + 2×7 filtre-rates + 2×7 filtre-niveaux
             {
                 juce::MemoryBlock two; two.setSize (832, true);
                 ((juce::uint8*) two.getData())[32] = 0x01;   // 2 AFM
@@ -886,6 +887,13 @@ struct SysexUtilsTests : public juce::UnitTest
                 expectEquals (val (0x03, 0, 0x07), (int) steel[98 + 7]);      // PANNM
                 expectEquals (val (0x03, 0, 0x08), (int) steel[98 + 8]);      // OUTSEL
                 expect (notes[43].joinIntoString (";").contains ("EF MODE"));
+                // Filtres (Table 2) : FTYPE1 @403, FTYPE2 @432, FOS11 (MSB @424, low @425), FVSON @462.
+                expectEquals (val (0x09, 0, 0x00), (int) steel[403]);
+                expectEquals (val (0x09, 1, 0x00), (int) steel[432]);
+                expectEquals (val (0x09, 0, 0x14), (int) steel[423]);   // FBP4 filtre 1
+                expectEquals (val (0x09, 0, 0x15), (int) steel[425]);   // FOS1 V2 (low 7 bits)
+                expectEquals (val (0x09, 2, 0x33), (int) steel[462]);
+                expectEquals (val (0x09, 2, 0x34), (int) steel[463]);
                 // Octets packes operateur (OP1 = record 5) : RS @15, 0x18 @25, 0x19 V1 @26 / V2 @27.
                 const int op1 = 107 + 5 * 45;
                 expectEquals (val (0x56, 0, 0x0F), (int) steel[op1 + 15]);
@@ -954,7 +962,7 @@ struct SysexUtilsTests : public juce::UnitTest
             auto* p = (juce::uint8*) mb.getData();
             p[0] = 0xF0; p[32] = 0x08;
             auto params = SyVoice::voiceBlobToParams (p, 586);
-            expectEquals (params.size(), 241 + 6 * 3 + 9 + kAwmExtra + 1 + kCtrl + 2 * kElemCom + kAfmLfo + kFx);   // AFM él.(217, dont niveaux EG o/b) + AWM él.(9) + VVOL
+            expectEquals (params.size(), 241 + 6 * 3 + 9 + kAwmExtra + 1 + kCtrl + 2 * kElemCom + kAfmLfo + kFilt + kFx);   // AFM él.(217, dont niveaux EG o/b) + AWM él.(9) + VVOL
 
             bool afmE1 = false, awmE2 = false;
             for (auto& q : params)
@@ -1784,7 +1792,7 @@ public:
             }
         }
 
-        beginTest ("bug 2: values received for an undecoded key (filter type) are not unsaved edits");
+        beginTest ("bug 2: values received for an undecoded key (AFM common reserve) are not unsaved edits");
         {
             // Cle filtre (groupe 09, type FTYPE N2 0x00 : encodage bulk non verifie, donc NON
             // decode) absente des params decodes, mais enregistrable (g != 0F). Les effets et
@@ -1792,7 +1800,7 @@ public:
             Key fx = 0;
             for (int p = 0; p < 128 && fx == 0; ++p)
             {
-                const Key c = keyOf (0x09, 0, 0, p);
+                const Key c = keyOf (0x05, 0, 0, p);   // 1er non decode = N2 0x14 (reserve)
                 bool decoded = false;
                 for (auto& vp : params)
                     decoded = decoded || keyOf (vp.group, vp.addrHi, vp.addrLo, vp.param) == c;

@@ -306,8 +306,27 @@ namespace SyVoice
                     out.add ({ 0x09, aH,        0, n2, (int) d[base + 296 + n2] }); // filtre 1
                     out.add ({ 0x09, aH | 0x01, 0, n2, (int) d[base + 325 + n2] }); // filtre 2
                 }
-                // OMIS : type filtre @296/+325 (encodage bulk ambigu), FRS/FPRS/FYPSW (s/m),
-                // FOS (filter break-point offsets, o/b SUR 2 OCTETS, layout bulk non confirmé).
+                // Table 2 (scan 400 dpi, p.13) : bloc filtre = Table 1-10 dans l'ordre N2, FOS en paires
+                // (MSB, low 7 bits). Filtre f : fb = base+296 (f1) / base+325 (f2).
+                //  - FTYPE N2 0x00 : codage bulk 0 = THRU, 1 = LPF, 2 = HPF (= ordre du radio de
+                //    l'éditeur, PAS l'ordre imprimé « lpf/(hpf)/thr ») : 12 089 voix -> type 0 a un
+                //    cutoff 127 dans 99 % des cas (filtre inutilisé), type 1 cutoffs variés, type 2
+                //    cutoffs bas (HPF).
+                //  - FRS 0x10 (s/m), FBP1-4 0x11-0x14 (BP 36/55/76/96 typiques), FOS1-4 0x15-0x18
+                //    o/b sur 2 octets comme les EGOS (paire (1,0) = 0 dans 98 %).
+                for (int f = 0; f < 2; ++f)
+                {
+                    const int fb = base + (f == 0 ? 296 : 325);
+                    const int hi = aH | f;
+                    out.add ({ 0x09, hi, 0, 0x00, (int) d[fb] });
+                    for (int n2 = 0x10; n2 <= 0x14; ++n2)
+                        out.add ({ 0x09, hi, 0, n2, (int) d[fb + n2] });
+                    for (int k = 0; k < 4; ++k)
+                        out.add ({ 0x09, hi, 0, 0x15 + k, (int) d[fb + 0x16 + 2 * k], (int) d[fb + 0x15 + 2 * k] });
+                }
+                // Filtre commun : FVSON 0x33 @+355, FCMS 0x34 @+356 (s/m ±7, décodés par le widget).
+                out.add ({ 0x09, aH | 0x02, 0, 0x33, (int) d[base + 355] });
+                out.add ({ 0x09, aH | 0x02, 0, 0x34, (int) d[base + 356] });
                 base += 357;   // bloc AFM
             }
             else
