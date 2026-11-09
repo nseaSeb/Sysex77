@@ -112,6 +112,15 @@ Sortir de `MidiDemo` (2000+ lignes) la session d'édition de la voix ouverte (hi
 ---
 
 ## Journal
+- **2026-11-09 (v1.5.0 — release : thème Indigo Night, bandeau, annuler/A-B)** — Release minor.
+  Depuis v1.4.0 : thème intégré **Indigo Night** (style studio : potard « thin », barres « field »,
+  couleur par opérateur, enveloppes redessinées), **Theme Builder** avec couleurs d'opérateurs
+  (Monochrome/Spectre/Pastel/Neon/Chaud/Personnalisé), **bandeau supérieur** (nom de voix, voix
+  préc./suiv., New..., In/Out/Seq), onglets en haut, écran Voice épuré, en-tête « < Voice » commun
+  (re-clic VOICE / Échap ferment), raccourcis (voix/banques, Cmd+B, Cmd+N, aide Cmd+/), nouvelle
+  voix depuis un modèle, **annuler/rétablir + A/B** sysex, séquenceur de phrases + canal de jeu,
+  CI 3 OS. Correctifs : bloc non redirigeable vers l'edit buffer refusé, A/B/undo, boutons
+  désactivés visibles ; refactor `VoiceSession`. README (FR + EN) mis à jour.
 - **2026-11-09 (architecture — découpage MidiDemo, étapes 2-4)** — `VoiceSession` branchée dans
   MidiDemo (un seul changement : observeOutgoing dans sendToOutputs avant le gate Out, sendParams/
   applyingHistory dans la session, openVoiceBlock = coque UI autour de `loadBlock`, noteRx via

@@ -18,6 +18,10 @@ Inspiré, côté fonctionnalités, de l'éditeur *SynthWorks SY77*.
 ## Fonctionnalités
 
 - **Éditeur de voix** AFM / AWM : opérateurs, oscillateurs, filtres, enveloppes, pan.
+- **Interface repensée** : **bandeau supérieur** permanent (nom de la voix, flèches voix
+  précédente/suivante, *New…*, indicateurs In/Out/Seq), **onglets en haut**, écran Voice épuré,
+  en-tête **« < Voice »** commun à tous les éditeurs (re-clic sur VOICE ou Échap pour fermer),
+  boutons désactivés clairement visibles.
 - **Rendu de la forme d'onde FM** reproduisant la topologie réelle des **45 algorithmes** du SY77.
 - **Édition à la souris des graphes** : glisser sur la réponse du **filtre** (cutoff/résonance) et
   sur les nœuds des **enveloppes** (niveau + rate) — vignettes d'élément et éditeurs complets.
@@ -141,8 +145,11 @@ sur le synthé) pour autoriser les échanges de banques.
 
 ### Thèmes
 
-L'onglet *Setting* propose un sélecteur de thème. Cinq palettes sont intégrées (*Dark Orange*,
-*FM Dark*, *Light*, *Crimson*, *Tangerine*). Au premier lancement, elles sont exportées en tant
+L'onglet *Setting* propose un sélecteur de thème. Six palettes sont intégrées (*Dark Orange*,
+*FM Dark*, *Light*, *Crimson*, *Tangerine* et **Indigo Night**, un thème « studio » : potards à
+arc fin, barres plates, une couleur par opérateur, enveloppes redessinées). Le **Theme Builder**
+permet en plus de choisir les **couleurs d'opérateurs** (*Monochrome*, *Spectre*, *Pastel*,
+*Neon*, *Chaud* ou *Personnalisé*). Au premier lancement, elles sont exportées en tant
 que fichiers éditables dans :
 
 ```
@@ -180,7 +187,9 @@ On launch: pick your MIDI interface, then the device number (channel) in *Settin
 protect to allow bank exchanges. The Library sends/receives sound banks (`.SYX`) with a progress
 bar; double-clicking a voice auditions it on the synth (edit buffer) and opens it in the editor.
 
-Highlights: AFM/AWM voice editor, FM-waveform render of the real 45 algorithms, mouse-editable
+Highlights: AFM/AWM voice editor with a redesigned UI (persistent top bar with voice name,
+prev/next voice arrows, New..., In/Out/Seq indicators; tabs on top; a common "< Voice" header in
+every editor, closed by clicking VOICE again or Esc), FM-waveform render of the real 45 algorithms, mouse-editable
 filter & envelope graphs (right-click reset/copy/paste, Shift fine, AFM EG loop point & hold),
 graphical level scaling, algorithm input shift/output correction, a Controllers tab (pitch bend,
 modulation, pan, bias, portamento, micro tuning), AWM pitch EG/LFO/hold, configurable keyboard
@@ -196,8 +205,10 @@ stay SY77-only). **Built-in updater**: checks GitHub Releases on launch and can 
 the new version automatically (macOS; opt-out in *Setting*; opens the release page on Windows/Linux). Some editor edits are state-only for
 now (full sysex send is being firmed up).
 
-**Themes:** five built-in palettes (Dark Orange, FM Dark, Light, Crimson, Tangerine), selectable
-in *Setting*. On first launch, editable `theme.xml` files are exported to
+**Themes:** six built-in palettes (Dark Orange, FM Dark, Light, Crimson, Tangerine and the
+"studio" **Indigo Night**: thin-arc knobs, flat bars, per-operator colours, redrawn envelopes),
+selectable in *Setting*; the **Theme Builder** adds operator colour schemes (Monochrome, Spectre,
+Pastel, Neon, Chaud, Personnalise). On first launch, editable `theme.xml` files are exported to
 `~/Library/Application Support/Sysex77/Themes/`. Add a subfolder with your own `theme.xml` to
 create a custom theme; hit **Reload** in *Setting* to pick it up without restarting.
 
