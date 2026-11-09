@@ -134,14 +134,21 @@ public:
         for (int o = 0; o < 6; ++o)
             if (fb[o]) drawFeedback (g, boxOf (o), modCol, lw);
 
+        // Theme a couleurs d'operateurs : tuiles remplies de la couleur de l'op, porteuses
+        // distinguees par un anneau clair (texte) + leur descente vers la barre de sortie ;
+        // barre de sortie en encre neutre (l'accent n'identifie plus les porteuses).
+        const bool opCols = SYPal.hasOpColours;
+        const Colour outCol = opCols ? SYPal.textPrimary.withAlpha (0.75f) : carCol;
+
         // --- 3) Barre de sortie + descente verticale de chaque porteuse. ---
         const float outY = area.getBottom() - rowH * 0.30f;
-        g.setColour (carCol);
+        g.setColour (outCol);
         g.drawLine (area.getX() + 2.0f, outY, area.getRight() - 2.0f, outY, lw + 0.4f);
         for (int o = 0; o < 6; ++o)
             if (car[o])
             {
                 auto b = boxOf (o);
+                if (opCols) g.setColour (syOpColour (o));
                 g.drawLine (b.getCentreX(), b.getBottom(), b.getCentreX(), outY, lw + 0.2f);
             }
         if (labels)
@@ -157,6 +164,23 @@ public:
         for (int o = 0; o < 6; ++o)
         {
             auto b = boxOf (o);
+            if (opCols)
+            {
+                const Colour oc = syOpColour (o);
+                g.setColour (oc);
+                g.fillRoundedRectangle (b, 2.5f);
+                if (car[o])   // porteuse : anneau clair detache de la tuile
+                {
+                    g.setColour (SYPal.textPrimary);
+                    g.drawRoundedRectangle (b.expanded (lw * 0.5f + 1.5f), 3.5f, jmax (1.2f, lw * 0.8f));
+                }
+                if (labels)
+                {
+                    g.setColour (oc.getPerceivedBrightness() > 0.62f ? Colour (0xff141416) : Colours::white);
+                    g.drawText (String (o + 1), b, Justification::centred);
+                }
+                continue;
+            }
             const Colour eC = car[o] ? carCol : modCol;
             g.setColour (car[o] ? carCol.withAlpha (SYPal.dark ? 0.20f : 0.14f) : SYPal.surfaceAlt);
             g.fillRoundedRectangle (b, 2.5f);

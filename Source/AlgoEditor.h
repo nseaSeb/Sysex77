@@ -61,6 +61,7 @@ public:
         for (int i = 0; i < 6; ++i)
         {
             auto* b = opTab.add (new TextButton (String (i + 1)));
+            b->getProperties().set ("syOpIndex", i);   // etat ON = couleur de l'operateur (theme)
             addAndMakeVisible (b);
             b->setClickingTogglesState (true);
             b->setRadioGroupId (9201);
@@ -93,7 +94,7 @@ public:
 
         // Titre de section : rappelle quel opérateur on édite (les combos/niveau ci-dessous).
         addAndMakeVisible (lblOpHdr);
-        setRoleLabelColour (lblOpHdr, [] { return SYColSelected; });
+        setRoleLabelColour (lblOpHdr, [this] { return syOpColour (selOp); });
         lblOpHdr.setFont (Font (FontOptions (12.0f)).boldened());
 
         // Niveau (TL) de l'op sélectionné : barre éditable. autoSend OFF -> n'émet pas elle-même ;
@@ -241,6 +242,7 @@ private:
         cbAcc.setSelectedId (accItem, dontSendNotification);
 
         lblOpHdr.setText ("Operateur " + String (selOp + 1), dontSendNotification);
+        lblOpHdr.setColour (Label::textColourId, syOpColour (selOp));
         sliderSh0.setValue (opProp ("SHA"), dontSendNotification);
         sliderSh1.setValue (opProp ("SHB"), dontSendNotification);
         sliderCor.setValue (opProp ("COR"), dontSendNotification);

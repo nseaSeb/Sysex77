@@ -116,7 +116,7 @@ public:
         // « Wave N » (N = 1..16, cohérent avec le display 1-indexé de setOscSliderStyle).
         addChildComponent(lblWave);
         lblWave.setJustificationType(Justification::centred);
-        setRoleLabelColour (lblWave, [] { return SYPal.accent; });
+        setRoleLabelColour (lblWave, [this] { return syOpColour (selOp); });
         lblWave.setFont(Font(FontOptions(12.0f)).boldened());
         // Suit la valeur PWAVE de chaque op : referTo (dans setElementNumber) change la source mais
         // garde la liste d'écouteurs du Value -> on s'abonne une fois ici (cf. Operator::sliderAlgo).
@@ -189,6 +189,7 @@ public:
             auto& tab = opTab[i];
             addAndMakeVisible (tab);
             tab.setButtonText ("OP" + String (i + 1));
+            tab.getProperties().set ("syOpIndex", i);   // etat ON = couleur de l'operateur (theme)
             tab.setClickingTogglesState (true);
             tab.setRadioGroupId (1001);
             tab.setConnectedEdges (  (i > 0 ? Button::ConnectedOnLeft  : 0)
@@ -697,7 +698,7 @@ public:
         // Cadre + titre du panneau détail. Les contrôles labellisés sont posés par layoutDetail().
         g.setColour (SYPal.panelBorder);
         g.drawHorizontalLine (detailArea.getY(), (float) detailArea.getX(), (float) detailArea.getRight());
-        g.setColour (SYPal.accent);
+        g.setColour (syOpColour (selOp));   // = accent si le theme n'a pas de couleurs d'op
         g.setFont (Font (FontOptions (16.0f)).boldened());
         g.drawText ("OP" + String (selOp + 1) + " — détail", detailTitleArea,
                     Justification::centredLeft, false);
@@ -1034,6 +1035,7 @@ private:
     void setSelOp (int o)
     {
         selOp = jlimit (0, 5, o);
+        lblWave.setColour (Label::textColourId, syOpColour (selOp));
         resized();
         updateWaveLabel();
         repaint();

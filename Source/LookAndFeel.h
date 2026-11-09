@@ -27,8 +27,13 @@ struct SyPalette
     File   backgroundImage;      // image de fond optionnelle (rendu : hook à venir)
     String buttonStyle;          // "square" | "round" | "flat" | "fun"  (recettes codées dans ModernLookAndFeel)
     String panelStyle;           // "square" | "round" | "flat" | "fun"
-    String sliderStyle = "bar";  // "bar" | "led" | "rail" | "groove"   (rendu des barres/sliders linéaires)
+    String sliderStyle = "bar";  // "bar" | "led" | "rail" | "groove" | "field" (rendu des barres/sliders linéaires)
     String knobStyle   = "arc";  // "arc" | "dot" | "vintage"           (rendu des potards rotatifs)
+    // Couleur d'identite des 6 operateurs FM (tuiles d'algo, onglets OP). Ignoree tant que
+    // hasOpColours = false : syOpColour() rend alors l'accent (rendu historique inchange).
+    Colour opColour[6] { Colour (0xffe8333f), Colour (0xffd6337a), Colour (0xffb03ad0),
+                         Colour (0xff5a3ae0), Colour (0xff2e7be0), Colour (0xff2fd6e0) };
+    bool   hasOpColours = false;
 };
 
 // Images du thème actif (vides = rendu procédural / fond uni). Rafraîchies à chaque applySyPalette.
@@ -208,8 +213,9 @@ inline SyPalette syPaletteIndigoNight()
     p.glow            = Colour (0x338b5cf0);
     p.buttonStyle     = "flat";
     p.panelStyle      = "flat";
-    p.sliderStyle     = "bar";
+    p.sliderStyle     = "field";
     p.knobStyle       = "thin";
+    p.hasOpColours    = true;    // palette op1..op6 par defaut (rouge -> cyan)
     return p;
 }
 
@@ -221,6 +227,13 @@ static SyPalette SYPal = syPaletteDarkOrange();
 inline Colour syCardBorder()
 {
     return SYPal.panelStyle == "flat" ? SYPal.panelBorder : SYColSelected;
+}
+
+// Couleur d'identite de l'operateur FM opIndex0 (0..5) ; accent si le theme n'en definit pas.
+inline Colour syOpColour (int opIndex0)
+{
+    if (! SYPal.hasOpColours || opIndex0 < 0 || opIndex0 > 5) return SYPal.accent;
+    return SYPal.opColour[opIndex0];
 }
 
 // Dérive les 4 alias legacy depuis la palette active.
@@ -587,19 +600,29 @@ public:
         auto bg  = buttonFill (b, isOver, isDown);
         const bool on = b.getToggleState();
         const auto& style = SYPal.buttonStyle;
+        const Colour onC = onColour (b);   // accent, ou couleur d'operateur (propriete syOpIndex)
 
         if (style == "flat")
         {
-            if (on)
+            // Desactive : jamais d'etat ON affiche (un bouton grise ne doit pas sembler actif) ;
+            // fond plein + filet pour que le libelle reste lisible sous l'alpha du composant.
+            if (! b.isEnabled())
             {
-                g.setColour (SYPal.accent.withAlpha (0.14f));
+                g.setColour (SYPal.surfaceAlt);
                 g.fillRoundedRectangle (r, 4.0f);
-                g.setColour (SYPal.accent);
+                g.setColour (SYPal.panelBorder);
+                g.drawRoundedRectangle (r, 4.0f, SyMetrics::stroke);
+            }
+            else if (on)
+            {
+                g.setColour (onC.withAlpha (0.18f));
+                g.fillRoundedRectangle (r, 4.0f);
+                g.setColour (onC);
                 g.fillRect (r.getX() + 3.0f, r.getBottom() - 2.5f, r.getWidth() - 6.0f, 2.5f);
             }
             else
             {
-                g.setColour (bg.withAlpha (isOver ? 0.75f : 0.45f));
+                g.setColour (bg);   // fond plein (etait 45 % : libelles OFF trop pales)
                 g.fillRoundedRectangle (r, 4.0f);
             }
         }
@@ -608,7 +631,7 @@ public:
             const float cr = r.getHeight() * 0.5f;
             g.setColour (bg);
             g.fillRoundedRectangle (r, cr);
-            g.setColour (on ? SYPal.accent : SYPal.panelBorder.withAlpha (0.6f));
+            g.setColour (on ? onC : SYPal.panelBorder.withAlpha (0.6f));
             g.drawRoundedRectangle (r, cr, on ? 1.5f : SyMetrics::stroke);
         }
         else if (style == "fun")
@@ -619,16 +642,16 @@ public:
             g.setGradientFill (ColourGradient (bg.brighter (0.18f), r.getX(), r.getY(),
                                                bg.darker   (0.18f), r.getRight(), r.getBottom(), false));
             g.fillPath (bp);
-            g.setColour (on ? SYPal.accent : SYPal.panelBorder);
+            g.setColour (on ? onC : SYPal.panelBorder);
             g.drawRoundedRectangle (r, cr, on ? 2.0f : SyMetrics::stroke);
         }
         else if (style == "outline")
         {
             // « ghost » : fond transparent, contour accent ; rempli léger quand ON/survol.
             const float cr = 5.0f;
-            if (on)           { g.setColour (SYPal.accent.withAlpha (0.16f)); g.fillRoundedRectangle (r, cr); }
-            else if (isOver)  { g.setColour (SYPal.accent.withAlpha (0.07f)); g.fillRoundedRectangle (r, cr); }
-            g.setColour (on ? SYPal.accent : SYPal.panelBorder.withAlpha (0.8f));
+            if (on)           { g.setColour (onC.withAlpha (0.16f)); g.fillRoundedRectangle (r, cr); }
+            else if (isOver)  { g.setColour (onC.withAlpha (0.07f)); g.fillRoundedRectangle (r, cr); }
+            g.setColour (on ? onC : SYPal.panelBorder.withAlpha (0.8f));
             g.drawRoundedRectangle (r, cr, on ? 1.6f : SyMetrics::stroke);
         }
         else   // "square" (défaut + legacy Dark Orange)
@@ -637,7 +660,7 @@ public:
             g.setGradientFill (ColourGradient (bg.brighter (SYPal.dark ? 0.06f : 0.02f), r.getX(), r.getY(),
                                                bg.darker   (SYPal.dark ? 0.10f : 0.04f), r.getX(), r.getBottom(), false));
             g.fillRoundedRectangle (r, cr);
-            g.setColour (on ? SYPal.accent : SYPal.panelBorder);
+            g.setColour (on ? onC : SYPal.panelBorder);
             g.drawRoundedRectangle (r, cr, SyMetrics::stroke);
         }
     }
@@ -646,9 +669,15 @@ public:
     {
         auto bg  = buttonFill (b, isOver, isDown);
         const bool ghost = (SYPal.buttonStyle == "flat" || SYPal.buttonStyle == "outline");
+        const bool flat  = (SYPal.buttonStyle == "flat");
         Colour ink;
-        if (ghost)                       // flat/outline : fond (semi-)transparent -> encre choisie à la main.
-            ink = b.getToggleState() ? SYPal.accent : SYPal.textPrimary;
+        if (flat && ! b.isEnabled())     // flat desactive : texte plein (l'alpha du composant grise deja)
+            ink = SYPal.textPrimary;
+        else if (flat && b.getToggleState())
+            ink = b.getProperties().contains ("syOpIndex") ? onColour (b).brighter (0.25f)
+                                                           : SYPal.knobFill;   // plus clair que l'accent
+        else if (ghost)                  // flat/outline : fond (semi-)transparent -> encre choisie à la main.
+            ink = b.getToggleState() ? onColour (b) : SYPal.textPrimary;
         else if (b.getToggleState())     // ON : texte sur le fond ACCENT -> contraste garanti.
             ink = bg.contrasting();
         else
@@ -659,7 +688,7 @@ public:
             if (std::abs (ink.getPerceivedBrightness() - bg.getPerceivedBrightness()) < 0.4f)
                 ink = bg.contrasting();
         }
-        g.setColour (b.isEnabled() ? ink : ink.withAlpha (0.5f));
+        g.setColour (b.isEnabled() || flat ? ink : ink.withAlpha (0.5f));
         g.setFont (getTextButtonFont (b, b.getHeight()));
         g.drawFittedText (b.getButtonText(), b.getLocalBounds().reduced (SyMetrics::pad, 0),
                           Justification::centred, 2);
@@ -814,10 +843,18 @@ public:
     }
 
 private:
+    // Couleur de l'etat ON d'un bouton : accent, sauf bouton d'operateur FM marque par la
+    // propriete "syOpIndex" (0..5) -> couleur de cet operateur (= accent si le theme n'en a pas).
+    static Colour onColour (const Button& b)
+    {
+        const auto& pr = b.getProperties();
+        return pr.contains ("syOpIndex") ? syOpColour ((int) pr["syOpIndex"]) : SYPal.accent;
+    }
+
     // Fond effectif d'un bouton selon son état (toggle ON = accent ; sinon couleur de base + survol/appui).
     Colour buttonFill (Button& b, bool isOver, bool isDown) const
     {
-        if (b.getToggleState())  return SYPal.accent;
+        if (b.getToggleState())  return onColour (b);
         auto base = b.findColour (TextButton::buttonColourId);
         if (isDown)  return base.darker   (SYPal.dark ? 0.25f : 0.12f);
         if (isOver)  return base.brighter (SYPal.dark ? 0.10f : 0.04f);
@@ -854,6 +891,33 @@ private:
                          : Rectangle<float> (r.getX(), jmin (vorg, vpos), r.getWidth(), std::abs (vpos - vorg));
         };
 
+        if (SYPal.sliderStyle == "field")
+        {
+            // Champ plat (style "studio") : bloc surfaceAlt sans bordure, remplissage accent
+            // discret proportionnel a la valeur (depuis le centre si bipolaire). Reste une BARRE :
+            // les lignes se comparent d'un coup d'oeil, la valeur ecrite reste lisible dessus.
+            const float cr = jmin (3.0f, jmin (r.getWidth(), r.getHeight()) * 0.25f);
+            g.setColour (SYPal.surfaceAlt.brighter (hot && enabled ? 0.06f : 0.0f));
+            g.fillRoundedRectangle (r, cr);
+            const float a = enabled ? (hot ? 0.50f : 0.35f) : 0.15f;
+            auto fr = fillRect();
+            if (! fr.isEmpty())
+            {
+                g.setColour (SYPal.accent.withAlpha (a));
+                g.fillRoundedRectangle (fr, cr);
+                // Repere fin a la position de la valeur (lecture precise sans bordure).
+                g.setColour (SYPal.accent.withAlpha (enabled ? 0.9f : 0.3f));
+                if (horiz) g.fillRect (jlimit (r.getX(), r.getRight() - 2.0f, vpos - 1.0f), r.getY(), 2.0f, r.getHeight());
+                else       g.fillRect (r.getX(), jlimit (r.getY(), r.getBottom() - 2.0f, vpos - 1.0f), r.getWidth(), 2.0f);
+            }
+            if (bipolar)   // trait de zero discret
+            {
+                g.setColour (SYPal.textMuted.withAlpha (0.35f));
+                if (horiz) g.fillRect (r.getCentreX() - 0.5f, r.getY(), 1.0f, r.getHeight());
+                else       g.fillRect (r.getX(), r.getCentreY() - 0.5f, r.getWidth(), 1.0f);
+            }
+            return;
+        }
         if (SYPal.sliderStyle == "led")
         {
             g.setColour (SYPal.knobTrack);

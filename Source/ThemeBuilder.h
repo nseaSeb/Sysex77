@@ -25,7 +25,7 @@ public:
 
         addStyleCombo (cbButtons, "Boutons",  { "square","round","flat","fun","outline" },     work.buttonStyle);
         addStyleCombo (cbPanels,  "Panneaux", { "square","round","flat","fun" },               work.panelStyle);
-        addStyleCombo (cbSliders, "Sliders",  { "bar","led","rail","groove","notch","dots" },  work.sliderStyle);
+        addStyleCombo (cbSliders, "Sliders",  { "bar","led","rail","groove","notch","dots","field" },  work.sliderStyle);
         addStyleCombo (cbKnobs,   "Potards",  { "arc","dot","vintage","tick","neon","arctick","thin" }, work.knobStyle);
 
         cbButtons.onChange = [this] { work.buttonStyle = cbButtons.getText(); apply(); };

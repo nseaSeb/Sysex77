@@ -40,9 +40,12 @@ inline juce::Colour syReadColour (const juce::XmlElement& e, juce::StringRef att
 }
 
 // Parse un <THEME> en SyPalette (défauts = FM Dark, surchargés par les attributs présents).
-inline SyPalette syParseTheme (const juce::XmlElement& root, const juce::File& folder)
+// base (optionnel) : palette de depart a la place de FM Dark -- pour un theme integre exporte
+// sur disque, les champs ajoutes depuis l'export (ex. op1..op6) heritent de la version integree.
+inline SyPalette syParseTheme (const juce::XmlElement& root, const juce::File& folder,
+                               const SyPalette* base = nullptr)
 {
-    SyPalette p = syPaletteFmDark();
+    SyPalette p = base != nullptr ? *base : syPaletteFmDark();
     p.folder = folder;
     p.name   = root.getStringAttribute ("name", folder.getFileNameWithoutExtension());
     p.dark   = root.getBoolAttribute  ("dark", p.dark);
@@ -62,6 +65,17 @@ inline SyPalette syParseTheme (const juce::XmlElement& root, const juce::File& f
         p.knobBody        = syReadColour (*c, "knobBody",        p.knobBody);
         p.shadow          = syReadColour (*c, "shadow",          p.shadow);
         p.glow            = syReadColour (*c, "glow",            p.accent.withAlpha (0.45f));
+
+        // Couleurs d'operateurs FM (op1..op6) : un seul attribut present suffit a les activer.
+        for (int i = 0; i < 6; ++i)
+        {
+            const juce::String key = "op" + juce::String (i + 1);
+            if (c->hasAttribute (key))
+            {
+                p.opColour[i]  = syReadColour (*c, key, p.opColour[i]);
+                p.hasOpColours = true;
+            }
+        }
     }
 
     if (auto* a = root.getChildByName ("ASSETS"))
@@ -109,6 +123,9 @@ inline juce::String syPaletteToXml (const SyPalette& p)
     c->setAttribute ("knobBody",        hex (p.knobBody));
     c->setAttribute ("shadow",          hex (p.shadow));
     c->setAttribute ("glow",            hex (p.glow));
+    if (p.hasOpColours)                 // absent = les operateurs prennent l'accent
+        for (int i = 0; i < 6; ++i)
+            c->setAttribute ("op" + juce::String (i + 1), hex (p.opColour[i]));
     root.addChildElement (c);
 
     auto* a = new juce::XmlElement ("ASSETS");   // déposez knob.png / background.png dans ce dossier
@@ -145,6 +162,7 @@ inline void syExportBuiltinThemes()
 inline std::vector<SyPalette> syDiscoverThemes()
 {
     std::vector<SyPalette> folderThemes;
+    const auto builtins = syBuiltinPalettes();
     auto dir = syThemesDir();
     if (dir.isDirectory())
         for (auto& sub : dir.findChildFiles (juce::File::findDirectories, false))
@@ -152,7 +170,13 @@ inline std::vector<SyPalette> syDiscoverThemes()
             auto xml = sub.getChildFile ("theme.xml");
             if (xml.existsAsFile())
                 if (auto doc = juce::XmlDocument::parse (xml))
-                    folderThemes.push_back (syParseTheme (*doc, sub));
+                {
+                    // Version disque d'un theme integre : part de l'integre (champs nouveaux herites).
+                    const auto nm = doc->getStringAttribute ("name", sub.getFileNameWithoutExtension());
+                    const SyPalette* base = nullptr;
+                    for (auto& b : builtins) if (b.name == nm) { base = &b; break; }
+                    folderThemes.push_back (syParseTheme (*doc, sub, base));
+                }
         }
 
     auto findByName = [&] (const juce::String& n) -> const SyPalette*

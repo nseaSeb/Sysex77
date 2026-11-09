@@ -79,6 +79,23 @@ namespace SyDraw
         }
     }
 
+    /** Grille pointillee discrete (style "flat") : reservee aux enveloppes. */
+    inline void drawGridDotted (juce::Graphics& g, juce::Rectangle<float> area)
+    {
+        const float dash[] = { 1.5f, 3.5f };
+        g.setColour (SYPal.textMuted.withAlpha (0.22f));
+        for (int i = 1; i < 8; ++i)
+        {
+            const float x = std::round (area.getX() + (area.getWidth() * i) / 8.0f) + 0.5f;
+            g.drawDashedLine ({ x, area.getY(), x, area.getBottom() }, dash, 2, 1.0f);
+        }
+        for (int i = 1; i < 4; ++i)
+        {
+            const float y = std::round (area.getY() + (area.getHeight() * i) / 4.0f) + 0.5f;
+            g.drawDashedLine ({ area.getX(), y, area.getRight(), y }, dash, 2, 1.0f);
+        }
+    }
+
     //==============================================================================
     /** Dessine une enveloppe.
 
@@ -94,8 +111,11 @@ namespace SyDraw
                               const juce::String& caption = {},
                               bool showValues = true)
     {
+        // Style "flat" : grille pointillee, degrade couleur -> transparent, poignees creuses.
+        const bool flat = (SYPal.panelStyle == "flat");
         drawPanel (g, area, colour);
-        drawGrid (g, area, colour);
+        if (flat) drawGridDotted (g, area);
+        else      drawGrid (g, area, colour);
 
         if (levels.size() < 2 || segWeights.size() != levels.size() - 1 || maxLevel <= 0.0f)
             return;
@@ -132,8 +152,17 @@ namespace SyDraw
         fill.lineTo (area.getX(), area.getBottom());
         fill.closeSubPath();
 
-        g.setGradientFill ({ colour.withAlpha (0.28f), area.getCentreX(), area.getY(),
-                             colour.withAlpha (0.03f), area.getCentreX(), area.getBottom(), false });
+        if (flat)
+        {
+            // Degrade depuis le point le plus haut de la courbe (pas du haut du cadre) :
+            // l'intensite suit la forme, meme pour une enveloppe basse.
+            const float topY = fill.getBounds().getY();
+            g.setGradientFill ({ colour.withAlpha (0.45f), area.getCentreX(), topY,
+                                 colour.withAlpha (0.0f),  area.getCentreX(), area.getBottom(), false });
+        }
+        else
+            g.setGradientFill ({ colour.withAlpha (0.28f), area.getCentreX(), area.getY(),
+                                 colour.withAlpha (0.03f), area.getCentreX(), area.getBottom(), false });
         g.fillPath (fill);
 
         g.setColour (colour);
@@ -145,10 +174,22 @@ namespace SyDraw
         for (int i = 0; i < nodes.size(); ++i)
         {
             auto n = nodes[i];
-            g.setColour (colour);
-            g.fillEllipse (n.x - 2.5f, n.y - 2.5f, 5.0f, 5.0f);
-            g.setColour (SYColBackground.contrasting (0.5f).withAlpha (0.7f));
-            g.drawEllipse (n.x - 2.5f, n.y - 2.5f, 5.0f, 5.0f, 1.0f);
+            if (flat)
+            {
+                // Poignee ronde creuse : centre au fond du panneau, anneau couleur.
+                const float rr = 3.5f;
+                g.setColour (SYPal.surface);
+                g.fillEllipse (n.x - rr, n.y - rr, rr * 2.0f, rr * 2.0f);
+                g.setColour (colour);
+                g.drawEllipse (n.x - rr, n.y - rr, rr * 2.0f, rr * 2.0f, 1.5f);
+            }
+            else
+            {
+                g.setColour (colour);
+                g.fillEllipse (n.x - 2.5f, n.y - 2.5f, 5.0f, 5.0f);
+                g.setColour (SYColBackground.contrasting (0.5f).withAlpha (0.7f));
+                g.drawEllipse (n.x - 2.5f, n.y - 2.5f, 5.0f, 5.0f, 1.0f);
+            }
 
             if (showValues)
             {
@@ -182,7 +223,8 @@ namespace SyDraw
                                     juce::Colour colour, const juce::String& caption = {})
     {
         drawPanel (g, area, colour);
-        drawGrid (g, area, colour);
+        if (SYPal.panelStyle == "flat") drawGridDotted (g, area);   // meme grille que les EG
+        else                            drawGrid (g, area, colour);
 
         auto fc   = juce::jlimit (0.02f, 0.98f, cutoff01);
         auto reso = juce::jlimit (0.0f, 1.0f, reso01);
@@ -672,6 +714,14 @@ public:
         const int h = (dragged && selected >= 0) ? selected : hovered;
         if (h < 0 || h >= pts.size()) return;
         auto p = pts[h];
+        if (SYPal.panelStyle == "flat")   // anneau creux (coherent avec les poignees flat)
+        {
+            g.setColour (SYColSelected.withAlpha (0.12f));
+            g.fillEllipse (p.x - 7.0f, p.y - 7.0f, 14.0f, 14.0f);
+            g.setColour (SYColSelected);
+            g.drawEllipse (p.x - 6.0f, p.y - 6.0f, 12.0f, 12.0f, 1.5f);
+            return;
+        }
         g.setColour (SYColSelected.withAlpha (0.25f));
         g.fillEllipse (p.x - 6.0f, p.y - 6.0f, 12.0f, 12.0f);
         g.setColour (SYColSelected);
