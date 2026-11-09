@@ -196,9 +196,10 @@ struct MidiDeviceListEntry : ReferenceCountedObject
 struct DemoTabbedComponent  : public TabbedComponent
 {
     DemoTabbedComponent (bool isRunningComponenTransformsDemo)
-    : TabbedComponent (TabbedButtonBar::TabsAtBottom)   // navigation en bas, façon SynthWorks
+    : TabbedComponent (TabbedButtonBar::TabsAtTop)   // navigation en haut, sous le bandeau
     {
         setTabBarDepth (32);
+        getTabbedButtonBar().getProperties().set ("syEqualTabs", true);   // largeur egale (LookAndFeel)
         auto colour = findColour (ResizableWindow::backgroundColourId);
         addTab (TRANS("Setting"),     colour, new ConfigPage (), true);  
         addTab (TRANS("Librairie"),     colour, new LibrairiePage (), true);
@@ -234,6 +235,31 @@ struct DemoTabbedComponent  : public TabbedComponent
     }
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DemoTabbedComponent)
+};
+
+//==============================================================================
+/** Fleche du bandeau superieur (voix precedente/suivante) : triangle dessine en Path,
+    couleurs du theme (pas de glyphe UTF-8). */
+struct VoiceNavArrow : public Button
+{
+    VoiceNavArrow (bool pointsLeft) : Button (pointsLeft ? "prevVoice" : "nextVoice"), left (pointsLeft) {}
+    void paintButton (Graphics& g, bool over, bool down) override
+    {
+        auto r = getLocalBounds().toFloat();
+        if (over || down)
+        {
+            g.setColour (SYPal.accent.withAlpha (down ? 0.30f : 0.16f));
+            g.fillEllipse (r.withSizeKeepingCentre (r.getHeight() - 4.0f, r.getHeight() - 4.0f));
+        }
+        const float s = jmin (r.getWidth(), r.getHeight()) * 0.22f;
+        const float cx = r.getCentreX(), cy = r.getCentreY();
+        Path p;
+        if (left) p.addTriangle (cx + s * 0.6f, cy - s, cx + s * 0.6f, cy + s, cx - s * 0.8f, cy);
+        else      p.addTriangle (cx - s * 0.6f, cy - s, cx - s * 0.6f, cy + s, cx + s * 0.8f, cy);
+        g.setColour (isEnabled() ? (over ? SYPal.accent : SYPal.textPrimary) : SYPal.textMuted);
+        g.fillPath (p);
+    }
+    const bool left;
 };
 
 //==============================================================================
@@ -735,6 +761,35 @@ public:
         tabs.setVisible(true);
         tabs.setAlwaysOnTop(true);
 
+        // Bandeau superieur : < nom de voix > au centre. Les fleches font EXACTEMENT les
+        // raccourcis voix precedente/suivante (handleShortcut : meme confirmation si edits
+        // non sauves, meme stepVoice de la librairie). Le champ nom est DEPLACE depuis la
+        // page Voice (pas duplique) : meme TextEditor, meme envoi au Retour (VNAM).
+        for (auto* a : { &btVoicePrev, &btVoiceNext })
+        {
+            addAndMakeVisible (*a);
+            a->setAlwaysOnTop (true);
+        }
+        btVoicePrev.onClick = [this] { handleShortcut ("voiceprev"); };
+        btVoiceNext.onClick = [this] { handleShortcut ("voicenext"); };
+        refreshVoiceNavTooltips();
+        tipRefresher.f = [this] { refreshVoiceNavTooltips(); };
+        Shortcuts::changed().addChangeListener (&tipRefresher);
+        for (int i = 0; i < tabs.getNumTabs(); ++i)
+            if (auto* vp = dynamic_cast<VoicePage*> (tabs.getTabContentComponent (i)))
+            {
+                nameEditor = &vp->editName;
+                vp->labelName.setVisible (false);
+                addAndMakeVisible (vp->editName);
+                vp->editName.setAlwaysOnTop (true);
+                vp->editName.setColour (TextEditor::backgroundColourId, Colours::transparentBlack);
+                vp->editName.setColour (TextEditor::outlineColourId, Colours::transparentBlack);
+                vp->editName.setFont (Font (FontOptions (15.0f)).boldened());
+                vp->editName.applyFontToAllText (Font (FontOptions (15.0f)).boldened());
+                vp->editName.setTooltip (TRANS ("Voice name (click to rename, Return sends it to the synth)"));
+                vp->resized();
+            }
+
         setSize (1280, 820);
         // Onglet de démarrage (préférence "StartupTab", réglée dans Settings) :
         //   1 = "Dernier utilisé" -> restaure CurrentTab mémorisé ; 2.. = onglet fixe d'index 0..
@@ -772,6 +827,8 @@ public:
 
     ~MidiDemo()
     {
+        Shortcuts::changed().removeChangeListener (&tipRefresher);
+        if (nameEditor != nullptr) removeChildComponent (nameEditor);   // rendu a personne avant la VoicePage
         seqPlayer.shutdown();   // its thread sends through sendToOutputs: stop it first
         {
             auto& h = EditHist::Hooks::get();
@@ -977,25 +1034,31 @@ public:
             g.drawImage (SYBackgroundImage, getLocalBounds().toFloat(),
                          RectanglePlacement (RectanglePlacement::fillDestination));
 
-        // Logo vectoriel « SYSEX 77/99 » (texte, suit le thème)
+        // Bandeau superieur persistant : fond surface + filet bas.
+        auto bar = getLocalBounds().removeFromTop (kTopBarH).toFloat();
+        g.setColour (SYPal.surface.withAlpha (0.55f));
+        g.fillRect (bar);
+        g.setColour (SYPal.panelBorder.withAlpha (0.7f));
+        g.drawHorizontalLine (kTopBarH - 1, 0.0f, bar.getRight());
+
+        // Nom de l'app, discret, a gauche (suit le modele 77/99).
         auto logoText = (SYModel == 3 ? String ("SYSEX 99") : String ("SYSEX 77"));
-        Rectangle<int> logoBox (getWidth() - 250, 6, 230, 46);
-        g.setColour (SYColSelected);
-        g.setFont (Font (FontOptions (34.0f, Font::bold)));
-        g.drawText (logoText, logoBox, Justification::centredRight, false);
-    }
-    void mouseDown (const MouseEvent&) override
-    {
-        if (tabs.isVisible()  ==true)
+        g.setColour (SYPal.textMuted);
+        g.setFont (Font (FontOptions (13.0f)).boldened().withExtraKerningFactor (0.12f));
+        g.drawText (logoText, 14, 0, 140, kTopBarH, Justification::centredLeft, true);
+
+        // Pilule du nom de voix : fond + contour, derriere les fleches et le champ nom.
+        if (! namePill.isEmpty())
         {
-            tabs.setVisible(false);
+            auto p = namePill.toFloat().reduced (0.5f);
+            g.setColour (SYPal.surfaceAlt);
+            g.fillRoundedRectangle (p, p.getHeight() * 0.5f);
+            g.setColour (SYPal.panelBorder);
+            g.drawRoundedRectangle (p, p.getHeight() * 0.5f, 1.0f);
         }
-        else
-        {
-            tabs.setVisible(true);
-        }
-        
     }
+    // (L'ancien clic sur le fond qui masquait/affichait les onglets est supprime : avec un
+    // bandeau superieur cliquable, il cachait toute l'interface par erreur.)
     void resized() override
     {
         auto margin = 10;
@@ -1013,10 +1076,11 @@ public:
         labelFoot.setVisible (kb && ! seq); comboFoot.setVisible (kb && ! seq);
         labelMod .setVisible (kb && ! seq); comboMod .setVisible (kb && ! seq);
 
+        const int topH = kTopBarH;
         if (kb)
         {
             const int leftW = seq ? 290 : 140;   // Seq panel is wider than the pedal/wheel block
-            tabs.setBounds (0, 10, getWidth(), getHeight() - 84);
+            tabs.setBounds (0, topH, getWidth(), getHeight() - topH - 74);
             midiKeyboard.setBounds (margin + leftW, getHeight() - 70, getWidth() - (2 * margin) - leftW, 70);
             seqPanel.setBounds (margin, getHeight() - 74, leftW - 8, 72);
             labelFoot.setBounds (margin, getHeight() - 77, 134, 20);
@@ -1026,25 +1090,36 @@ public:
         }
         else
         {
-            // Clavier masqué : la vue prend toute la hauteur.
-            tabs.setBounds (0, 10, getWidth(), getHeight() - 14);
+            // Clavier masqué : la vue prend toute la hauteur sous le bandeau.
+            tabs.setBounds (0, topH, getWidth(), getHeight() - topH - 4);
         }
 
-        // Bouton de toggle calé à droite, sur la rangée d'onglets (barre de nav en bas).
-        const int barTop = tabs.getBottom() - 32; // 32 = profondeur de la barre d'onglets
+        // --- Bandeau superieur : [SYSEX 77]   [< nom >]   [In][Out][Barre] ---
+        const int by = (topH - 26) / 2;
         const int toggleX = getWidth() - margin - 70;
-        btBarMode.setBounds (toggleX, barTop + 3, 70, 26);
-        btBarMode.toFront (false);   // above the tab bar (else clicks go to the tabs)
-
-        // Sélecteurs in/out TOUJOURS VISIBLES, à GAUCHE du toggle clavier, sur la même rangée.
-        // Compacts (54 px) ; ordre [In][Out][Clavier] de gauche à droite.
+        btBarMode.setBounds (toggleX, by, 70, 26);
         const int selW = 54, gap = 4;
         const int outX = toggleX - gap - selW;
         const int inX  = outX  - gap - selW;
-        btMidiIn .setBounds (inX,  barTop + 3, selW, 26);
-        btMidiOut.setBounds (outX, barTop + 3, selW, 26);
-        btMidiIn .toFront (false);
-        btMidiOut.toFront (false);
+        btMidiIn .setBounds (inX,  by, selW, 26);
+        btMidiOut.setBounds (outX, by, selW, 26);
+
+        // Pilule centree sur la fenetre, retrecie si la place manque (entre le logo et In).
+        const int leftLimit = 150, rightLimit = inX - 12;
+        const int pillH = 30, arrowW = 30;
+        int pillW = jmin (320, rightLimit - leftLimit);
+        int pillX = jlimit (leftLimit, jmax (leftLimit, rightLimit - pillW), getWidth() / 2 - pillW / 2);
+        namePill = { pillX, (topH - pillH) / 2, jmax (2 * arrowW + 40, pillW), pillH };
+        auto pr = namePill;
+        btVoicePrev.setBounds (pr.removeFromLeft (arrowW).reduced (0, 1));
+        btVoiceNext.setBounds (pr.removeFromRight (arrowW).reduced (0, 1));
+        if (nameEditor != nullptr)
+            nameEditor->setBounds (pr.reduced (4, 2));
+        for (Component* c : { (Component*) &btBarMode, (Component*) &btMidiIn, (Component*) &btMidiOut,
+                              (Component*) &btVoicePrev, (Component*) &btVoiceNext })
+            c->toFront (false);
+        if (nameEditor != nullptr) nameEditor->toFront (false);
+        repaint (0, 0, getWidth(), topH);
     }
 
     // Sélecteur de ports compact (bandeau bas) : PopupMenu à cases cochables (multi-sélection).
@@ -1936,6 +2011,22 @@ public:
     Array<MidiMessage> monitorHistory;
     static constexpr int kMonitorHistoryMax = 2000;
     DemoTabbedComponent tabs;
+
+    // Bandeau superieur (cf. paint/resized) : < nom de voix > + In/Out/barre du bas a droite.
+    static constexpr int kTopBarH = 42;
+    VoiceNavArrow btVoicePrev { true }, btVoiceNext { false };
+    TextEditor*   nameEditor = nullptr;    // TextEditor de la VoicePage, re-parente ici
+    Rectangle<int> namePill;               // fond de la pilule (dessine dans paint)
+    struct TipRefresher : ChangeListener
+    {
+        std::function<void()> f;
+        void changeListenerCallback (ChangeBroadcaster*) override { if (f) f(); }
+    } tipRefresher;
+    void refreshVoiceNavTooltips()
+    {
+        btVoicePrev.setTooltip (TRANS ("Previous voice (audition)") + Shortcuts::hint ("voiceprev"));
+        btVoiceNext.setTooltip (TRANS ("Next voice (audition)")     + Shortcuts::hint ("voicenext"));
+    }
     // Active TOUTES les infobulles (setTooltip) de l'app : sans un TooltipWindow vivant,
     // aucun tooltip ne s'affiche. Un seul suffit pour tout l'arbre.
     TooltipWindow tooltipWindow { this, 600 };

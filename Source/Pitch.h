@@ -142,6 +142,12 @@ public:
     void resized() override
     {
         int hGrid = getHeight()/6;
+        // Rangee repliee (element hors du mode de voix, ~40 px) : seul le titre « PITCH C3 »
+        // reste, les commandes deviendraient des filets illisibles.
+        const bool compact = getHeight() < 56;
+        sliderPitch.setVisible (! compact);
+        sliderFine .setVisible (! compact);
+        btFixed    .setVisible (! compact);
 
         groupTitre.setBounds( 0,0,getWidth(),getHeight());
    

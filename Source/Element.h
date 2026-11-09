@@ -649,7 +649,16 @@ public:
         {
             str = str + "DRUM Set";
         }
-        g.drawText( str, -getHeight(), 0, getHeight(), 24, Justification::centred);
+        if (getHeight() >= 56)
+            g.drawText( str, -getHeight(), 0, getHeight(), 24, Justification::centred);
+        else
+        {
+            // Rangee repliee : etiquette HORIZONTALE « OPn » (la verticale serait tronquee).
+            g.addTransform (AffineTransform::rotation (-fAngle));
+            g.setColour (SYPal.textPrimary);
+            g.setFont (Font (FontOptions (12.0f)).boldened());
+            g.drawText ("OP" + String (operatorID), 0, 0, 30, SyMetrics::panelHeaderH + 4, Justification::centredLeft);
+        }
         
 //        Rect localRect = getLocalBounds();   // draw an outline around the component
   //      g.fillRoundedRectangle (0, 0, getWidth(),getHeight(), 20);
@@ -666,7 +675,8 @@ public:
         const int xPitch = col (0.0f),  xWave = col (0.18f), xFilter = col (0.36f),
                   xVol   = col (0.62f), xPan  = col (0.88f), xEnd   = col (1.0f);
 
-        const int labelMargin = 22; // place pour le libellé vertical "OPx ..." à gauche
+        const bool compactRow = H < 56;   // element hors du mode de voix : bande de titres
+        const int labelMargin = compactRow ? 30 : 22; // libelle "OPx" (vertical, ou horizontal si replie)
         pitch.setBounds (xPitch + labelMargin, 0, (xWave - xPitch) - labelMargin - 2, H);
 
         groupWave.setBounds (xWave, 0, xFilter - xWave, H);
@@ -711,6 +721,14 @@ public:
         {
             panCardArea = {};
         }
+
+        // Rangee repliee : on retire les vignettes (12 px de haut = filets illisibles) ; il reste
+        // une bande de titres PITCH Cx / WAVE / FILTER / VOLUME / PAN + l'etiquette OPn.
+        if (compactRow)
+            for (Component* c : { (Component*) &btWave, (Component*) &elementFmWave, (Component*) &waveNameLabel,
+                                  (Component*) &btFilter, (Component*) &filterGraph, (Component*) &btVCA,
+                                  (Component*) &egGraph, (Component*) &sliderVolume })
+                c->setBounds ({});
     }
 enum mode
     {

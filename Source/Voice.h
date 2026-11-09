@@ -165,15 +165,13 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         op3.onClick = [this] { element3.setElementMuted (! op3.getToggleState()); };
         op4.onClick = [this] { element4.setElementMuted (! op4.getToggleState()); };
         addLabelStyle(labelOpOn);
+        for (auto* b : { &op1, &op2, &op3, &op4 })
+            b->setTooltip (TRANS ("Element on/off (mute)"));
         addLabelStyle(labelMode);
         addLabelStyle(labelName);
 
-        for (auto* l : { &labColPitch, &labColWave, &labColFilter, &labColVolume, &labColPan })
-        {
-            l->setJustificationType (Justification::centred);
-            l->setFont (Font (12.0f, Font::bold));
-            addAndMakeVisible (*l);
-        }
+        // (En-tetes de colonnes PITCH/WAVE/... supprimes : chaque carte d'element porte deja son
+        // titre — « PITCH C3 », « WAVE »... — un seul niveau de titre suffit.)
 
         // La carte ROUTAGE (contour accent + titre) est dessinée À LA MAIN dans
         // paintOverChildren : le LookAndFeel du thème dessine drawGroupComponentOutline en
@@ -217,7 +215,10 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         sliderMaster.setPopupDisplayEnabled(true, true, nullptr);
         
         addAndMakeVisible(sliderMaster);
-        labelMasterVolume.attachToComponent(&sliderMaster, true);
+        // Libelle NON attache : il etait tronque (« Master V... ») par la largeur imposee par
+        // attachToComponent ; il est pose dans resized() a la largeur de son texte.
+        addAndMakeVisible (labelMasterVolume);
+        labelMasterVolume.setJustificationType (Justification::centredLeft);
         
         Value valueCommonVolume = valueTreeVoice.getPropertyAsValue(IDs::COMMONVOLUME.toString(), &undoManager);
         sliderMaster.getValueObject().referTo(valueCommonVolume);
@@ -405,7 +406,7 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         fxBoxes.clearQuick();
         auto unitName = [] (int u) { static const char* const n[4] = { "CHORUS 1", "CHORUS 2", "REVERB 1", "REVERB 2" }; return String (n[u & 3]); };
         auto unitType = [&] (int u) { const Identifier ids[4] = { IDs::CHR1TYPE, IDs::CHR2TYPE, IDs::REV1TYPE, IDs::REV2TYPE }; return eff (ids[u & 3]); };
-        const float bw = algoW * 0.15f;
+        const float bw = jmin (jmax (algoW * 0.17f, 58.0f), (outX - inX) / 3.0f * 0.9f);
         const float uh = jmin (boxH, 30.0f);
         auto drawUnitBox = [&] (Rectangle<float> r, int u)
         {
@@ -769,7 +770,7 @@ void setNombreElements (int nombre)
             const bool active = (i < nombre);
             els[i]->setVisible (true);
             els[i]->setEnabled (active);
-            els[i]->setAlpha (active ? 1.0f : 0.35f);
+            els[i]->setAlpha (active ? 1.0f : 0.6f);   // replie mais lisible (0.35 = illisible)
 
             // Bouton on/off : actif = allumé/cliquable, hors mode courant = grisé/désactivé.
             ons[i]->setEnabled (active);
@@ -812,25 +813,17 @@ void setNombreElements (int nombre)
         editPan4.setBounds(boundsZone);
 
         grid = getWidth()/10;
-        auto wGrid = (getWidth()-20) * 0.7;
-        const int topElem = 68;                 // sous la barre du haut + les en-têtes de colonnes
-
-        // En-têtes de colonnes alignés sur les fractions internes d'un Element :
-        // PITCH .18 | WAVE .18 | FILTER .26 | VOLUME .26 | PAN .12
-        const int hy = 48, hh = 18;
-        auto fx = [wGrid] (float f) { return 10 + (int) (wGrid * f); };
-        labColPitch .setBounds (fx (0.00f), hy, fx (0.18f) - fx (0.00f), hh);
-        labColWave  .setBounds (fx (0.18f), hy, fx (0.36f) - fx (0.18f), hh);
-        labColFilter.setBounds (fx (0.36f), hy, fx (0.62f) - fx (0.36f), hh);
-        labColVolume.setBounds (fx (0.62f), hy, fx (0.88f) - fx (0.62f), hh);
-        labColPan   .setBounds (fx (0.88f), hy, fx (1.00f) - fx (0.88f), hh);
+        // Colonne droite (mode, master, ROUTAGE) : ~22 % de la largeur, bornee 300..440 px.
+        // Avant : 30 % fixe -> carte de routage surtout vide ; la place revient aux elements.
+        const int rightW = jlimit (300, 440, (int) (getWidth() * 0.22f));
+        const auto wGrid = (double) jmax (300, getWidth() - 20 - 12 - rightW);
+        const int topElem = 36;                 // sous la rangee [1 2 3 4] + historique
 
         // Rangées : les éléments ACTIFS reçoivent la majeure partie de la hauteur,
-        // les inactifs sont réduits à une fine bande (l'algo/les contrôles de l'élément
-        // actif restent grands quelle que soit la taille de l'écran).
+        // les inactifs sont réduits à une bande compacte (titres lisibles + étiquette OPn).
         Element* els[4] = { &element1, &element2, &element3, &element4 };
         const int nAct      = jlimit (1, 4, nombreElements);
-        const int inactiveH = 30;
+        const int inactiveH = 40;
         const int avail     = jmax (80, getHeight() - topElem - 2);
         const int actH      = jmax (60, (avail - (4 - nAct) * inactiveH) / nAct);
         int yEl = topElem;
@@ -840,33 +833,41 @@ void setNombreElements (int nombre)
             els[i]->setBounds (10, yEl, (int) wGrid, h);
             yEl += h;
         }
-        
+
+        // Rangee du haut : [1][2][3][4] (on/off elements) puis historique. Le nom de voix a
+        // ete deplace dans le bandeau superieur de la fenetre (MidiDemo) quand il y est.
         op1.setBounds (10,4,24,24);
         op2.setBounds (10+24, 4,24,24);
         op3.setBounds (10+48, 4,24,24);
         op4.setBounds (10+72, 4,24,24);
-        editName.setBounds(20 + 96, 4, 100, 24);
-        labelName.setBounds(116,20,100,24);
-        historyBar.setBounds (226, 4, jmax (120, jmin (500, (int) wGrid - 226)), 24);
-        
-        labelOpOn.setBounds(10, 20, 96, 24);
+        int histX = 10 + 96 + 10;
+        if (editName.getParentComponent() == this)
+        {
+            editName.setBounds (histX, 4, 100, 24);
+            histX += 110;
+        }
+        labelName.setVisible (false);
+        historyBar.setBounds (histX, 4, jmax (120, jmin (500, (int) wGrid - histX)), 24);
+        labelOpOn.setVisible (false);   // libelle sous les boutons : plus de place sans en-tetes
 
-        // --- Colonne droite (façon SynthWorks) : VOICE (mode + master) / ALGO / EFFETS ---
+        // --- Colonne droite (façon SynthWorks) : VOICE (mode + master) / ROUTAGE ---
         const int rightX = 10 + (int) wGrid + 12;
-        const int rightW = jmax (40, getWidth() - rightX - 10);
-        // Mode + Master tout en haut (l'algo récupère toute la hauteur, comme l'original).
-        comboMode.setBounds (rightX, 6, rightW, 24);
-        labelMasterVolume.setBounds (rightX, 34, 56, 18);
-        sliderMaster.setBounds (rightX + 58, 36, rightW - 58, 16);
+        comboMode.setBounds (rightX, 4, rightW, 26);
+        {
+            const auto f = labelMasterVolume.getFont();
+            const int lw = roundToInt (GlyphArrangement::getStringWidth (f, labelMasterVolume.getText())) + 10;
+            labelMasterVolume.setBounds (rightX, 36, lw, 20);
+            sliderMaster.setBounds (rightX + lw + 4, 38, jmax (40, rightW - lw - 4), 16);
+        }
 
-        // Algo/routage : du sommet des rangées d'éléments jusqu'en bas. Le routage est
-        // dessiné dans paint() (lignes depuis les vraies sorties pan des éléments).
+        // Routage : sous le master jusqu'en bas. Dessiné dans paintOverChildren (lignes
+        // depuis les vraies sorties pan des éléments).
         algoX = rightX;
-        algoY = topElem;
+        algoY = 62;
         algoW = rightW;
-        algoH = jmax (60, getHeight() - topElem - 4);
+        algoH = jmax (60, getHeight() - algoY - 4);
         grpAlgo.setBounds (algoX, algoY, algoW, algoH);
-        // Sélecteur d'Effect Mode (radio) + toggles Stereo Mix en haut-droite de la carte routage.
+        // Sélecteur d'Effect Mode (radio) + toggle Stereo Mix en haut-droite de la carte routage.
         radioMode.setBounds (algoX + algoW - 156, algoY + 3, 148, 20);
         mixBtn1.setBounds (algoX + algoW - 156, algoY + 26, 148, 18);
     }
@@ -978,12 +979,6 @@ void setNombreElements (int nombre)
     
     Label   labelMasterVolume{"M",TRANS("Master Volume")};
 
-    // En-têtes de colonnes (façon SynthWorks) au-dessus des rangées d'éléments.
-    Label labColPitch  { "", "PITCH" };
-    Label labColWave   { "", "WAVE" };
-    Label labColFilter { "", "FILTER" };
-    Label labColVolume { "", "VOLUME" };
-    Label labColPan    { "", "PAN" };
 
     // Colonne droite (façon SynthWorks).
     GroupComponent grpAlgo     { "grpAlgo",    TRANS ("ROUTAGE") };

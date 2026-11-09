@@ -786,10 +786,16 @@ public:
         const bool front = button.isFrontTab();
         g.setColour (front ? SYPal.surface : (isOver ? SYPal.surfaceAlt : SYPal.background));
         g.fillRect (area);
+        // Liseré accent CÔTÉ CONTENU : en bas pour une barre en haut, en haut pour une barre en bas.
+        const bool barAtTop = button.getTabbedButtonBar().getOrientation() == TabbedButtonBar::TabsAtTop;
+        auto stripe = [&] (float th)
+        {
+            g.fillRect (area.getX(), barAtTop ? area.getBottom() - th : area.getY(), area.getWidth(), th);
+        };
         if (front)
         {
             g.setColour (SYPal.accent);
-            g.fillRect (area.getX(), area.getY(), area.getWidth(), 2.5f); // liseré accent côté contenu
+            stripe (2.5f);
         }
         if (SYPal.panelStyle == "flat")
         {
@@ -799,7 +805,7 @@ public:
                 g.setColour (SYPal.accent.withAlpha (0.16f));
                 g.fillRect (area);
                 g.setColour (SYPal.accent);
-                g.fillRect (area.getX(), area.getY(), area.getWidth(), 2.0f);
+                stripe (2.0f);
             }
             g.setColour (front ? SYPal.textPrimary : SYPal.textMuted.brighter (isOver ? 0.4f : 0.0f));
             g.setFont (Font (FontOptions (12.5f)).boldened().withExtraKerningFactor (0.06f));
@@ -814,6 +820,28 @@ public:
     }
 
     void drawTabAreaBehindFrontButton (TabbedButtonBar&, Graphics&, int, int) override {}
+
+    // Barre d'onglets PRINCIPALE (propriete "syEqualTabs") : onglets de largeur EGALE, calee sur
+    // le libelle le plus long (meme police que drawTabButton), etiree jusqu'a 180 px si la place
+    // le permet. Si la barre est trop etroite, TabbedButtonBar retrecit (echelle) les onglets.
+    // Les autres barres (onglets imbriques) gardent le calcul JUCE standard.
+    int getTabButtonBestWidth (TabBarButton& button, int tabDepth) override
+    {
+        auto& bar = button.getTabbedButtonBar();
+        if (! (bool) bar.getProperties().getWithDefault ("syEqualTabs", false))
+            return LookAndFeel_V4::getTabButtonBestWidth (button, tabDepth);
+
+        const bool flat = SYPal.panelStyle == "flat";
+        const Font f = flat ? Font (FontOptions (12.5f)).boldened().withExtraKerningFactor (0.06f)
+                            : Font (FontOptions (14.0f));
+        float widest = 0.0f;
+        for (auto& name : bar.getTabNames())
+            widest = jmax (widest, GlyphArrangement::getStringWidth (f, flat ? name.trim().toUpperCase() : name.trim()));
+        const int textW = roundToInt (widest) + 32;   // 2 x 8 px de marge (drawTabButton) + respiration
+        const int n     = jmax (1, bar.getNumTabs());
+        const int fill  = jmin (180, bar.getWidth() / n);
+        return jmax (textW, fill);
+    }
 
     //========================================================= Cases à cocher / switches
     void drawToggleButton (Graphics& g, ToggleButton& b, bool, bool) override
