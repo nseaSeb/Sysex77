@@ -9,6 +9,7 @@
 
 
 #pragma once
+#include "WaveCards.h"
 
 #include "AppSettings.h"
 #include "Updater.h"
@@ -160,6 +161,8 @@ struct ConfigPage   : public Component, public ComboBox::Listener
 
         // Réinitialiser : thème + couleurs + canal MIDI aux valeurs par défaut (confirmation).
         addAndMakeVisible (btShortcuts);
+        addAndMakeVisible (btWaveCards);
+        btWaveCards.onClick = [] { WaveCards::showEditor(); };
         btShortcuts.onClick = []
         {
             DialogWindow::LaunchOptions o;
@@ -533,7 +536,12 @@ struct ConfigPage   : public Component, public ComboBox::Listener
             labStartTab.setBounds (c.removeFromTop (labH));
             comboStartTab.setBounds (c.removeFromTop (rowH));
             c.removeFromTop (vgap);
-            btShortcuts.setBounds (c.removeFromTop (rowH));
+            {
+                auto row = c.removeFromTop (rowH);
+                btShortcuts.setBounds (row.removeFromLeft ((row.getWidth() - 8) / 2));
+                row.removeFromLeft (8);
+                btWaveCards.setBounds (row);
+            }
             c.removeFromTop (vgap);
             btReset.setBounds (c.removeFromTop (rowH));
         }
@@ -628,6 +636,7 @@ struct ConfigPage   : public Component, public ComboBox::Listener
     ComboBox   comboStartTab;
     TextButton btReset { TRANS("Default settings") };
     TextButton btShortcuts { TRANS("Keyboard shortcuts...") };
+    TextButton btWaveCards { TRANS("Wave cards...") };
 
     // Carte Développeur
     ToggleButton devBtn { TRANS("Developer mode") };

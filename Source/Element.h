@@ -341,7 +341,7 @@ public:
             updateFmWave();
         if (value.refersToSameSourceAs (waveNameValue))
         {
-            waveNameLabel.setText (awmWaveName ((int) waveNameValue.getValue(), SYModel == 3), dontSendNotification);
+            waveNameLabel.setText (awmWaveName ((int) waveNameValue.getValue(), SYModel == 3, waveSource()), dontSendNotification);
             if (operatorMode == mode::AWM)   // (etait rafraichi a chaque paint)
                 elementFmWave.setAwm (true, (int) waveNameValue.getValue());
         }
@@ -408,7 +408,7 @@ public:
         // le NOM via le lookup XML (vrai nom même par défaut, pas seulement après sélection).
         waveNameValue = valueTreeVoice.getPropertyAsValue (Identifier ("ELEMENT" + String (operatorID) + "WAVEFORM"), &undoManager);
         waveNameValue.addListener (this);
-        waveNameLabel.setText (awmWaveName ((int) waveNameValue.getValue(), SYModel == 3), dontSendNotification);
+        waveNameLabel.setText (awmWaveName ((int) waveNameValue.getValue(), SYModel == 3, waveSource()), dontSendNotification);
         if(operatorID == 1)
         {
 //            btFilter.setShape(pathFilter1, false, false, true);
@@ -471,6 +471,11 @@ public:
     // sur l'element affiche (et sur AFM/AWM) : au chargement d'une voix, il n'ecoute qu'un
     // seul element/moteur, les autres gardaient leur valeur (ex. filtres AWM restes Thru).
     // La carte d'element, elle, existe pour les 4 elements. Etat UI seulement, aucun envoi.
+    int waveSource() const
+    {
+        return (int) valueTreeVoice.getProperty (Identifier ("ELEMENT" + String (operatorID) + "WSOURCE"), 0);
+    }
+
     void handleFilterRx (const var& a)
     {
         const int hi = (int) a[1];
@@ -544,6 +549,12 @@ public:
     {
         if (! a.isArray() || a.size() < 6) return;
         if ((int) a[0] == 0x09) { handleFilterRx (a); return; }
+        if ((int) a[0] == 0x07 && (int) a[1] == outSelAddrHi && (int) a[3] == 0x00)   // WSOURCE
+        {
+            valueTreeVoice.setProperty (Identifier ("ELEMENT" + String (operatorID) + "WSOURCE"), (int) a[5], nullptr);
+            waveNameLabel.setText (awmWaveName ((int) waveNameValue.getValue(), SYModel == 3, waveSource()), dontSendNotification);
+            return;
+        }
         if ((int) a[0] == 0x05 || ((int) a[0] & 0x0F) == 0x06) { handleAfmRx (a); return; }
         if ((int) a[0] != 0x03 || (int) a[1] != outSelAddrHi || (int) a[2] != 0) return;
         const int n2 = (int) a[3], v = (int) a[5];
@@ -623,7 +634,7 @@ public:
         elementFmWave.setAwm (true, (int) waveNameValue.getValue()); // AWM : waveform échantillon thémée
         elementFmWave.setVisible (true);  // dessinée AU-DESSUS du bouton (couvre l'ancienne image)
         waveNameLabel.setVisible (true);  // AWM : montre le nom de la wave (par-dessus)
-        waveNameLabel.setText (awmWaveName ((int) waveNameValue.getValue(), SYModel == 3), dontSendNotification);
+        waveNameLabel.setText (awmWaveName ((int) waveNameValue.getValue(), SYModel == 3, waveSource()), dontSendNotification);
         repaint();
     }
     void setAfmMode()

@@ -11,6 +11,8 @@
 #pragma once
 //==============================================================================
 
+#include "WaveCards.h"   // noms des ondes de carte (WSOURCE != 0)
+
 /** Nom de la wave AWM d'index donné, lu dans SY77Waves.xml / SY99Waves.xml.
     Documents parsés une fois (cache statique). */
 inline juce::String awmWaveName (int index, bool sy99)
@@ -24,6 +26,12 @@ inline juce::String awmWaveName (int index, bool sy99)
             if (auto* row = data->getChildElement (index))
                 return row->getStringAttribute ("NAME");
     return {};
+}
+
+/** Nom d'une onde AWM selon sa source : 0 = interne (liste SY77/SY99), sinon carte (WaveCards). */
+inline juce::String awmWaveName (int index, bool sy99, int source)
+{
+    return source == 0 ? awmWaveName (index, sy99) : WaveCards::waveName (index);
 }
 
 /** Nom de note MIDI (0..127) au format SY77 : C-2 .. G8 (note 0 = C-2). */
