@@ -124,8 +124,8 @@ namespace PresetHex
             {
                 const auto& a = ref.getReference (i);
                 const auto& b = alt.getReference (i);
-                if (a.value != b.value)  notes[(size_t) o].add (paramLabel (a) + (a.v1 != 0 || b.v1 != 0 ? " (LSB)" : ""));
-                else if (a.v1 != b.v1)   notes[(size_t) o].add (paramLabel (a) + " (MSB)");
+                if (a.value != b.value)  notes[(size_t) o].add (paramLabel (a) + (a.v1 != 0 || b.v1 != 0 ? " (V2)" : ""));
+                else if (a.v1 != b.v1)   notes[(size_t) o].add (paramLabel (a) + " (V1)");
             }
         }
         return notes;

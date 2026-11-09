@@ -765,7 +765,7 @@ struct SysexUtilsTests : public juce::UnitTest
                 }
             // 6 op×29 + (ELVL,ALGNUM,FCTOF1,FCTOF2,FFRES,FYPSW) + 4 pitch-rates + 5 pitch-levels
             // (FPL0-3+FPRL1) + 2×7 filtre-rates + 2×7 filtre-niveaux + VVOL.
-            expectEquals (params.size(), 6 * 33 + 6 + 4 + 5 + 14 + 14 + kElemCom + kAfmLfo + 1 + kCtrl + kFx);
+            expectEquals (params.size(), 6 * 36 + 6 + 4 + 5 + 14 + 14 + kElemCom + kAfmLfo + 1 + kCtrl + kFx);
 
             auto val = [&params] (int group, int param) -> int
             {
@@ -832,11 +832,11 @@ struct SysexUtilsTests : public juce::UnitTest
             juce::MemoryBlock mono (steel, sizeof (steel));
             ((juce::uint8*) mono.getData())[32] = 0x00;
             expectEquals (SyVoice::voiceBlobToParams ((const juce::uint8*) mono.getData(),
-                                                      (int) mono.getSize()).size(), 6 * 33 + 6 + 4 + 5 + 14 + 14 + kElemCom + kAfmLfo + 1 + kCtrl + kFx);
+                                                      (int) mono.getSize()).size(), 6 * 36 + 6 + 4 + 5 + 14 + 14 + kElemCom + kAfmLfo + 1 + kCtrl + kFx);
 
             // 2 AFM / 4 AFM : N « layers » identiques (Table 2). On vérifie le compte et que
             // l'adressage par élément (addrHi = élément<<5) est bien produit.
-            const int perElem = 6 * 33 + 6 + 4 + 5 + 14 + 14 + kElemCom + kAfmLfo;   // op + 6 + 4 pitch-rates + 5 pitch-levels + 2×7 filtre-rates + 2×7 filtre-niveaux
+            const int perElem = 6 * 36 + 6 + 4 + 5 + 14 + 14 + kElemCom + kAfmLfo;   // op + 6 + 4 pitch-rates + 5 pitch-levels + 2×7 filtre-rates + 2×7 filtre-niveaux
             {
                 juce::MemoryBlock two; two.setSize (832, true);
                 ((juce::uint8*) two.getData())[32] = 0x01;   // 2 AFM
@@ -886,6 +886,14 @@ struct SysexUtilsTests : public juce::UnitTest
                 expectEquals (val (0x03, 0, 0x07), (int) steel[98 + 7]);      // PANNM
                 expectEquals (val (0x03, 0, 0x08), (int) steel[98 + 8]);      // OUTSEL
                 expect (notes[43].joinIntoString (";").contains ("EF MODE"));
+                // Octets packes operateur (OP1 = record 5) : RS @15, 0x18 @25, 0x19 V1 @26 / V2 @27.
+                const int op1 = 107 + 5 * 45;
+                expectEquals (val (0x56, 0, 0x0F), (int) steel[op1 + 15]);
+                expectEquals (val (0x56, 0, 0x18), (int) steel[op1 + 25]);
+                expectEquals (val (0x56, 0, 0x19), (int) steel[op1 + 27]);
+                for (auto& vp : SyVoice::voiceBlobToParams (steel, (int) sizeof (steel)))
+                    if (vp.group == 0x56 && vp.addrHi == 0 && vp.param == 0x19)
+                        expectEquals (vp.v1, (int) steel[op1 + 26]);
             }
             expect (SyVoice::voiceBlobToParams (nullptr, 466).isEmpty());
         }
@@ -946,7 +954,7 @@ struct SysexUtilsTests : public juce::UnitTest
             auto* p = (juce::uint8*) mb.getData();
             p[0] = 0xF0; p[32] = 0x08;
             auto params = SyVoice::voiceBlobToParams (p, 586);
-            expectEquals (params.size(), 241 + 9 + kAwmExtra + 1 + kCtrl + 2 * kElemCom + kAfmLfo + kFx);   // AFM él.(217, dont niveaux EG o/b) + AWM él.(9) + VVOL
+            expectEquals (params.size(), 241 + 6 * 3 + 9 + kAwmExtra + 1 + kCtrl + 2 * kElemCom + kAfmLfo + kFx);   // AFM él.(217, dont niveaux EG o/b) + AWM él.(9) + VVOL
 
             bool afmE1 = false, awmE2 = false;
             for (auto& q : params)

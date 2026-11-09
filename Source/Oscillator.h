@@ -1066,12 +1066,43 @@ private:
         const var arr = v.getValue();
         if (! arr.isArray() || arr.size() < 6) return true;
         const int g = (int) arr[0], aH = (int) arr[1], n2 = (int) arr[3];
+        if (aH == packedAddrHi && (n2 == 0x18 || n2 == 0x19))
+        {
+            handlePackedRx (g, n2, (int) arr[4], (int) arr[5]);
+            return true;
+        }
         if (aH != packedAddrHi || n2 < 0x20 || n2 > 0x23) return true;
         for (int o = 0; o < 6; ++o)
             if (packedGroup[o] == g)
                 offScl[o][n2 - 0x20].setValue (SyVoice::ob2ToDisplay ((int) arr[4], (int) arr[5]), dontSendNotification);
         return true;
     }
+    // RX des octets PACKES (synthe ou chargement de dump) : eclate les bits vers les widgets
+    // (miroir de send18/send19). Ces widgets n'ont PAS d'adresse sysex propre (auto-send OFF,
+    // groupe 0) -> l'octet brut ne les atteint jamais ; c'est ce handler qui les met a jour.
+    // Etat UI seulement (dontSendNotification) -> aucun envoi.
+    void handlePackedRx (int g, int n2, int v1, int v2)
+    {
+        MidiButton* fix[6] = { &btFix1,&btFix2,&btFix3,&btFix4,&btFix5,&btFix6 };
+        MidiButton* syn[6] = { &btPhase1,&btPhase2,&btPhase3,&btPhase4,&btPhase5,&btPhase6 };
+        MidiSlider* pha[6] = { &sliderPhase1,&sliderPhase2,&sliderPhase3,&sliderPhase4,&sliderPhase5,&sliderPhase6 };
+        for (int o = 0; o < 6; ++o)
+        {
+            if (packedGroup[o] != g) continue;
+            if (n2 == 0x18)   // FMLPMS b4~2 | PES b1 | FPM b0
+            {
+                sensPm[o].setValue ((v2 >> 2) & 0x07, dontSendNotification);
+                pegSw[o].setToggleState ((v2 & 0x02) != 0, dontSendNotification);
+                fix[o]->setToggleState ((v2 & 0x01) != 0, dontSendNotification);
+            }
+            else              // 0x19 : V1 b0 = KOE (SYNC), V2 = PHASE 0~127
+            {
+                syn[o]->setToggleState ((v1 & 0x01) != 0, dontSendNotification);
+                pha[o]->setValue (v2 & 0x7F, dontSendNotification);
+            }
+        }
+    }
+
     void sendScalingOffset (int o, int k)
     {
         const int d = (int) offScl[o][k].getValue();

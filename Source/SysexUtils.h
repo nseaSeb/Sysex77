@@ -225,9 +225,14 @@ namespace SyVoice
             { 0x24, 42 },                                         // VEL SW (RVSW, 0/1)
             // SHIFT0/1 (0x15, sh0<<3|sh1) @22 et COR (0x16, 0..7) @23 : ALGSRC occupe 19-20,
             // ALGDST/OAC 21. Vérifié sur 9 833 voix AFM réelles (octet 22 = 7/63/56/0, 23 <= 7).
-            { 0x15, 22 }, { 0x16, 23 }
-            // PHASE (0x19) NON chargé : octet packé phase+sync, le bouton SYNC lit l'octet brut
-            // -> le charger corromprait le SYNC (extraction de bits à faire).
+            { 0x15, 22 }, { 0x16, 23 },
+            // RS (rate scaling, s/m ±7) @15 : 12 089 voix -> 0..7 dominant (l'ancienne note
+            // « constante 0x0F » de la WIP est fausse). Décodé s/m par WaveEg à la réception.
+            { 0x0F, 15 },
+            // 0x18 PACKÉ (FMLPMS b4~2 | PES b1 | FPM b0) @25 : valeurs 14/6/10/2 dominantes
+            // (PES on, PMS 0..3). Éclaté par Oscillator::handlePackedRx (pas d'octet brut aux widgets).
+            { 0x18, 25 }
+            // 0x19 (KOE V1 @26 = 0/1, PHASE V2 @27 = 0..127) : ajouté à part (2 octets) plus bas.
         };
         const int opGroup[6] = { 0x06, 0x16, 0x26, 0x36, 0x46, 0x56 };   // OP6 … OP1
 
@@ -249,6 +254,10 @@ namespace SyVoice
                 for (int op = 0; op < 6; ++op)
                     for (auto& m : pm)
                         out.add ({ opGroup[op], aH, 0, m.param, (int) d[base + op * 45 + m.intOff] });
+                // 0x19 : V1 = KOE (SYNC, b0) @26, V2 = PHASE @27 (même trame que Oscillator::send19).
+                for (int op = 0; op < 6; ++op)
+                    out.add ({ opGroup[op], aH, 0, 0x19, (int) d[base + op * 45 + 27],
+                               (int) d[base + op * 45 + 26] });
                 // SCALING offsets EGOS1-4 (0x20-0x23) : 2 octets o/b centre 128, MSB @34+2k, LSB
                 // @35+2k (9 833 voix : (1,0) = 0 domine, (0,127) = -1). V1 = MSB, V2 = LSB.
                 for (int op = 0; op < 6; ++op)
