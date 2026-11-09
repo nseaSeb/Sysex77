@@ -28,7 +28,7 @@ struct TabWave  : public TabbedComponent
         addTab (TRANS("Volume EG"),     colour, new WaveEg (), true);
         addTab (TRANS("Pitch EG"),     colour, new PitchEg (), true);
         addTab (TRANS("LFO"),          colour, new AfmLfo (), true);   // multi LFO AWM (0x07/0x12-0x18)
-        addTab  (TRANS("Close"), colour, nullptr,false);
+        // (Ancien faux onglet « Close » supprime : fermeture via l'en-tete commun de VoicePage.)
         
     }
     
@@ -38,7 +38,7 @@ struct TabWave  : public TabbedComponent
 };
 
 //=============================================================================
-class WaveVue    : public Component, public Timer
+class WaveVue    : public Component
 {
 public:
     WaveVue(bool isRunningComponenTransformsDemo = false)
@@ -47,7 +47,6 @@ public:
         // In your constructor, you should add any child components, and
         // initialise any special settings that your component needs.
         addAndMakeVisible(tabs);
-        startTimer(500);
         
         
     }
@@ -56,7 +55,6 @@ public:
     {
         //    removeKeyListener(this);
         
-        stopTimer();
         
         
     }
@@ -64,6 +62,8 @@ public:
     {
         tabs.setCurrentTabIndex(1);
     }
+    /** A la fermeture (VoicePage::closeOpenEditor) : la prochaine ouverture repart sur WAVE. */
+    void resetTab() { tabs.setCurrentTabIndex (0); }
     void setElementNumber ( int number, UndoManager& undoman)
     {
         
@@ -100,17 +100,6 @@ public:
         
     }
 //==============================================================================
-    void timerCallback() override
-    {
-        
-        if (tabs.getCurrentTabIndex() == tabs.getNumTabs() - 1)   // onglet "Close" = dernier
-        {
-            tabs.setCurrentTabIndex(0);
-            setVisible(false);
-            
-            //repaint();
-        }
-    }
     
 private:
 

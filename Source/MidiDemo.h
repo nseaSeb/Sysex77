@@ -229,6 +229,31 @@ struct DemoTabbedComponent  : public TabbedComponent
         }
     }
     bool allowTabSave = false; // activé par MidiDemo une fois l'onglet restauré
+
+    // Re-clic sur l'onglet DEJA actif : currentTabChanged n'est pas emis (index inchange).
+    // Sur VOICE, cela ferme l'editeur ouvert et ramene a la vue des 4 elements (reflexe
+    // « remonter d'un niveau »). Revenir sur VOICE depuis un autre onglet, lui, garde l'editeur.
+    struct ReclickTabButton : public TabBarButton
+    {
+        ReclickTabButton (const String& name, TabbedButtonBar& bar, DemoTabbedComponent& tc)
+            : TabBarButton (name, bar), tabs (tc) {}
+        void clicked (const ModifierKeys& mods) override
+        {
+            if (! mods.isPopupMenu() && getIndex() == owner.getCurrentTabIndex())
+                tabs.currentTabReclicked (getIndex());
+            TabBarButton::clicked (mods);
+        }
+        DemoTabbedComponent& tabs;
+    };
+    TabBarButton* createTabButton (const String& tabName, int /*tabIndex*/) override
+    {
+        return new ReclickTabButton (tabName, getTabbedButtonBar(), *this);
+    }
+    void currentTabReclicked (int index)
+    {
+        if (auto* vp = dynamic_cast<VoicePage*> (getTabContentComponent (index)))
+            vp->closeOpenEditor();
+    }
     void popupMenuClickOnTab (int tabIndex, const String& tabName)override
     {
         Logger::writeToLog("TabbedComponent: popupMenuClick");
@@ -454,10 +479,9 @@ public:
         }
         if (id == "undo") { historyUndo(); return true; }
         if (id == "redo") { historyRedo(); return true; }
-        if (id == "close")
-            for (int i = 0; i < tabs.getNumTabs(); ++i)
-                if (auto* vp = dynamic_cast<VoicePage*> (tabs.getTabContentComponent (i)))
-                    return vp->closeEditors();
+        if (id == "close")   // Echap : seulement si l'ecran Voice est affiche (pas un editeur cache)
+            if (auto* vp = dynamic_cast<VoicePage*> (tabs.getCurrentContentComponent()))
+                return vp->closeOpenEditor();
         return false;
     }
 

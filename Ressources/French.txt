@@ -126,3 +126,7 @@ countries: FR
 "New voice..." = "Nouvelle voix..."
 "Show keyboard shortcuts" = "Afficher les raccourcis clavier"
 "Change them in Setting > General > Keyboard shortcuts" = "Modifiables dans Paramètres > Général > Raccourcis clavier"
+"Back to the voice overview" = "Retour à la vue d'ensemble de la voix"
+"Element" = "Élément"
+"Wave" = "Wave"
+"Pan" = "Pan"

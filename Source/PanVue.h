@@ -3,9 +3,8 @@
 
     PanVue.h
     Overlay plein-page d'édition de la table de PAN d'un élément (EG de pan).
-    Calqué sur FilterVue : un TabbedComponent { "Pan EG", "Close" } ; l'onglet
-    "Close" est intercepté par un Timer qui referme l'overlay (même mécanisme que
-    les éditeurs Filtre/Wave/AFM). Cf. PanEg.h pour le contenu et les adresses sysex.
+    Calqué sur FilterVue : un TabbedComponent { "Pan EG" } ; fermeture via l'en-tete
+    commun de VoicePage (closeOpenEditor). Cf. PanEg.h pour le contenu et les adresses sysex.
 
   ==============================================================================
 */
@@ -22,21 +21,19 @@ struct TabPan  : public TabbedComponent
     {
         auto colour = findColour (ResizableWindow::backgroundColourId);
         addTab (TRANS ("Pan EG"), colour, new PanEg(), true);
-        addTab (TRANS ("Close"),  colour, nullptr,     false);
     }
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TabPan)
 };
 
 //==============================================================================
-class PanVue    : public Component, public Timer
+class PanVue    : public Component
 {
 public:
     PanVue()
     {
         addAndMakeVisible (tabs);
-        startTimer (500);
     }
-    ~PanVue() override { stopTimer(); }
+    void resetTab() { tabs.setCurrentTabIndex (0); }
 
     void setElementNumber (int number, UndoManager& um)
     {
@@ -58,14 +55,6 @@ public:
         g.fillAll (getLookAndFeel().findColour (ResizableWindow::backgroundColourId));
     }
 
-    void timerCallback() override
-    {
-        if (tabs.getCurrentTabIndex() == 1)   // onglet "Close"
-        {
-            tabs.setCurrentTabIndex (0);
-            setVisible (false);
-        }
-    }
 
 private:
     TabPan tabs;

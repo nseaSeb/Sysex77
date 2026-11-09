@@ -26,7 +26,7 @@ struct TabAFM  : public TabbedComponent
         addTab (("AFM"),     colour, new Oscillator (), true);
         addTab (("Volume EG"),     colour, new WaveEg (), true);
         addTab (("Pitch EG"),     colour, new PitchEg (), true);
-        addTab  (TRANS("Close"), colour, nullptr,false);
+        // (Ancien faux onglet « Close » supprime : fermeture via l'en-tete commun de VoicePage.)
         
     }
     
@@ -36,7 +36,7 @@ struct TabAFM  : public TabbedComponent
 };
 
 //=============================================================================
-class AFMVue    : public Component, public Timer
+class AFMVue    : public Component
 {
 public:
     AFMVue(bool isRunningComponenTransformsDemo = false)
@@ -53,7 +53,6 @@ public:
         addAndMakeVisible(txtSave);
         labelPreset.attachToComponent(&comboPreset, true);
         
-        startTimer(500);
         
         
     }
@@ -62,14 +61,15 @@ public:
     {
         //    removeKeyListener(this);
         
-        stopTimer();
         
         
     }
     void setTabVolume()
     {
-        tabs.setCurrentTabIndex(1);   // onglet « Volume EG » (0 = AFM, 1 = Volume EG, 2 = Pitch EG, 3 = Close)
+        tabs.setCurrentTabIndex(1);   // onglet « Volume EG » (0 = AFM, 1 = Volume EG, 2 = Pitch EG)
     }
+    /** A la fermeture (VoicePage::closeOpenEditor) : la prochaine ouverture repart sur AFM. */
+    void resetTab() { tabs.setCurrentTabIndex (0); }
     void setElementNumber ( int number, UndoManager& undoman)
     {
         
@@ -106,17 +106,6 @@ public:
         
     }
     //==============================================================================
-    void timerCallback() override
-    {
-        
-        if(tabs.getCurrentTabIndex()==3)   // onglet « Close » (dernier après la fusion AFM)
-        {
-            tabs.setCurrentTabIndex(0);
-            setVisible(false);
-            
-            //repaint();
-        }
-    }
     
 private:
     ComboBox comboPreset;

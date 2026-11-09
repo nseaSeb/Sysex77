@@ -30,7 +30,7 @@ struct TabFilter  : public TabbedComponent
         addTab (TRANS("Common "),     colour, new CommonFilter (), true);
         addTab (TRANS("Filter 1"),     colour, new Filter1 (), true);
         addTab (TRANS("Filter 2"),     colour, new Filter2 (), true);
-        addTab  (TRANS("Close"), colour, nullptr,false);
+        // (Ancien faux onglet « Close » supprime : fermeture via l'en-tete commun de VoicePage.)
         
                                                               
     }
@@ -43,7 +43,7 @@ struct TabFilter  : public TabbedComponent
 
 /*
 */
-class FilterVue    : public Component,public Timer
+class FilterVue    : public Component
 {
 public:
     FilterVue(bool isRunningComponenTransformsDemo = false)
@@ -60,7 +60,6 @@ public:
         addAndMakeVisible(txtSave);
         labelPreset.attachToComponent(&comboPreset, true);
         
-        startTimer(500);
 
 
     }
@@ -69,7 +68,6 @@ public:
     {
     //    removeKeyListener(this);
 
-        stopTimer();
  
         
     }
@@ -85,6 +83,9 @@ public:
             }
         }
     }
+
+    /** A la fermeture (VoicePage::closeOpenEditor) : la prochaine ouverture repart sur Common. */
+    void resetTab() { tabs.setCurrentTabIndex (0); }
 
     // Bascule AFM/AWM (fN 0-2 / 3-5) propagée aux sous-éditeurs (Common/Filter1/Filter2).
     void setAwmMode (bool awm)
@@ -119,17 +120,6 @@ public:
     }
 
     //==============================================================================
-    void timerCallback() override
-    {
-        
-        if(tabs.getCurrentTabIndex()==3)
-        {
-            tabs.setCurrentTabIndex(0);
-            setVisible(false);
-    
-            //repaint();
-        }
-    }
 private:
 
     ComboBox comboPreset;

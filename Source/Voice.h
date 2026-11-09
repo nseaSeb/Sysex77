@@ -13,6 +13,92 @@
 #pragma once
 
 //==============================================================================
+/*  En-tete commun des editeurs ouverts par-dessus l'ecran Voice (AFM, Wave, Filtre, Pan).
+    Une seule convention partout : en haut a gauche un bouton retour « < Voice » puis un fil
+    d'Ariane discret « VOICE / Element 1 / AFM ». Remplace l'ancien faux onglet « Close » de
+    chaque editeur (place a une position differente selon le nombre d'onglets). Le bouton ne
+    fait qu'appeler onBack -> VoicePage::closeOpenEditor() (meme chemin que l'onglet VOICE
+    re-clique et la touche Echap). Couleurs lues dans SYPal au paint : suit le theme. */
+struct EditorHeader : public Component
+{
+    struct BackButton : public Button
+    {
+        BackButton() : Button ("back") { setMouseCursor (MouseCursor::PointingHandCursor); }
+        void paintButton (Graphics& g, bool over, bool down) override
+        {
+            auto r = getLocalBounds().toFloat().reduced (0.5f, 2.5f);
+            const auto accent = SYPal.accent;
+            g.setColour (accent.withAlpha (down ? 0.30f : over ? 0.18f : 0.08f));
+            g.fillRoundedRectangle (r, 4.0f);
+            g.setColour (accent.withAlpha (over ? 0.9f : 0.55f));
+            g.drawRoundedRectangle (r, 4.0f, 1.0f);
+
+            // Chevron « < » dessine (pas de glyphe : rendu net quelle que soit la police).
+            const float cx = r.getX() + 12.0f, cy = r.getCentreY();
+            Path p;
+            p.startNewSubPath (cx + 3.0f, cy - 5.0f);
+            p.lineTo (cx - 2.0f, cy);
+            p.lineTo (cx + 3.0f, cy + 5.0f);
+            g.setColour (over ? SYPal.textPrimary : accent);
+            g.strokePath (p, PathStrokeType (1.8f, PathStrokeType::curved, PathStrokeType::rounded));
+
+            g.setFont (Font (FontOptions (13.0f)).boldened());
+            g.drawText (getButtonText(), r.withTrimmedLeft (22.0f).withTrimmedRight (6.0f),
+                        Justification::centredLeft, false);
+        }
+    };
+
+    EditorHeader()
+    {
+        addAndMakeVisible (btBack);
+        btBack.setButtonText (TRANS ("Voice").trim());
+        btBack.onClick = [this] { if (onBack) onBack(); };
+        refreshTooltip();
+    }
+
+    void refreshTooltip() { btBack.setTooltip (TRANS ("Back to the voice overview") + Shortcuts::hint ("close")); }
+
+    void setPath (const StringArray& crumbs) { path = crumbs; repaint(); }
+
+    void resized() override
+    {
+        auto r = getLocalBounds().reduced (6, 2);
+        const int w = roundToInt (GlyphArrangement::getStringWidth (Font (FontOptions (13.0f)).boldened(), btBack.getButtonText())) + 34;
+        btBack.setBounds (r.removeFromLeft (jmax (78, w)));
+    }
+
+    void paint (Graphics& g) override
+    {
+        g.fillAll (SYPal.background);
+        g.setColour (SYPal.panelBorder.withAlpha (0.6f));
+        g.drawHorizontalLine (getHeight() - 1, 0.0f, (float) getWidth());
+
+        // Fil d'Ariane : segments discrets, le dernier (editeur courant) en clair.
+        auto r = getLocalBounds().withTrimmedLeft (btBack.getRight() + 14).reduced (0, 2);
+        Font f (FontOptions (13.0f));
+        for (int i = 0; i < path.size(); ++i)
+        {
+            const bool last = i == path.size() - 1;
+            const auto seg = path[i];
+            g.setFont (last ? f.boldened() : f);
+            g.setColour (last ? SYPal.textPrimary : SYPal.textMuted);
+            const int w = roundToInt (GlyphArrangement::getStringWidth (g.getCurrentFont(), seg)) + 2;
+            g.drawText (seg, r.removeFromLeft (w), Justification::centredLeft, true);
+            if (! last)
+            {
+                g.setFont (f);
+                g.setColour (SYPal.textMuted.withAlpha (0.6f));
+                g.drawText ("/", r.removeFromLeft (18), Justification::centred, false);
+            }
+        }
+    }
+
+    std::function<void()> onBack;
+    BackButton btBack;
+    StringArray path;
+};
+
+//==============================================================================
 struct VoicePage   : public Component, public Slider::Listener, public ComboBox::Listener, public TextEditor::Listener, public TextButton::Listener,public ChangeListener, public ChangeBroadcaster, public Value::Listener, public ValueTree::Listener, public KeyListener , public Timer
 {
     VoicePage()
@@ -224,6 +310,11 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         valueTreeVoice.addListener(this);
         addKeyListener(this); //to manage undo redo key
         addAndMakeVisible (historyBar);
+
+        // En-tete commun des editeurs (retour + fil d'Ariane) : visible seulement editeur ouvert.
+        addChildComponent (editorHeader);
+        editorHeader.setAlwaysOnTop (true);
+        editorHeader.onBack = [this] { closeOpenEditor(); };
         startTimer(500);
         // specify here where to send OSC messages to: host URL and UDP port number
         
@@ -248,49 +339,77 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         voiceNameVal.removeListener(this);
     }
     
-    /** Ferme tout editeur ouvert par-dessus l'ecran (raccourci "close"). true si un etait ouvert. */
     /** A/B compare showing A: every control is disabled except the history bar. */
     void setEditLocked (bool locked)
     {
         for (auto* c : getChildren())
-            if (! historyBar.isLockExempt (c))
+            if (! historyBar.isLockExempt (c) && c != &editorHeader)   // quitter l'editeur n'est pas une edition
                 c->setEnabled (! locked);
         // Unlock: re-derive the element rows from the CURRENT mode (inactive rows stay grey,
         // even if the mode changed while locked).
         if (! locked) setNombreElements (nombreElements);
     }
 
-    bool closeEditors()
+    /** Tous les editeurs plein-page (overlay au-dessus des 4 elements). */
+    Array<Component*> allEditors()
+    {
+        return { &editAfm1, &editAfm2, &editAfm3, &editAfm4,
+                 &editWave1, &editWave2, &editWave3, &editWave4,
+                 &editFilter1, &editFilter2, &editFilter3, &editFilter4,
+                 &editPan1, &editPan2, &editPan3, &editPan4 };
+    }
+
+    bool isEditorOpen()
+    {
+        for (auto* c : allEditors())
+            if (c->isVisible()) return true;
+        return false;
+    }
+
+    /** POINT D'ENTREE UNIQUE de fermeture (bouton « < Voice », onglet VOICE re-clique, Echap).
+        Reprend ce que faisait l'ancien onglet « Close » : retour au 1er sous-onglet puis
+        masquage. Pure presentation : rien n'est envoye au synthe. true si un etait ouvert. */
+    bool closeOpenEditor()
     {
         bool any = false;
-        for (Component* c : { (Component*) &editAfm1, (Component*) &editAfm2, (Component*) &editAfm3, (Component*) &editAfm4,
-                              (Component*) &editWave1, (Component*) &editWave2, (Component*) &editWave3, (Component*) &editWave4,
-                              (Component*) &editFilter1, (Component*) &editFilter2, (Component*) &editFilter3, (Component*) &editFilter4,
-                              (Component*) &editPan1, (Component*) &editPan2, (Component*) &editPan3, (Component*) &editPan4 })
-            if (c->isVisible()) { c->setVisible (false); any = true; }
+        auto closeOne = [&any] (auto& ed)
+        {
+            if (! ed.isVisible()) return;
+            ed.resetTab();
+            ed.setVisible (false);
+            any = true;
+        };
+        for (auto* e : { &editAfm1, &editAfm2, &editAfm3, &editAfm4 })         closeOne (*e);
+        for (auto* e : { &editWave1, &editWave2, &editWave3, &editWave4 })     closeOne (*e);
+        for (auto* e : { &editFilter1, &editFilter2, &editFilter3, &editFilter4 }) closeOne (*e);
+        for (auto* e : { &editPan1, &editPan2, &editPan3, &editPan4 })         closeOne (*e);
+        editorHeader.setVisible (false);
+        openEditorElement = 0;
         if (any) repaint();
         return any;
     }
+
+    /** Ouvre un editeur (un seul a la fois) et renseigne le fil d'Ariane. */
+    void openEditor (Component& ed, int elementNumber, const String& kind)
+    {
+        for (auto* c : allEditors())
+            if (c != &ed && c->isVisible()) c->setVisible (false);
+        editorHeader.refreshTooltip();
+        editorHeader.setPath ({ TRANS ("Voice").trim().toUpperCase(),
+                                TRANS ("Element") + " " + String (elementNumber), kind });
+        editorHeader.setVisible (true);
+        ed.setVisible (true);
+        openEditorElement = elementNumber;
+        repaint();
+    }
+    int openEditorElement = 0;   // element (1..4) de l'editeur ouvert ; 0 = aucun
+
     #include "ValueTrees.h"
     
-        virtual void broughtToFront() override
-    {
-    Logger::writeToLog("Voice: BroughtToFront");
-   
-        // Ferme TOUS les overlays d'édition des 4 éléments (avant : élément 2 masqué 3× par
-        // copier-coller -> les overlays des éléments 3/4 ne se fermaient pas).
-        WaveVue*   wave[4]   = { &editWave1, &editWave2, &editWave3, &editWave4 };
-        AFMVue*    afm[4]    = { &editAfm1, &editAfm2, &editAfm3, &editAfm4 };
-        FilterVue* filt[4]   = { &editFilter1, &editFilter2, &editFilter3, &editFilter4 };
-        PanVue*    pan[4]    = { &editPan1, &editPan2, &editPan3, &editPan4 };
-        for (int i = 0; i < 4; ++i)
-        {
-            wave[i]->setVisible (false);
-            afm[i]->setVisible (false);
-            filt[i]->setVisible (false);
-            pan[i]->setVisible (false);
-        }
-    }
+    // Appele par le TabbedComponent quand on revient sur l'onglet VOICE depuis un autre onglet :
+    // on GARDE l'editeur ouvert (on reprend ou on etait). Avant, tous les overlays etaient fermes
+    // ici ; la fermeture passe desormais uniquement par closeOpenEditor().
+    void broughtToFront() override {}
     
     // Sur changement de thème (sendLookAndFeelChange), ré-applique l'accent aux libellés qui
     // figent leur couleur via setColour (sinon ils gardent l'accent du thème de départ).
@@ -320,10 +439,7 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
             return;
 
         // Ne pas dessiner le routage si un éditeur est ouvert par-dessus
-        if (editAfm1.isVisible()    || editAfm2.isVisible()    || editAfm3.isVisible()    || editAfm4.isVisible()    ||
-            editWave1.isVisible()   || editWave2.isVisible()   || editWave3.isVisible()   || editWave4.isVisible()   ||
-            editFilter1.isVisible() || editFilter2.isVisible() || editFilter3.isVisible() || editFilter4.isVisible() ||
-            editPan1.isVisible()    || editPan2.isVisible()    || editPan3.isVisible()    || editPan4.isVisible())
+        if (isEditorOpen())
             return;
 
         // Carte ROUTAGE : contour ACCENT + titre, dessinés à la main (le LnF ignore l'accent
@@ -512,133 +628,45 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
                 editName.setText (n, dontSendNotification);
         }
 
-        if(value.refersToSameSourceAs(element1.elementValue))
+        // Clic sur une carte d'element -> ouvre l'editeur correspondant (presentation seule :
+        // setVisible / choix du sous-onglet, aucun envoi sysex). Libelles = ceux des cartes.
+        Element*   els[4]  = { &element1, &element2, &element3, &element4 };
+        WaveVue*   wave[4] = { &editWave1, &editWave2, &editWave3, &editWave4 };
+        AFMVue*    afm[4]  = { &editAfm1, &editAfm2, &editAfm3, &editAfm4 };
+        FilterVue* filt[4] = { &editFilter1, &editFilter2, &editFilter3, &editFilter4 };
+        PanVue*    pan[4]  = { &editPan1, &editPan2, &editPan3, &editPan4 };
+        for (int i = 0; i < 4; ++i)
         {
-            Logger::writeToLog("Value change element1");
-        if(element1.elementValue == Element::commande::WaveEdit)
-            editWave1.setVisible(true);
-        if(element1.elementValue == Element::commande::AfmEdit)
-                editAfm1.setVisible(true);
-        if(element1.elementValue == Element::commande::FilterEdit)
-        {
-                editFilter1.setAwmMode (element1.getOpMode() == Element::mode::AWM);
-                editFilter1.setVisible(true);
-        }
-        if(element1.elementValue == Element::commande::VolumeEdit)
-        {
-            //editVolume1.setVisible(true);
-            editWave1.setVisible(true);
-            editWave1.setTabVolume();
-        }
-        if(element1.elementValue == Element::commande::VolumeAFM)
+            if (! value.refersToSameSourceAs (els[i]->elementValue))
+                continue;
+            const int cmd = (int) els[i]->elementValue.getValue();
+            const int n = i + 1;
+            if (cmd == Element::commande::WaveEdit)
+                openEditor (*wave[i], n, TRANS ("Wave"));
+            else if (cmd == Element::commande::AfmEdit)
+                openEditor (*afm[i], n, "AFM");
+            else if (cmd == Element::commande::FilterEdit)
             {
-                //editVolume1.setVisible(true);
-                editAfm1.setVisible(true);
-                editAfm1.setTabVolume();
+                filt[i]->setAwmMode (els[i]->getOpMode() == Element::mode::AWM);
+                openEditor (*filt[i], n, TRANS ("Filter"));
             }
-        if(element1.elementValue == Element::commande::PanEdit)
+            else if (cmd == Element::commande::VolumeEdit)
             {
-                editPan1.setVisible(true);
-                editPan1.refresh();
+                wave[i]->setTabVolume();
+                openEditor (*wave[i], n, TRANS ("Wave"));
             }
-
-             element1.elementValue =0;
-        }
-
-
-
-        
-        if(value.refersToSameSourceAs(element2.elementValue))
-        {
-                      Logger::writeToLog("Value change element2");
-            if(element2.elementValue == Element::commande::WaveEdit)
-                editWave2.setVisible(true);
-            if(element2.elementValue == Element::commande::AfmEdit)
-                editAfm2.setVisible(true);
-            if(element2.elementValue == Element::commande::FilterEdit)
+            else if (cmd == Element::commande::VolumeAFM)
             {
-                editFilter2.setAwmMode (element2.getOpMode() == Element::mode::AWM);
-                editFilter2.setVisible(true);
+                afm[i]->setTabVolume();
+                openEditor (*afm[i], n, "AFM");
             }
-            if(element2.elementValue == Element::commande::VolumeEdit)
+            else if (cmd == Element::commande::PanEdit)
             {
-                editWave2.setVisible(true);
-                editWave2.setTabVolume();
+                openEditor (*pan[i], n, TRANS ("Pan"));
+                pan[i]->refresh();   // relit la table PANNM courante (comme avant, apres affichage)
             }
-            if(element2.elementValue == Element::commande::VolumeAFM)
-            {
-                //editVolume1.setVisible(true);
-                editAfm2.setVisible(true);
-                editAfm2.setTabVolume();
-            }
-            if(element2.elementValue == Element::commande::PanEdit)
-            {
-                editPan2.setVisible(true);
-                editPan2.refresh();
-            }
-             element2.elementValue =0;
-        }
- 
-        if(value.refersToSameSourceAs(element3.elementValue))
-        {
-            Logger::writeToLog("Value change element3");
-            if(element3.elementValue == Element::commande::WaveEdit)
-                editWave3.setVisible(true);
-            if(element3.elementValue == Element::commande::AfmEdit)
-                editAfm3.setVisible(true);
-            if(element3.elementValue == Element::commande::FilterEdit)
-            {
-                editFilter3.setAwmMode (element3.getOpMode() == Element::mode::AWM);
-                editFilter3.setVisible(true);
-            }
-            if(element3.elementValue == Element::commande::VolumeEdit)
-            {
-                editWave3.setVisible(true);
-                editWave3.setTabVolume();
-            }
-            if(element3.elementValue == Element::commande::VolumeAFM)
-            {
-                //editVolume1.setVisible(true);
-                editAfm3.setVisible(true);
-                editAfm3.setTabVolume();
-            }
-            if(element3.elementValue == Element::commande::PanEdit)
-            {
-                editPan3.setVisible(true);
-                editPan3.refresh();
-            }
-             element3.elementValue =0;
-        }
-        
-        if(value.refersToSameSourceAs(element4.elementValue))
-        {
-            Logger::writeToLog("Value change element4");
-            if(element4.elementValue == Element::commande::WaveEdit)
-                editWave4.setVisible(true);
-            if(element4.elementValue == Element::commande::AfmEdit)
-                editAfm4.setVisible(true);
-            if(element4.elementValue == Element::commande::FilterEdit)
-            {
-                editFilter4.setAwmMode (element4.getOpMode() == Element::mode::AWM);
-                editFilter4.setVisible(true);
-            }
-            if(element4.elementValue == Element::commande::VolumeEdit)
-            {
-                editWave4.setVisible(true);
-                editWave4.setTabVolume();
-            }
-            if(element4.elementValue == Element::commande::VolumeAFM)
-            {
-                //editVolume1.setVisible(true);
-                editAfm4.setVisible(true);
-                editAfm4.setTabVolume();
-            }
-            if(element4.elementValue == Element::commande::PanEdit)
-            {
-                editPan4.setVisible(true);
-                editPan4.refresh();
-            }
-             element4.elementValue =0;
+            if (cmd != 0)
+                els[i]->elementValue = 0;
         }
     }
     void buttonClicked (Button* button) override
@@ -759,6 +787,10 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
 void setNombreElements (int nombre)
     {
         nombreElements = nombre;
+        // Un editeur reste ouvert entre les onglets : s'il vise un element devenu inactif
+        // (voix chargee avec moins d'elements), on le ferme (pure presentation).
+        if (openEditorElement > nombre)
+            closeOpenEditor();
         // Façon SynthWorks : on affiche toujours les 4 rangées ; les éléments hors du
         // mode courant sont grisés et non interactifs (structure visible en permanence).
         Element*    els[4] = { &element1, &element2, &element3, &element4 };
@@ -789,9 +821,10 @@ void setNombreElements (int nombre)
     void resized() override
     {
        Logger::writeToLog("Voice: Resized");
-        auto boundsZone = getBounds();
-        boundsZone.setY(0);
-        //boundsZone.setHeight(getHeight()+20);
+        // Editeurs plein-page sous l'en-tete commun (retour + fil d'Ariane).
+        const int headerH = 30;
+        editorHeader.setBounds (0, 0, getWidth(), headerH);
+        auto boundsZone = getLocalBounds().withTrimmedTop (headerH);
         editWave1.setBounds(boundsZone);
         editWave2.setBounds(boundsZone);
         editWave3.setBounds(boundsZone);
@@ -988,6 +1021,7 @@ void setNombreElements (int nombre)
     
     UndoManager undoManager;
     EditHist::HistoryBar historyBar;   // undo / redo / A-B / original
+    EditorHeader editorHeader;         // « < Voice  VOICE / Element n / AFM » des editeurs
 };
 
 //==============================================================================
