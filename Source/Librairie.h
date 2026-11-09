@@ -198,6 +198,33 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
     // Easter-egg caché : Cmd+Alt+X ouvre un dialogue ; saisir « sysex » (insensible à
     // la casse) lance l'import des banques web embarquées dans la librairie locale.
     // N'écrit QUE des fichiers locaux — jamais vers le synthé (sûreté matérielle).
+    /** Index (0..63) of the selected voice, or -1. */
+    int selectedVoiceIndex()
+    {
+        for (auto* col : { &voicesListA, &voicesListB, &voicesListC, &voicesListD })
+            if (col->getSelectedGlobalIndex() >= 0) return col->getSelectedGlobalIndex();
+        return -1;
+    }
+
+    /** Previous / next non-empty voice of the bank: selects it and auditions it (same as a
+        double-click). Returns false when there is nowhere to go. */
+    bool stepVoice (int delta)
+    {
+        int i = selectedVoiceIndex();
+        if (i < 0) i = delta > 0 ? -1 : 64;
+        for (int k = i + delta; k >= 0 && k < 64; k += delta)
+            if (arrayListVoices[k].trim().isNotEmpty())
+            {
+                for (auto* col : { &voicesListA, &voicesListB, &voicesListC, &voicesListD })
+                    if (col->selectGlobal (k)) break;
+                requestSendVoice (k);
+                return true;
+            }
+        return false;
+    }
+
+    void stepBank (int delta) { bankList.selectRelative (delta); }
+
     bool keyPressed (const KeyPress& key, Component* /*origin*/) override
     {
         // Listener global (top-level) : ne réagir que lorsque l'onglet Librairie est affiché.

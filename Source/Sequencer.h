@@ -264,7 +264,7 @@ namespace Seq
                 addAndMakeVisible (c);
 
             btPlay.setClickingTogglesState (true);
-            btPlay.setTooltip (TRANS ("Play / stop the phrase in a loop"));
+            btPlay.setTooltip (TRANS ("Play / stop the phrase in a loop") + Shortcuts::hint ("seqplay"));
             btPlay.onClick = [this] { applyPlay(); };
 
             int id = 1;

@@ -36,7 +36,12 @@ Inspiré, côté fonctionnalités, de l'éditeur *SynthWorks SY77*.
   transposition au clavier, mode *Relance* après chaque modif, pause automatique pendant un envoi
   de banque. **Canal de jeu** du clavier / séquenceur réglable (Setting).
 - **Raccourcis clavier configurables** : Cmd+1..6 pour les onglets, Échap ferme l'éditeur,
-  Cmd+P lance/arrête le séquenceur (Réglages > Général > Raccourcis clavier ; compatible AZERTY).
+  Cmd+P lance/arrête le séquenceur, Cmd+Z / Cmd+Maj+Z annuler/rétablir, Cmd+B comparaison A/B,
+  Cmd+N nouvelle voix, Cmd+↑/↓ voix précédente/suivante (audition), Cmd+←/→ banque
+  précédente/suivante, **Cmd+/ affiche la liste des raccourcis** (Réglages > Général > Raccourcis
+  clavier ; compatible AZERTY ; les infobulles affichent le raccourci en cours).
+- **Annuler / rétablir**, **comparaison A/B** avec l'original, **retour à l'original** (annulable)
+  et **nouvelle voix depuis un modèle** (Init AFM, FM 2 opérateurs, Init AWM, couche AFM + AWM).
 - **Librairie de banques** (`.SYX`) moderne : **envoi/réception** avec barre de progression,
   **suppression** de banque, **recherche** (banques et presets), **tri**, **métadonnées par preset**
   (tags, notes, favoris), **recherche globale + filtre par tag** transversale à toutes les banques,
@@ -179,7 +184,9 @@ Highlights: AFM/AWM voice editor, FM-waveform render of the real 45 algorithms, 
 filter & envelope graphs (right-click reset/copy/paste, Shift fine, AFM EG loop point & hold),
 graphical level scaling, algorithm input shift/output correction, a Controllers tab (pitch bend,
 modulation, pan, bias, portamento, micro tuning), AWM pitch EG/LFO/hold, configurable keyboard
-shortcuts (Cmd+1..6 tabs, Esc closes the editor, Cmd+P sequencer), a **phrase sequencer** in the
+shortcuts (Cmd+1..6 tabs, Esc closes the editor, Cmd+P sequencer, Cmd+Z/Cmd+Shift+Z undo/redo,
+Cmd+B A/B compare, Cmd+N new voice, Cmd+Up/Down browse voices, Cmd+Left/Right banks, Cmd+/ cheat
+sheet), undo/redo + A/B compare + revert to original, new voice from templates, a **phrase sequencer** in the
 bottom bar (loops a phrase while you edit; tempo, transpose, retrig, pauses during bank transfers;
 settable play channel), output groups + routing, an Effects tab, and persistence of settings &
 custom colours. **Modern library**: bank send/receive with progress, delete, search & sort,

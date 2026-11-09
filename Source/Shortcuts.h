@@ -30,7 +30,14 @@ namespace Shortcuts
             { "close", "Close editor",      "escape" },
             { "seqplay", "Sequencer play/stop", "command + p" },
             { "undo",    "Undo",                "command + Z" },
-            { "redo",    "Redo",                "command + shift + Z" } };
+            { "redo",    "Redo",                "command + shift + Z" },
+            { "voicenext", "Next voice (audition)",     "command + cursor down" },
+            { "voiceprev", "Previous voice (audition)", "command + cursor up" },
+            { "banknext",  "Next bank",                 "command + cursor right" },
+            { "bankprev",  "Previous bank",             "command + cursor left" },
+            { "ab",        "Compare A/B",               "command + B" },
+            { "newvoice",  "New voice...",              "command + N" },
+            { "help",      "Show keyboard shortcuts",   "command + /" } };
         return a;
     }
 
@@ -71,8 +78,92 @@ namespace Shortcuts
         const auto k = normalise (key);
         for (auto& a : actions())
             if (get (a).isValid() && normalise (get (a)) == k) return a.id;
+        // Symbol typed with Shift on this layout (e.g. "/" = Shift+: on a French Mac):
+        // retry with the typed character and without Shift.
+        const auto ch = key.getTextCharacter();
+        if (ch > 32 && ch < 128 && ! juce::CharacterFunctions::isLetterOrDigit (ch)
+            && key.getModifiers().isShiftDown())
+        {
+            const juce::KeyPress alt (ch, key.getModifiers().withoutFlags (juce::ModifierKeys::shiftModifier), ch);
+            for (auto& a : actions())
+                if (get (a).isValid() && normalise (get (a)) == alt) return a.id;
+        }
         return {};
     }
+
+    /** Global dispatch (installed by MainWindow). */
+    inline std::function<bool (const juce::KeyPress&)>& dispatcher()
+    {
+        static std::function<bool (const juce::KeyPress&)> d;
+        return d;
+    }
+
+    /** KeyListener for components that would swallow a shortcut (ListBox eats the arrows,
+        even with Cmd): key listeners run BEFORE the component's own keyPressed. */
+    struct Forwarder : juce::KeyListener
+    {
+        bool keyPressed (const juce::KeyPress& k, juce::Component*) override
+        {
+            if (! k.getModifiers().isCommandDown() && ! k.getModifiers().isAltDown()) return false;   // plain keys stay with the list
+            return find (k).isNotEmpty() && dispatcher() && dispatcher() (k);
+        }
+        static Forwarder& get() { static Forwarder f; return f; }
+    };
+
+    /** " (Cmd+Z)"-style suffix for tooltips, from the CURRENT binding ("" when none). */
+    inline juce::String hint (const char* id)
+    {
+        for (auto& a : actions())
+            if (juce::String (a.id) == id)
+            {
+                const auto k = get (a);
+                return k.isValid() ? "  (" + k.getTextDescriptionWithIcons() + ")" : juce::String();
+            }
+        return {};
+    }
+
+    /** Broadcast when the bindings change, so tooltips can refresh. */
+    inline juce::ChangeBroadcaster& changed() { static juce::ChangeBroadcaster b; return b; }
+
+    //==========================================================================
+    /** Read-only cheat sheet (Cmd+/): every action with its current key. */
+    class CheatSheet : public juce::Component
+    {
+    public:
+        CheatSheet()
+        {
+            for (auto& a : actions())
+            {
+                const auto k = get (a);
+                rows.add ({ TRANS (a.label), k.isValid() ? k.getTextDescriptionWithIcons() : TRANS ("(none)") });
+            }
+            setSize (420, 56 + rows.size() * 24 + 36);
+        }
+        void paint (juce::Graphics& g) override
+        {
+            g.fillAll (SYPal.background);
+            auto r = getLocalBounds().reduced (16, 12);
+            g.setColour (SYColSelected);
+            g.setFont (juce::FontOptions (15.0f, juce::Font::bold));
+            g.drawText (TRANS ("Keyboard shortcuts"), r.removeFromTop (28), juce::Justification::centredLeft);
+            r.removeFromTop (6);
+            g.setFont (juce::FontOptions (13.5f));
+            for (auto& row : rows)
+            {
+                auto line = r.removeFromTop (24);
+                g.setColour (SYColLabel);
+                g.drawText (row.first, line.removeFromLeft (line.getWidth() * 3 / 5), juce::Justification::centredLeft);
+                g.setColour (SYColSelected);
+                g.drawText (row.second, line, juce::Justification::centredRight);
+            }
+            g.setColour (SYColLabel.withAlpha (0.6f));
+            g.setFont (juce::FontOptions (12.0f));
+            g.drawText (TRANS ("Change them in Setting > General > Keyboard shortcuts"),
+                        r.removeFromBottom (24), juce::Justification::centredLeft);
+        }
+    private:
+        juce::Array<std::pair<juce::String, juce::String>> rows;
+    };
 
     //==========================================================================
     /** Bouton de capture : clic -> "Appuyez sur une touche..." -> la touche suivante est
@@ -102,6 +193,7 @@ namespace Shortcuts
                 set (action, normalise (k));
             }
             if (onChanged) onChanged();
+            changed().sendChangeMessage();
             return true;                                              // consomme : pas de dispatch
         }
         void focusLost (FocusChangeType) override { if (capturing) { capturing = false; refresh(); } }
@@ -128,7 +220,7 @@ namespace Shortcuts
             hint.setFont (juce::FontOptions (12.0f));
             addAndMakeVisible (hint);
             addAndMakeVisible (btDefaults);
-            btDefaults.onClick = [this] { resetAll(); for (auto* x : buttons) x->refresh(); };
+            btDefaults.onClick = [this] { resetAll(); for (auto* x : buttons) x->refresh(); changed().sendChangeMessage(); };
             setSize (440, 60 + (int) actions().size() * 32 + 50);
         }
         void paint (juce::Graphics& g) override { g.fillAll (SYPal.background); }

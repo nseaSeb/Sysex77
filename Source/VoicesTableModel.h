@@ -36,6 +36,7 @@ public:
         sourceListBox.setModel (&sourceModel);
         sourceListBox.setHeaderComponent (std::make_unique<Header> (*this));
         addAndMakeVisible (sourceListBox);
+        sourceListBox.addKeyListener (&Shortcuts::Forwarder::get());
     }
 
     /** Appelé quand une voix est sélectionnée dans CETTE colonne (pour que
@@ -44,6 +45,14 @@ public:
 
     /** Retire la sélection de cette colonne (sans déclencher onRowSelected). */
     void deselectAllRows() { sourceListBox.deselectAllRows(); }
+
+    /** Selects the voice with this GLOBAL index (0..63) if it belongs to this column. */
+    bool selectGlobal (int glob)
+    {
+        if (glob < baseOffset || glob >= baseOffset + 16) return false;
+        sourceListBox.selectRow (glob - baseOffset);
+        return true;
+    }
 
     /** Index global (0..63) de la voix sélectionnée dans cette colonne, ou < 0 si aucune. */
     int getSelectedGlobalIndex() const

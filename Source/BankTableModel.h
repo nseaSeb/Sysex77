@@ -34,6 +34,7 @@ public:
         sourceListBox.setHeaderComponent(std::make_unique<Header>(*this));
         
         addAndMakeVisible (sourceListBox);
+        sourceListBox.addKeyListener (&Shortcuts::Forwarder::get());   // Cmd+arrows reach the shortcuts
         addAndMakeVisible(groupDrop);
         addAndMakeVisible(editText);
         editText.setVisible(false);
@@ -471,6 +472,17 @@ struct SourceItemListboxContents  : public ListBoxModel, public ChangeBroadcaste
     String      filterText;
     String      synthFilter;    // "" = tous synthés
     int         sortMode = 0;   // 0=nom, 1=synthé, 2=date
+public:
+    /** Previous / next bank in the (filtered) list; selecting it loads it. */
+    void selectRelative (int delta)
+    {
+        const int n = sourceListBox.getModel() != nullptr ? sourceListBox.getModel()->getNumRows() : 0;
+        if (n <= 0) return;
+        const int cur = sourceListBox.getSelectedRow();
+        const int next = juce::jlimit (0, n - 1, cur < 0 ? (delta > 0 ? 0 : n - 1) : cur + delta);
+        if (next != cur) { sourceListBox.selectRow (next); sourceListBox.scrollToEnsureRowIsOnscreen (next); }
+    }
+private:
     ListBox sourceListBox  { "D+D source", nullptr };
     GroupComponent  groupDrop;
     SourceItemListboxContents sourceModel;

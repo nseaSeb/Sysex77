@@ -223,6 +223,8 @@ private:
             // Raccourcis configurables (Shortcuts.h) : recoit les touches qu'aucun enfant n'a
             // consommees (une saisie de texte ou une capture de raccourci les garde).
             addKeyListener (this);
+            // Lists consume arrow keys before the window sees them: they forward shortcuts here.
+            Shortcuts::dispatcher() = [this] (const KeyPress& k) { return keyPressed (k, this); };
         
            #if JUCE_ANDROID || JUCE_IOS
             setFullScreen (true);
@@ -244,6 +246,7 @@ private:
 
         ~MainWindow() override
         {
+            Shortcuts::dispatcher() = nullptr;
             // Mémorise la taille/position de la fenêtre (toutes voies de fermeture).
             getAppSettings()->setValue ("WindowState", getWindowStateAsString());
             getAppSettings()->saveIfNeeded();

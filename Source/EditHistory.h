@@ -172,6 +172,7 @@ namespace EditHist
         static Hooks& get() { static Hooks h; return h; }
         std::function<void()> undo, redo, toggleAB, revert;
         std::function<void (int)> newVoice;                 // template index (VoiceTemplates)
+        std::function<void()> openNewMenu;                  // set by the HistoryBar (Cmd+N)
         juce::StringArray templateNames;
         bool canUndo = false, canRedo = false, loaded = false, showingA = false;
         juce::String status;   // short transient message (e.g. params that could not be restored)
@@ -187,11 +188,9 @@ namespace EditHist
                 addAndMakeVisible (*b);
             addAndMakeVisible (lab);
             lab.setFont (juce::Font (12.0f));
-            btUndo.setTooltip (TRANS ("Undo the last edit (Cmd+Z)"));
-            btRedo.setTooltip (TRANS ("Redo (Cmd+Shift+Z)"));
-            btAB  .setTooltip (TRANS ("Compare: A = voice as loaded, B = your edits"));
             btOrig.setTooltip (TRANS ("Back to the voice as loaded (can be undone)"));
-            btNew.setTooltip (TRANS ("New voice from a template (sent to the edit buffer)"));
+            Shortcuts::changed().addChangeListener (this);
+            Hooks::get().openNewMenu = [this] { if (isShowing()) btNew.triggerClick(); };
             btNew.onClick = [this]
             {
                 juce::PopupMenu m;
@@ -207,7 +206,12 @@ namespace EditHist
             Hooks::get().addChangeListener (this);
             refresh();
         }
-        ~HistoryBar() override { Hooks::get().removeChangeListener (this); }
+        ~HistoryBar() override
+        {
+            Hooks::get().removeChangeListener (this);
+            Shortcuts::changed().removeChangeListener (this);
+            Hooks::get().openNewMenu = nullptr;
+        }
 
         bool isLockExempt (juce::Component* c) const { return c == this; }
 
@@ -234,6 +238,11 @@ namespace EditHist
             btAB.setToggleState (h.showingA, juce::dontSendNotification);
             btAB.setButtonText (h.showingA ? TRANS ("A: original") : TRANS ("B: edited"));
             lab.setText (h.status, juce::dontSendNotification);
+            // Tooltips show the CURRENT shortcut (it can be changed in Setting).
+            btUndo.setTooltip (TRANS ("Undo the last edit") + Shortcuts::hint ("undo"));
+            btRedo.setTooltip (TRANS ("Redo") + Shortcuts::hint ("redo"));
+            btAB  .setTooltip (TRANS ("Compare: A = voice as loaded, B = your edits") + Shortcuts::hint ("ab"));
+            btNew .setTooltip (TRANS ("New voice from a template (sent to the edit buffer)") + Shortcuts::hint ("newvoice"));
         }
 
         juce::TextButton btUndo { juce::String::charToString ((juce::juce_wchar) 0x21B6) },   // undo arrow

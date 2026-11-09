@@ -381,6 +381,50 @@ public:
             seqPanel.togglePlay();
             return true;
         }
+        if (id == "voicenext" || id == "voiceprev" || id == "banknext" || id == "bankprev")
+        {
+            auto* lib = [this]() -> LibrairiePage*
+            {
+                for (int i = 0; i < tabs.getNumTabs(); ++i)
+                    if (auto* l = dynamic_cast<LibrairiePage*> (tabs.getTabContentComponent (i))) return l;
+                return nullptr;
+            }();
+            if (lib == nullptr) return false;
+            if (id == "banknext" || id == "bankprev") { lib->stepBank (id == "banknext" ? 1 : -1); return true; }
+            const int delta = id == "voicenext" ? 1 : -1;
+            // Browsing replaces the voice being edited: ask once if there are unsaved edits.
+            if (editHistory.isLoaded() && ! editHistory.diffFromOriginal().empty())
+            {
+                Component::SafePointer<LibrairiePage> safeLib (lib);
+                NativeMessageBox::showOkCancelBox (MessageBoxIconType::QuestionIcon, TRANS ("New voice"),
+                    TRANS ("Replace the voice being edited? Unsaved edits will be lost."), this,
+                    ModalCallbackFunction::create ([safeLib, delta] (int r)
+                    { if (r == 1 && safeLib != nullptr) safeLib->stepVoice (delta); }));
+                return true;
+            }
+            lib->stepVoice (delta);
+            return true;
+        }
+        if (id == "ab")       { setShowingA (! showingA); return true; }
+        if (id == "newvoice")
+        {
+            tabs.setCurrentTabIndex (2);   // the menu hangs off the Voice editor's "New..." button
+            MessageManager::callAsync ([] { if (auto& f = EditHist::Hooks::get().openNewMenu) f(); });
+            return true;
+        }
+        if (id == "help")
+        {
+            DialogWindow::LaunchOptions o;
+            o.content.setOwned (new Shortcuts::CheatSheet());
+            o.dialogTitle = TRANS ("Keyboard shortcuts");
+            o.dialogBackgroundColour = SYPal.background;
+            o.escapeKeyTriggersCloseButton = true;
+            o.useNativeTitleBar = true;
+            o.resizable = false;
+            o.componentToCentreAround = this;
+            o.launchAsync();
+            return true;
+        }
         if (id == "undo") { historyUndo(); return true; }
         if (id == "redo") { historyRedo(); return true; }
         if (id == "close")
