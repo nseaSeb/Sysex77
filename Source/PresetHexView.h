@@ -47,6 +47,11 @@ namespace PresetHex
             }
             return n + " OP" + juce::String (op);
         }
+        if (g == 0x04)
+        {
+            static const char* dn[] = { "ALT|OUT2|OUT1", "WAVE SOURCE", "WAVE", "VOLUME", "TUNE", "NOTE SHIFT", "PAN" };
+            return n2 >= 0 && n2 <= 6 ? juce::String ("DRUM ") + dn[n2] : juce::String ("?");
+        }
         if (g == 0x03)
         {
             static const char* e[] = { "ELEM LEVEL", "ELEM DETUNE", "NOTE SHIFT", "NOTE LOW", "NOTE HIGH",
@@ -86,7 +91,12 @@ namespace PresetHex
         if (name.isEmpty()) name = fallbackName (p.group, p.param);
 
         juce::String s = name;
-        if (p.group != 0x02 && p.group != 0x08) s << " E" << ((p.addrHi >> 5) + 1);
+        if (p.group == 0x04)
+        {
+            static const char* nn[12] = { "C","C#","D","D#","E","F","F#","G","G#","A","A#","B" };
+            s << " " << nn[p.addrHi % 12] << (p.addrHi / 12 - 2);
+        }
+        else if (p.group != 0x02 && p.group != 0x08) s << " E" << ((p.addrHi >> 5) + 1);
         if (p.group == 0x09 && p.param < 0x32)  s << " F" << ((p.addrHi & 0x07) + 1);
         s << "  [g" << hex2 (p.group)
           << " N2 " << hex2 (p.param) << "]";
@@ -128,6 +138,8 @@ namespace PresetHex
         if (o <= 42)         return "nom [" + juce::String (o - 33) + "]";
         if (o == size - 1)   return "F7 fin";
         if (o == size - 2)   return "checksum";
+        if (l.nElem == 0 && size >= 588 && o >= 98 && o < 98 + 8 * 61)
+            return "drum " + juce::String ((o - 98) / 8 + 36) + " +" + juce::String ((o - 98) % 8);
         if (l.nElem == 0 || o < l.firstBase) return "commun +" + juce::String (o - 32);
 
         int base = l.firstBase;
@@ -207,7 +219,10 @@ namespace PresetHex
         s << "Type @32 : 0x" << hex2 (type) << "  " << SyVoice::voiceTypeLabel (type)
           << "    Taille : " << n << " octets    Checksum : " << (csOk ? "OK" : "INVALIDE") << "\n";
         if (l.nElem == 0)
-            s << "Layout non decode (drum ou type inconnu) : hexa brut seulement.\n";
+            s << (type == 0x0A ? "DRUM SET : commun + 61 notes x 8 octets @98 (notes 36..96)\n"
+                               : "Layout non decode (type inconnu) : hexa brut seulement.\n");
+        if (SyVoice::voiceProblem (d, n).isNotEmpty())
+            s << "!! PROBLEME : " << SyVoice::voiceProblem (d, n) << "\n";
         else
         {
             s << "Structure : commun 33.." << (l.firstBase - 1);

@@ -887,6 +887,28 @@ struct SysexUtilsTests : public juce::UnitTest
                 expectEquals (val (0x03, 0, 0x07), (int) steel[98 + 7]);      // PANNM
                 expectEquals (val (0x03, 0, 0x08), (int) steel[98 + 8]);      // OUTSEL
                 expect (notes[43].joinIntoString (";").contains ("EF MODE"));
+                // Sante d'un bloc (flag rouge librairie) + tailles attendues (12 086/12 089 voix OK).
+                expectEquals (SyVoice::expectedVoiceSize (0x03), 466);
+                expectEquals (SyVoice::expectedVoiceSize (0x06), 342);
+                expectEquals (SyVoice::expectedVoiceSize (0x07), 584);
+                expectEquals (SyVoice::expectedVoiceSize (0x0A), 588);
+                expect (SyVoice::voiceProblem (steel, (int) sizeof (steel)).isEmpty());
+                {
+                    juce::MemoryBlock bad (steel, sizeof (steel));
+                    ((juce::uint8*) bad.getData())[200] ^= 0x01;
+                    expect (SyVoice::voiceProblem ((const juce::uint8*) bad.getData(), (int) bad.getSize()).contains ("checksum"));
+                    expect (SyVoice::voiceProblem (steel, 400).contains ("taille"));
+                }
+                {   // DRUM : commun (29 effets + 22 controleurs + VVOL) + 61 notes x 7 params.
+                    juce::MemoryBlock dr; dr.setSize (588, true);
+                    auto* q = (juce::uint8*) dr.getData();
+                    q[32] = 0x0A; q[98 + 8 * 2 + 3] = 0x15; q[98 + 8 * 2 + 2] = 0x01;   // note 38 : WAV = 0x95
+                    const auto dp = SyVoice::voiceBlobToParams (q, 588);
+                    expectEquals (dp.size(), 29 + 22 + 1 + 61 * 7);
+                    bool found = false;
+                    for (auto& x : dp) if (x.group == 0x04 && x.addrHi == 38 && x.param == 0x02) found = x.value == 0x15 && x.v1 == 1;
+                    expect (found);
+                }
                 // Filtres (Table 2) : FTYPE1 @403, FTYPE2 @432, FOS11 (MSB @424, low @425), FVSON @462.
                 expectEquals (val (0x09, 0, 0x00), (int) steel[403]);
                 expectEquals (val (0x09, 1, 0x00), (int) steel[432]);

@@ -183,6 +183,26 @@ namespace SyVoice
         // MONO/POLY partagent la structure ; les voix mixtes alternent (ex. 1AFM_1AWM = [AFM,AWM]).
         bool eng[4] = { true, true, true, true };
         int nElem = 0;
+        if (d[32] == 0x0A)   // DRUM SET (588 o.) : commun identique + 61 notes x 8 octets @98
+        {
+            if (sz < 588) return out;
+            for (int n2 = 0x00; n2 <= 0x1C; ++n2) out.add ({ 0x08, 0, 0, n2, (int) d[43 + n2] });   // effets
+            for (int n2 = 0x28; n2 <= 0x3D; ++n2) out.add ({ 0x02, 0, 0, n2, (int) d[32 + n2] });  // controleurs
+            out.add ({ 0x02, 0, 0, 0x3F, (int) d[95] });                                           // VVOL
+            // Table 1-5 (group 0x04, T2 = note MIDI 36..96) : par note [ALTGRP|OUT2|OUT1, WSRC,
+            // WAV MSB, WAV LSB, WVL, WTN o/b, WNS o/b, WPN o/b]. 127 voix drum reelles : WAV MSB 0/1,
+            // WVL 127 dominant, WTN centre 64, octet 0 = 1..3 (+64 si groupe alterne).
+            for (int k = 0; k < 61; ++k)
+            {
+                const int b = 98 + 8 * k, note = 36 + k;
+                out.add ({ 0x04, note, 0, 0x00, (int) d[b] });
+                out.add ({ 0x04, note, 0, 0x01, (int) d[b + 1] });
+                out.add ({ 0x04, note, 0, 0x02, (int) d[b + 3], (int) d[b + 2] });
+                for (int n2 = 0x03; n2 <= 0x06; ++n2)
+                    out.add ({ 0x04, note, 0, n2, (int) d[b + n2 + 1] });
+            }
+            return out;
+        }
         switch (d[32])
         {
             case 0x00: case 0x03: nElem = 1; break;                                      // 1 AFM
@@ -392,6 +412,39 @@ namespace SyVoice
         // AWM fine/fixed/filtre, niveaux EG (o/b) ; voix drum (type 10).
 
         return out;
+    }
+
+    //==============================================================================
+    /** Taille attendue d'un bloc voix SY77 selon le type @32 (F0..F7), ou 0 si type inconnu. */
+    inline int expectedVoiceSize (int type)
+    {
+        static const int n[]   = { 1, 2, 4, 1, 2, 1, 2, 4, 2, 4 };
+        static const int afm[] = { 1, 2, 4, 1, 2, 0, 0, 0, 1, 2 };   // nb d'elements AFM
+        if (type == 0x0A) return 588;
+        if (type < 0 || type > 9) return 0;
+        return 107 + 9 * (n[type] - 1) + 357 * afm[type] + 112 * (n[type] - afm[type]) + 2;
+    }
+
+    inline bool verifyYamahaBulkChecksum (const juce::uint8* block, int size);   // defini plus bas
+
+    /** Etat d'un bloc voix : chaine vide si sain, sinon raison (en-tete, type, taille, checksum). */
+    inline juce::String voiceProblem (const juce::uint8* d, int sz)
+    {
+        if (d == nullptr || sz < 43) return "bloc trop court";
+        if (juce::String::fromUTF8 ((const char*) d + 6, 10) != "LM  8101VC") return "en-tete inconnu";
+        const int t = d[32];
+        if (expectedVoiceSize (t) == 0) return "type inconnu (" + juce::String (t) + ")";
+        if (sz != expectedVoiceSize (t)) return "taille " + juce::String (sz) + " au lieu de " + juce::String (expectedVoiceSize (t));
+        if (! verifyYamahaBulkChecksum (d, sz)) return "checksum invalide";
+        return {};
+    }
+
+    /** Libelle court du type (colonne librairie). */
+    inline juce::String voiceTypeShort (int type)
+    {
+        static const char* s[] = { "1AFM m", "2AFM m", "4AFM", "1AFM", "2AFM", "1AWM", "2AWM", "4AWM",
+                                   "AFM+AWM", "2AFM+2AWM", "DRUM" };
+        return type >= 0 && type <= 10 ? juce::String (s[type]) : juce::String ("?");
     }
 
     //==============================================================================
