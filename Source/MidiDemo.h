@@ -1422,10 +1422,8 @@ public:
         // donc OFF = rien ne sort, Thru compris (cohérence demandée).
         // Edit history: record user voice param-changes (message thread only; not our own
         // undo/redo/B sends, not while A is shown, not system setup group 0x0F).
-        if (! applyingHistory && ! showingA && editHistory.isLoaded()
-            && Time::getMillisecondCounterHiRes() >= ignoreEditsUntilMs   // async load echoes
-            && msg.isSysEx() && msg.getRawDataSize() == 11
-            && MessageManager::existsAndIsCurrentThread())
+        if (msg.isSysEx() && msg.getRawDataSize() == 11 && MessageManager::existsAndIsCurrentThread()
+            && ! applyingHistory && ! showingA && ! loadSettling && editHistory.isLoaded())
         {
             const uint8* d = msg.getRawData();
             if (d[1] == 0x43 && (d[2] & 0xF0) == 0x10 && d[3] == 0x34 && d[4] != 0x0F)
@@ -1433,6 +1431,7 @@ public:
                 editHistory.recordEdit (EditHist::keyOf (d[4], d[5], d[6], d[7]), EditHist::valOf (d[8], d[9]),
                                         Time::getMillisecondCounterHiRes(),
                                         ModifierKeys::currentModifiers.isAnyMouseButtonDown());
+                ++historyGen;   // any pending delayed B send is now stale
                 publishHistoryState ({});
             }
         }
@@ -1686,12 +1685,42 @@ public:
     MemoryBlock originalVoiceBlock;   // edit-buffer copy of the loaded voice (A side)
     bool applyingHistory = false;     // our own sends: not recorded
     bool showingA = false;
-    double ignoreEditsUntilMs = 0;    // just after a voice load: async widget sends are not edits
+    bool loadSettling = false;        // a voice load's async widget echoes are still pending
     double bulkBusyUntilMs = 0;       // SY77 still absorbing the last voice bulk (A / Original)
+    int historyGen = 0;               // bumped by every edit/undo/redo/load/revert/A: cancels a delayed B send
+
+    /** A load sets props (VOICEMODE...) whose widgets react ASYNCHRONOUSLY (Value update, then the
+        ComboBox notification: two message-loop hops) and would re-send them to the SY77 and
+        record them as edits. Hold the send guard and stop recording until both hops ran:
+        callAsync messages are FIFO, so the nested one lands after those notifications. */
+    void settleAfterLoad()
+    {
+        SysexBus::get().suppressSend.fetch_add (1, std::memory_order_acq_rel);
+        loadSettling = true;
+        Component::SafePointer<MidiDemo> safe (this);
+        MessageManager::callAsync ([safe]
+        {
+            MessageManager::callAsync ([safe]
+            {
+                SysexBus::get().suppressSend.fetch_sub (1, std::memory_order_acq_rel);
+                if (safe != nullptr) safe->loadSettling = false;
+            });
+        });
+    }
+
+    /** Sends the original voice to the edit buffer, stamped with the CURRENT device number. */
+    void sendOriginalBulk()
+    {
+        SyVoice::setBulkDevice ((uint8*) originalVoiceBlock.getData(), (int) originalVoiceBlock.getSize(),
+                                sysexDeviceNumber);
+        sendRaw (originalVoiceBlock.getData(), (long) originalVoiceBlock.getSize());
+        noteBulkSent (originalVoiceBlock);
+    }
 
     /** Time the SY77 needs for a voice bulk: wire time (~size/3 ms) + processing margin. */
     void noteBulkSent (const MemoryBlock& b)
     {
+        if (! midiSend) return;   // nothing went out
         bulkBusyUntilMs = Time::getMillisecondCounterHiRes() + (double) b.getSize() / 3.0 + 60.0;
     }
 
@@ -1709,7 +1738,7 @@ public:
     {
         if (showingA) { showingA = false; lockEditing (false); }
         originalVoiceBlock = editBufferBlock;
-        ignoreEditsUntilMs = Time::getMillisecondCounterHiRes() + 400.0;
+        ++historyGen;
         noteBulkSent (editBufferBlock);
         editHistory.load (toKV (SyVoice::voiceBlobToParams ((const uint8*) editBufferBlock.getData(),
                                                             (int) editBufferBlock.getSize())));
@@ -1753,6 +1782,7 @@ public:
     void historyUndo()
     {
         if (showingA) setShowingA (false);
+        ++historyGen;
         int unknown = 0;
         applyKV (editHistory.undo (unknown));
         publishHistoryState (unknownStatus (unknown));
@@ -1760,6 +1790,7 @@ public:
     void historyRedo()
     {
         if (showingA) setShowingA (false);
+        ++historyGen;
         int unknown = 0;
         applyKV (editHistory.redo (unknown));
         publishHistoryState (unknownStatus (unknown));
@@ -1771,8 +1802,8 @@ public:
         if (a)
         {
             // A: the voice as loaded, sent whole to the edit buffer (covers every param).
-            sendRaw (originalVoiceBlock.getData(), (long) originalVoiceBlock.getSize());
-            noteBulkSent (originalVoiceBlock);
+            ++historyGen;
+            sendOriginalBulk();
             replayToUi (editHistory.originalValues());
             seqPlayer.editHappened();   // a bulk is not a param-change: restart explicitly
         }
@@ -1787,9 +1818,11 @@ public:
             else
             {
                 Component::SafePointer<MidiDemo> safe (this);
-                Timer::callAfterDelay ((int) wait + 1, [safe, diff]
+                const int gen = historyGen;   // cancelled by any later edit/undo/load/revert/A
+                Timer::callAfterDelay ((int) wait + 1, [safe, diff, gen]
                 {
-                    if (safe != nullptr && ! safe->showingA) safe->sendParams (diff);
+                    if (safe != nullptr && ! safe->showingA && safe->historyGen == gen)
+                        safe->sendParams (diff);
                 });
             }
         }
@@ -1818,8 +1851,8 @@ public:
     void revertToOriginal()
     {
         if (showingA) { showingA = false; lockEditing (false); }
-        sendRaw (originalVoiceBlock.getData(), (long) originalVoiceBlock.getSize());
-        noteBulkSent (originalVoiceBlock);
+        ++historyGen;
+        sendOriginalBulk();
         replayToUi (editHistory.originalValues());
         editHistory.makeRevertStep (Time::getMillisecondCounterHiRes());
         seqPlayer.editHappened();

@@ -820,6 +820,21 @@ namespace SyVoice
     // le chemin de réception bulk existant. Reste USER-TRIGGERED (jamais au démarrage).
 
     /** Octet « device » d'un dump request : nibble haut 0x2 (vs 0x1 d'un param-change). */
+    /** Device byte of a bulk dump (F0 43 0n 7A ...): 0x0n, n = device - 1. */
+    inline juce::uint8 bulkDeviceByte (int deviceNumber)
+    {
+        return (juce::uint8) ((juce::jlimit (1, 16, deviceNumber) - 1) & 0x0F);
+    }
+
+    /** Re-stamps the device byte of a Yamaha bulk block (files often carry device 1).
+        Only for F0 43 0n 7A blocks; byte 2 is outside the checksum range. */
+    inline void setBulkDevice (juce::uint8* block, int size, int deviceNumber)
+    {
+        if (block == nullptr || size < 4) return;
+        if (block[0] != 0xF0 || block[1] != 0x43 || (block[2] & 0xF0) != 0x00 || block[3] != 0x7A) return;
+        block[2] = bulkDeviceByte (deviceNumber);
+    }
+
     inline juce::uint8 dumpRequestDeviceByte (int deviceNumber)
     {
         const int n = juce::jlimit (1, 16, deviceNumber) - 1;

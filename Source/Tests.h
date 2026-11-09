@@ -1073,6 +1073,16 @@ public:
             expect (SyVoice::voiceBlobToParams (b, (int) m.getSize()).size() > 0);
         }
         expect (VoiceTemplates::make (99).getSize() == 0);
+
+        beginTest ("setBulkDevice re-stamps only Yamaha bulk blocks, checksum untouched");
+        auto m = VoiceTemplates::make (0);
+        auto* b = (juce::uint8*) m.getData();
+        SyVoice::setBulkDevice (b, (int) m.getSize(), 3);
+        expectEquals ((int) b[2], 0x02);
+        expect (SyVoice::verifyYamahaBulkChecksum (b, (int) m.getSize()));
+        juce::uint8 param[11] = { 0xF0, 0x43, 0x10, 0x34, 0, 0, 0, 0, 0, 0, 0xF7 };
+        SyVoice::setBulkDevice (param, 11, 5);
+        expectEquals ((int) param[2], 0x10);   // not a bulk: unchanged
     }
 };
 

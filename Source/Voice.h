@@ -253,26 +253,13 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
     /** A/B compare showing A: every control is disabled except the history bar. */
     void setEditLocked (bool locked)
     {
-        // Restore each child's own state on unlock (inactive element rows stay disabled).
-        if (locked)
-        {
-            enabledBeforeLock.clear();
-            for (auto* c : getChildren())
-                if (! historyBar.isLockExempt (c))
-                {
-                    enabledBeforeLock.set (c, c->isEnabled());
-                    c->setEnabled (false);
-                }
-        }
-        else
-        {
-            for (auto* c : getChildren())
-                if (! historyBar.isLockExempt (c))
-                    c->setEnabled (enabledBeforeLock.contains (c) ? enabledBeforeLock[c] : true);
-            enabledBeforeLock.clear();
-        }
+        for (auto* c : getChildren())
+            if (! historyBar.isLockExempt (c))
+                c->setEnabled (! locked);
+        // Unlock: re-derive the element rows from the CURRENT mode (inactive rows stay grey,
+        // even if the mode changed while locked).
+        if (! locked) setNombreElements (nombreElements);
     }
-    HashMap<Component*, bool> enabledBeforeLock;
 
     bool closeEditors()
     {

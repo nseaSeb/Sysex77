@@ -133,6 +133,8 @@ void oscMessageReceived (const OSCMessage& message)
                 // Fenêtre de progression modale (barre + Annuler), envoi throttlé sur un thread
                 // d'arrière-plan -> plus d'« envoi en aveugle » ni de gel de l'UI. Se ferme à la fin.
                 Logger::writeToLog ("Send BANK : " + String (blocks.size()) + " messages");
+                for (auto& b : blocks)   // device number of the app, not the one stored in the file
+                    SyVoice::setBulkDevice ((uint8*) b.getData(), (int) b.getSize(), sysexDeviceNumber);
                 BankSendProgressWindow w (std::move (blocks),
                                           [this] (const MidiMessage& m) { sendToOutputs (m); });
                 w.runThread();
@@ -187,8 +189,8 @@ void openVoiceBlock (MemoryBlock block)
             // AUDITION : on redirige la voix vers l'EDIT BUFFER ($7F) au lieu de son slot
             // mémoire d'origine -> le SY77 l'affiche/joue tout de suite, SANS écraser une
             // voix stockée. getVoiceBlock renvoie une COPIE : currentBankData reste intact.
-            // Device number of the bulk = the app's (files often carry device 1).
-            if (block.getSize() > 3) ((uint8*) block.getData())[2] = (uint8) ((sysexDeviceNumber - 1) & 0x0F);
+            SyVoice::setBulkDevice ((uint8*) block.getData(), (int) block.getSize(), sysexDeviceNumber);
+            settleAfterLoad();   // widget echoes of this load are neither sent nor recorded
             SyVoice::retargetVoiceToEditBuffer ((uint8*) block.getData(), (int) block.getSize());
             sendRaw (block.getData(), (long) block.getSize());
 
