@@ -335,7 +335,6 @@ public:
     }
     void valueChanged(Value & value) override
     {
-        Logger::writeToLog("Element value change");
         if (value.refersToSameSourceAs (valueSysexIn)) { handleElementRx (value.getValue()); return; }
         if (value.refersToSameSourceAs (algoValue))
             updateFmWave();

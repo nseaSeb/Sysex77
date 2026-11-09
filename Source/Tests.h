@@ -173,6 +173,14 @@ struct SysexUtilsTests : public juce::UnitTest
             expectEquals ((int) ((const juce::uint8*) b1.getData())[33], (int) 'V');
             expectEquals ((int) ((const juce::uint8*) b1.getData())[39], (int) 'B');
             expect (SyVoice::getVoiceBlock (d, bank.getSize(), 2).getSize() == 0);
+            // migration v2->v3 : ancien slot (chaque F0) -> slot voix, -1 pour MU/PN/SY
+            auto map = SyVoice::legacySlotToVoiceSlot (d, bank.getSize());
+            expectEquals (map.size(), 5);
+            expect (map[0] == -1 && map[1] == 0 && map[2] == -1 && map[3] == 1 && map[4] == -1);
+            // fiches slot info : 2 voix, en-tete non-SY77 => pas de badge rouge sur banque etrangere
+            expectEquals (SyVoice::computeSlotInfo (d, bank.getSize()).size(), 2);
+            const juce::uint8 foreign[] = { 0xF0, 0x43, 0x00, 0x09, 0x20, 0x00, 0x01, 0xF7 };
+            expect (SyVoice::computeSlotInfo (foreign, sizeof (foreign)).isEmpty());
         }
 
         beginTest ("yamahaChecksum sum+checksum mod 128 == 0");

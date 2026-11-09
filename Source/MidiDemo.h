@@ -103,6 +103,7 @@ static const String oscSendMidiMessage = "/77MidiMessage";
 static   StringArray  arrayBank;    //la liste des banques
 static  StringArray arrayListVoices; // liste des voices
 static MemoryBlock currentBankData;  // octets bruts de la banque sélectionnée (pour envoi d'une voix)
+static Array<SyVoice::SlotInfo> currentBankSlots; // badge/drapeau par slot (cf. computeSlotInfo)
 static String currentBankRelPath;    // chemin relatif de la banque sélectionnée (clé LibraryIndex)
 static const int maxFiles = 512;
 
@@ -462,7 +463,7 @@ public:
         {
             for (int i = 0; i < tabs.getNumTabs(); ++i)
                 if (auto* l = dynamic_cast<LibrairiePage*> (tabs.getTabContentComponent (i)))
-                    return l->showSelectedPresetHex();
+                    return l->isShowing() && l->showSelectedPresetHex();   // seulement si la Librairie est affichee
             return false;
         }
         if (id == "newvoice")

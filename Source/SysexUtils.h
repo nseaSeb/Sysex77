@@ -71,6 +71,24 @@ namespace SyVoice
         return names;
     }
 
+    /** Migration index librairie v2 -> v3 : pour chaque slot de l'ANCIEN comptage (chaque F0
+        etait un slot), le nouveau slot voix correspondant, ou -1 (multi/pan/systeme). Vide si
+        le fichier n'a pas de voix SY77 (comptage inchange). */
+    inline juce::Array<int> legacySlotToVoiceSlot (const juce::uint8* data, size_t size)
+    {
+        juce::Array<int> map;
+        if (data == nullptr || ! containsSy77Voice (data, size)) return map;
+        int next = 0;
+        for (size_t i = 0; i + 1 < size; ++i)
+            if (data[i] == 0xF0)
+            {
+                if (i + 43 <= size)
+                    map.add (isVoiceMessageAt (data, size, i) ? next++ : -1);
+                i += 33;
+            }
+        return map;
+    }
+
     //==============================================================================
     /** Renvoie le bloc Sysex (de 0xF0 à 0xF7 inclus) de la voix d'index `index`
         dans un dump de banque .syx (les voix y sont des messages F0…F7 successifs).
@@ -472,6 +490,28 @@ namespace SyVoice
         static const char* s[] = { "1AFM m", "2AFM m", "4AFM", "1AFM", "2AFM", "1AWM", "2AWM", "4AWM",
                                    "AFM+AWM", "2AFM+2AWM", "DRUM" };
         return type >= 0 && type <= 10 ? juce::String (s[type]) : juce::String ("?");
+    }
+
+    /** Badge de type + drapeau « suspect » par slot, calcules UNE fois au chargement de banque
+        (et non a chaque repaint). Drapeau rouge seulement si la banque contient des voix SY77 :
+        une banque d'un autre synthe n'est pas « corrompue » parce qu'elle n'a pas l'en-tete SY77. */
+    struct SlotInfo { juce::String badge; bool bad = false; };
+
+    inline juce::Array<SlotInfo> computeSlotInfo (const juce::uint8* d, size_t size)
+    {
+        juce::Array<SlotInfo> out;
+        if (d == nullptr || ! containsSy77Voice (d, size)) return out;
+        for (auto& b : splitSysexMessages (d, size))
+        {
+            const auto* bd = (const juce::uint8*) b.getData();
+            const auto bsz = b.getSize();
+            if (! isVoiceMessageAt (bd, bsz, 0)) continue;
+            SlotInfo si;
+            si.badge = bsz > 32 ? voiceTypeShort (bd[32]) : juce::String();
+            si.bad   = voiceProblem (bd, (int) bsz).isNotEmpty();
+            out.add (si);
+        }
+        return out;
     }
 
     //==============================================================================

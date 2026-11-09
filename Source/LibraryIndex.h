@@ -87,6 +87,7 @@ public:
         // reconcile() les re-scannera (re-détection synthé corrigée). Les TAGS (presets) sont
         // conservés (clé indépendante du synthé).
         const bool trustBanks = ((int) data["version"]) >= kVersion;
+        migrateLegacySlots = ((int) data["version"]) < 3;
         if (trustBanks)
             if (auto* banksArr = data["banks"].getArray())
                 for (auto& bv : *banksArr)
@@ -352,6 +353,7 @@ private:
     }
 
     struct BankEntry { juce::String synth; juce::int64 size = 0, mtime = 0; int slots = 0; };
+    bool migrateLegacySlots = false;   // index < v3 : slots = tous les F0 -> remapper les metadonnees
 
     // (Ré)indexe une banque : détecte le synthé + rafraîchit le cache des noms,
     // EN CONSERVANT les tags/notes/favoris existants (clé = relPath#slot).
@@ -376,6 +378,35 @@ private:
         const auto names = SyVoice::extractVoiceNames (data, mb.getSize());
 
         const juce::ScopedLock sl (lock);
+
+        // Migration v2 -> v3 (1re indexation de la banque apres la montee de version) : les
+        // tags/notes/favoris etaient cles sur l'ancien numero de slot (multis/pan/systeme compris).
+        // On les deplace sur le nouveau slot voix ; ceux poses sur un bloc non-voix sont abandonnes.
+        if (migrateLegacySlots && banks.find (rel) == banks.end())
+        {
+            const auto map = SyVoice::legacySlotToVoiceSlot (data, mb.getSize());
+            bool identity = true;
+            for (int k = 0; k < map.size(); ++k) identity = identity && map[k] == k;
+            if (! identity)
+            {
+                const juce::String pre = rel + "#";
+                std::map<juce::String, PresetMeta> moved;
+                for (auto it = presets.begin(); it != presets.end(); )
+                {
+                    if (it->first.startsWith (pre))
+                    {
+                        const int oldSlot = it->first.substring (pre.length()).getIntValue();
+                        const int newSlot = map[oldSlot];   // hors plage -> 0 ; borne ci-dessous
+                        if (oldSlot < map.size() && newSlot >= 0)
+                            moved[keyFor (rel, newSlot)] = it->second;
+                        it = presets.erase (it);
+                    }
+                    else ++it;
+                }
+                for (auto& kv : moved) presets[kv.first] = kv.second;
+            }
+        }
+
         banks[rel] = { synth, sz, mt, names.size() };
 
         // Met à jour/insère le nom de chaque slot, conserve les métadonnées utilisateur.

@@ -225,7 +225,7 @@ namespace PresetHex
             s << "!! PROBLEME : " << SyVoice::voiceProblem (d, n) << "\n";
         else
         {
-            s << "Structure : commun 33.." << (l.firstBase - 1);
+            if (l.nElem > 0) s << "Structure : commun 33.." << (l.firstBase - 1);
             int base = l.firstBase;
             for (int e = 0; e < l.nElem; ++e)
             {
@@ -233,7 +233,8 @@ namespace PresetHex
                 s << "  |  E" << (e + 1) << (l.afm[e] ? " AFM " : " AWM ") << base << ".." << (base + len - 1);
                 base += len;
             }
-            s << "\nInterpretes : " << decoded << " / " << body << " octets (hors en-tete, nom, checksum)\n";
+            if (l.nElem > 0) s << "\n";
+            s << "Interpretes : " << decoded << " / " << body << " octets (hors en-tete, nom, checksum)\n";
         }
 
         s << "\n== HEXA ==\n";

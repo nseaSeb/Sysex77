@@ -109,12 +109,9 @@ private:
             {
                 // Type de voix (badge a droite) + voix suspecte en ROUGE (en-tete, type, taille ou
                 // checksum incoherents : cf. SyVoice::voiceProblem ; detail dans la vue hexa dev).
-                auto block = SyVoice::getVoiceBlock ((const uint8*) currentBankData.getData(),
-                                                     currentBankData.getSize(), glob);
-                const auto* bd = (const uint8*) block.getData();
-                const int bsz = (int) block.getSize();
-                const bool bad = bsz > 0 && SyVoice::voiceProblem (bd, bsz).isNotEmpty();
-                const String badge = bsz > 32 ? SyVoice::voiceTypeShort (bd[32]) : String();
+                const auto si = currentBankSlots[glob];   // hors plage -> {} (pas de badge)
+                const bool bad = si.bad;
+                const String badge = si.badge;
                 const int badgeW = badge.isEmpty() ? 0 : jmin (width / 3, 64);
 
                 if (bad) g.setColour (Colours::red.withAlpha (0.9f));

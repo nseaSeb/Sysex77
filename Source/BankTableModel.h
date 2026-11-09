@@ -119,6 +119,7 @@ public:
         {
         arrayListVoices.clear();
         currentBankData.setSize (0); // pas de banque valide chargée par défaut
+        currentBankSlots.clear();
         currentBankRelPath = String();
         MemoryBlock mb;
         auto file = BankFiles[sourceListBox.getSelectedRow()];
@@ -129,6 +130,7 @@ public:
             currentBankRelPath = LibraryIndex::get().relPathOf (file); // clé pour tags/métadonnées
             // Extraction des noms de voix (logique pure et testée, cf. SysexUtils.h / Tests.h)
             arrayListVoices.addArray (SyVoice::extractVoiceNames ((const uint8*) mb.getData(), mb.getSize()));
+            currentBankSlots = SyVoice::computeSlotInfo ((const uint8*) mb.getData(), mb.getSize());
         }
         else
         {
@@ -388,6 +390,7 @@ struct SourceItemListboxContents  : public ListBoxModel, public ChangeBroadcaste
         File f = appDirPath.getChildFile (rel);
         arrayListVoices.clear();
         currentBankData.setSize (0);
+        currentBankSlots.clear();
         currentBankRelPath = String();
         MemoryBlock mb;
         if (f.existsAsFile() && f.loadFileAsData (mb)
@@ -396,6 +399,7 @@ struct SourceItemListboxContents  : public ListBoxModel, public ChangeBroadcaste
             currentBankData = mb;
             currentBankRelPath = rel;
             arrayListVoices.addArray (SyVoice::extractVoiceNames ((const uint8*) mb.getData(), mb.getSize()));
+            currentBankSlots = SyVoice::computeSlotInfo ((const uint8*) mb.getData(), mb.getSize());
         }
         sendChangeMessage();
     }

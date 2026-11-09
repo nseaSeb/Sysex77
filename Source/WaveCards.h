@@ -47,8 +47,12 @@ namespace WaveCards
         return folder().getChildFile (juce::File::createLegalFileName (name) + ".json");
     }
 
+    /** Generation du cache de waveName() : incrementee a chaque save/suppression/activation. */
+    inline int& cacheGeneration() { static int g = 0; return g; }
+
     inline void save (const Card& c)
     {
+        ++cacheGeneration();
         folder().createDirectory();
         auto* o = new juce::DynamicObject();
         o->setProperty ("name", c.name);
@@ -75,16 +79,26 @@ namespace WaveCards
     }
 
     inline juce::String activeName()            { return getAppSettings()->getValue ("WaveCard"); }
-    inline void setActive (const juce::String& n) { getAppSettings()->setValue ("WaveCard", n); }
+    inline void setActive (const juce::String& n) { getAppSettings()->setValue ("WaveCard", n); ++cacheGeneration(); }
 
     /** Nom de l'onde n de la carte active, sinon « Card #n ». */
     inline juce::String waveName (int n)
     {
-        const auto act = activeName();
-        if (act.isNotEmpty())
-            for (auto& c : all())
-                if (c.name == act && n >= 0 && n < c.waves.size() && c.waves[n].isNotEmpty())
-                    return c.waves[n];
+        // Cache : waveName() est appele sur le chemin RX (chaque AWMWAVE/WSOURCE) ->
+        // pas de relecture disque a chaque appel, seulement quand une carte change.
+        static int seenGen = -1;
+        static juce::StringArray waves;
+        if (seenGen != cacheGeneration())
+        {
+            seenGen = cacheGeneration();
+            waves.clear();
+            const auto act = activeName();
+            if (act.isNotEmpty())
+                for (auto& c : all())
+                    if (c.name == act) { waves = c.waves; break; }
+        }
+        if (n >= 0 && n < waves.size() && waves[n].isNotEmpty())
+            return waves[n];
         return "Card #" + juce::String (n + 1);
     }
 
@@ -118,7 +132,7 @@ namespace WaveCards
                 if (combo.getText().isEmpty()) return;
                 save ({ combo.getText(), juce::StringArray::fromLines (waves.getText().trimEnd()) });
             };
-            btDelete.onClick = [this] { fileFor (combo.getText()).deleteFile(); reload ({}); };
+            btDelete.onClick = [this] { fileFor (combo.getText()).deleteFile(); ++cacheGeneration(); reload ({}); };
             btActive.onClick = [this] { setActive (combo.getText()); updateActiveLabel(); };
             reload (activeName());
             setSize (460, 420);
