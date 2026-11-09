@@ -44,7 +44,7 @@ par élément, blocs cumulatifs (AFM 357 o. / AWM 112 o.) — testé sur type 8 
 > Sur 1224 voix, ~413 restantes = surtout **drum (type 10)**.
 
 Restant : **drum** (type 10) ; AWM filtre (chargement) + fine/fixed (encodage à lever) ;
-**FOS filtre (o/b 2 octets, layout bulk à confirmer)** ; effets ; LFO (chargement dump).
+**FOS filtre (o/b 2 octets, layout bulk à confirmer)**. (Effets, LFO, élément commun, RS, 0x18/0x19 : chargés depuis le dump depuis 2026-11-09.)
 **Résolus 2026-06-25** : detune AFM s/m (envoi+affichage), coarse (offset retiré), octets packés
 0x18 (MODE/PES/PM recomposés) et 0x19 (SYNC/PHASE recomposés). Niveaux EG pitch/filtre o/b : résolus (lua).
 
@@ -85,8 +85,8 @@ Restant : **drum** (type 10) ; AWM filtre (chargement) + fine/fixed (encodage à
 | **PEG range (FPEGR, 0x0A, 0..3)** | 🟡 | ⬜ | **CÂBLÉ (2026-09-08)** : combo `comboRange` (PitchEG.h), libellés 8 oct/2 oct/1 oct/1/2 oct (overlay TG77_Voice.json). Spec OCR l.354. Non vérifié hardware, non chargé |
 | **PEG rate scaling (FPRS, 0x0B, 0..7)** | 🟡 | ⬜ | **CORRIGÉ (2026-09-08)** : slider Slope était -7..+7 (chemin s/m → octets 8..15 pour les négatifs) alors que la spec dit **plain 0-7** (OCR l.355, table 7011). Passé en 0..7 |
 | **Pitch EG levels (FPL0-3, FPRL1, o/b)** | 🟡 | 🟢 | **chargés** group 0x05 N2 0x05-0x09 (SysexUtils, `voiceBlobToParams`). Encodage o/b offset 64 (`egLevelToDisplay`/`egLevelToWire`) **recoupé codec lua indépendant** (main.lua l.22 + TG77_Voice.json pNum 7005-7008 : display{-64,63}/message{0,127}/default 64). Éditeur aligné 0..64→0..127 (PitchEG.h) → corrige l'**envoi** (atteignait ½ plage). Oracle SteelStrng `val(0x05,0x05)==55` (Tests.h). NON vérifié hardware |
-| **Main LFO** (Speed/Delay/PMD/AMD/FMD/Wave/Phase) | 🟡 | ⬜ | éditeur câblé (`AfmLfo.h`) ; group 0x05 N2 0x0D-0x13 (Table 1-6, OCR l.357-364) ; non vérifié hardware ; chargement dump non branché |
-| **Sub LFO** (Wave/Speed/Mode/Time/PMD) | 🟡 | ⬜ | éditeur câblé (`AfmLfo.h`) ; group 0x05 N2 0x15-0x19 (Table 1-6, OCR l.366-371) ; Mode = delay/decay (bouton 2 états) ; non vérifié hardware ; chargement dump non branché |
+| **Main LFO** (Speed/Delay/PMD/AMD/FMD/Wave/Phase) | 🟡 | ⬜ | éditeur câblé (`AfmLfo.h`) ; group 0x05 N2 0x0D-0x13 (Table 1-6, OCR l.357-364) ; non vérifié hardware ; **chargement dump branché** (base+270+N2, stats 12 089 voix, 2026-11-09) |
+| **Sub LFO** (Wave/Speed/Mode/Time/PMD) | 🟡 | ⬜ | éditeur câblé (`AfmLfo.h`) ; group 0x05 N2 0x15-0x19 (Table 1-6, OCR l.366-371) ; Mode = delay/decay (bouton 2 états) ; non vérifié hardware ; **chargement dump branché** (base+270+N2, stats 12 089 voix, 2026-11-09) |
 
 ## AFM — Opérateurs (élément 1, OP1→OP6)
 

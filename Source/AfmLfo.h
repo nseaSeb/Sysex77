@@ -18,7 +18,7 @@
 
     Toutes ces adresses sont DOCUMENTÉES (OCR + carte mémoire) -> on câble
     l'envoi sysex. Statut MAP : 🟡 (câblé, non vérifié hardware). Le chargement
-    depuis dump (.syx) n'est PAS branché ici (offsets bulk non vérifiés).
+    depuis dump (.syx) : branché (voiceBlobToParams, base+270+N2, vérifié sur 12 089 voix).
 
   ==============================================================================
 */
