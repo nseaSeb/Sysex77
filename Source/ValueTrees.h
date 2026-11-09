@@ -17,18 +17,11 @@
 bool keyPressed (const KeyPress& key,
                  Component* originatingComponent) override
 {
-    if(key.getKeyCode() == 90)
-    {
-        if(key.getModifiers() == ModifierKeys::commandModifier)
-
-            undoManager.undo();
-        
-        if(key.getModifiers() == ModifierKeys::shiftModifier + ModifierKeys::commandModifier)
-            undoManager.redo();
-     //   repaint();
-    }
-    
-    return 0;
+    // Cmd+Z / Cmd+Shift+Z are handled globally by the sysex-level edit history
+    // (EditHistory.h, via Shortcuts). The old ValueTree UndoManager undo changed props
+    // outside the echo guard and is no longer triggered from the keyboard.
+    juce::ignoreUnused (key, originatingComponent);
+    return false;
 }
 
 

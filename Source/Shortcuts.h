@@ -28,7 +28,9 @@ namespace Shortcuts
             { "tab4",  "Controllers tab",   "command + 5" },
             { "tab5",  "Midi Setting tab",  "command + 6" },
             { "close", "Close editor",      "escape" },
-            { "seqplay", "Sequencer play/stop", "command + p" } };
+            { "seqplay", "Sequencer play/stop", "command + p" },
+            { "undo",    "Undo",                "command + Z" },
+            { "redo",    "Redo",                "command + shift + Z" } };
         return a;
     }
 

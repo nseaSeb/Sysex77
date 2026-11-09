@@ -224,6 +224,7 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
 
         valueTreeVoice.addListener(this);
         addKeyListener(this); //to manage undo redo key
+        addAndMakeVisible (historyBar);
         startTimer(500);
         // specify here where to send OSC messages to: host URL and UDP port number
         
@@ -249,6 +250,14 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
     }
     
     /** Ferme tout editeur ouvert par-dessus l'ecran (raccourci "close"). true si un etait ouvert. */
+    /** A/B compare showing A: every control is disabled except the history bar. */
+    void setEditLocked (bool locked)
+    {
+        for (auto* c : getChildren())
+            if (! historyBar.isLockExempt (c))
+                c->setEnabled (! locked);
+    }
+
     bool closeEditors()
     {
         bool any = false;
@@ -826,6 +835,7 @@ void setNombreElements (int nombre)
         op4.setBounds (10+72, 4,24,24);
         editName.setBounds(20 + 96, 4, 100, 24);
         labelName.setBounds(116,20,100,24);
+        historyBar.setBounds (226, 4, jmax (120, jmin (420, (int) wGrid - 226)), 24);
         
         labelOpOn.setBounds(10, 20, 96, 24);
 
@@ -975,6 +985,7 @@ void setNombreElements (int nombre)
 
     
     UndoManager undoManager;
+    EditHist::HistoryBar historyBar;   // undo / redo / A-B / original
 };
 
 //==============================================================================

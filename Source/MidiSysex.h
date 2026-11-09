@@ -218,6 +218,7 @@ void oscMessageReceived (const OSCMessage& message)
                             valueSysexIn.getValueSource().sendChangeMessage (true);
                         }
                     }
+                    onVoiceLoaded (block);   // edit history + A/B original
                 }
 
                 // Bascule sur l'éditeur (onglet Voice = index 2) pour éditer la voix ouverte.

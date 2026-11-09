@@ -168,7 +168,8 @@ int intTabIndex;
 #include "LookAndFeel.h"
 #include "Controller.h"
 #include "Config.h"
-#include "Sequencer.h"            // bottom-bar phrase player (Seq mode)
+#include "Sequencer.h"
+#include "EditHistory.h"         // sysex-level undo/redo + A/B compare            // bottom-bar phrase player (Seq mode)
 #include "BankSendProgress.h"      // fenêtre de progression de l'envoi de banque
 #include "BankReceiveProgress.h"   // fenêtre de progression de la réception de banque
 #include "Voice.h"
@@ -379,6 +380,8 @@ public:
             seqPanel.togglePlay();
             return true;
         }
+        if (id == "undo") { historyUndo(); return true; }
+        if (id == "redo") { historyRedo(); return true; }
         if (id == "close")
             for (int i = 0; i < tabs.getNumTabs(); ++i)
                 if (auto* vp = dynamic_cast<VoicePage*> (tabs.getTabContentComponent (i)))
@@ -408,6 +411,15 @@ public:
                                                          TRANS("Mise a jour"), m);
         };
         Updater::get().checkAsync (false);
+
+        // Edit history (undo/redo, A/B, revert) — actions used by the Voice header bar.
+        {
+            auto& h = EditHist::Hooks::get();
+            h.undo     = [this] { historyUndo(); };
+            h.redo     = [this] { historyRedo(); };
+            h.toggleAB = [this] { setShowingA (! showingA); };
+            h.revert   = [this] { askRevert(); };
+        }
 
         // (Images de fond Sysex77/99.png supprimées : jamais dessinées — nettoyage des ressources.)
         addAndMakeVisible (tabs);
@@ -714,6 +726,10 @@ public:
     ~MidiDemo()
     {
         seqPlayer.shutdown();   // its thread sends through sendToOutputs: stop it first
+        {
+            auto& h = EditHist::Hooks::get();
+            h.undo = h.redo = h.toggleAB = h.revert = nullptr;
+        }
         stopTimer();
         Updater::get().onUpdateAvailable = nullptr;
         Updater::get().onMessage = nullptr;
@@ -1363,6 +1379,10 @@ private:
                     // échapperait à la suppression (c'était le trou de la boucle d'écho).
                     valueSysexIn = make_var_array(data[3], data[4],data[5],data[6],data[7],data[8]);
                     valueSysexIn.getValueSource().sendChangeMessage (true);
+                    // Keep the edit history's state true (never creates an undo step).
+                    if (data[3] != 0x0F && ! showingA)
+                        editHistory.noteRx (EditHist::keyOf (data[3], data[4], data[5], data[6]),
+                                            EditHist::valOf (data[7], data[8]));
 
                     // "Suivre le synthé" : ouvre la vue correspondant au groupe reçu, pour que
                     // le paramètre modifié sur le SY77 soit visible (sa valeur s'y met à jour).
@@ -1396,6 +1416,20 @@ public:
         // Interrupteur « Out » (envoi) OFF : l'app n'émet RIEN vers le synthé. Point de coupe
         // unique -> couvre notes, param-changes/sysex, bulk ET le MIDI Thru (qui passe par ici),
         // donc OFF = rien ne sort, Thru compris (cohérence demandée).
+        // Edit history: record user voice param-changes (message thread only; not our own
+        // undo/redo/B sends, not while A is shown, not system setup group 0x0F).
+        if (! applyingHistory && ! showingA && msg.isSysEx() && msg.getRawDataSize() == 11
+            && MessageManager::existsAndIsCurrentThread())
+        {
+            const uint8* d = msg.getRawData();
+            if (d[1] == 0x43 && (d[2] & 0xF0) == 0x10 && d[3] == 0x34 && d[4] != 0x0F)
+            {
+                editHistory.recordEdit (EditHist::keyOf (d[4], d[5], d[6], d[7]), EditHist::valOf (d[8], d[9]),
+                                        Time::getMillisecondCounterHiRes(),
+                                        ModifierKeys::currentModifiers.isAnyMouseButtonDown());
+                publishHistoryState ({});
+            }
+        }
         // Note-offs still pass when Out is OFF: otherwise a note started before the switch
         // (sequencer or keyboard) would hang on the synth with no way to release it.
         if (! midiSend && ! msg.isNoteOff()) return;
@@ -1639,6 +1673,138 @@ public:
     std::unique_ptr<MidiSettingsPage>  midiSettingsPage;
     ReferenceCountedArray<MidiDeviceListEntry> midiInputs, midiOutputs;
     CriticalSection outLock;   // guards midiOutputs + sendMessageNow (see sendToOutputs)
+
+    //==========================================================================
+    // Edit history (EditHistory.h): undo/redo, A/B compare, revert. Message thread only.
+    EditHist::History editHistory;
+    MemoryBlock originalVoiceBlock;   // edit-buffer copy of the loaded voice (A side)
+    bool applyingHistory = false;     // our own sends: not recorded
+    bool showingA = false;
+
+    static std::vector<EditHist::KV> toKV (const Array<SyVoice::VoiceParam>& ps)
+    {
+        std::vector<EditHist::KV> out;
+        for (auto& vp : ps)
+            out.push_back ({ EditHist::keyOf (vp.group, vp.addrHi, vp.addrLo, vp.param),
+                             EditHist::valOf (vp.v1, vp.value) });
+        return out;
+    }
+
+    /** Called by every voice-load path (library audition, templates). */
+    void onVoiceLoaded (const MemoryBlock& editBufferBlock)
+    {
+        if (showingA) { showingA = false; lockEditing (false); }
+        originalVoiceBlock = editBufferBlock;
+        editHistory.load (toKV (SyVoice::voiceBlobToParams ((const uint8*) editBufferBlock.getData(),
+                                                            (int) editBufferBlock.getSize())));
+        publishHistoryState ({});
+    }
+
+    void replayToUi (const std::vector<EditHist::KV>& kvs)
+    {
+        const ScopedEchoSuppress noEcho;   // UI follows, nothing is re-emitted by the widgets
+        for (auto& kv : kvs)
+        {
+            valueSysexIn = make_var_array (EditHist::gOf (kv.first), EditHist::hiOf (kv.first),
+                                           EditHist::loOf (kv.first), EditHist::pOf (kv.first),
+                                           EditHist::v1Of (kv.second), EditHist::v2Of (kv.second));
+            valueSysexIn.getValueSource().sendChangeMessage (true);
+        }
+    }
+
+    void sendParams (const std::vector<EditHist::KV>& kvs)
+    {
+        const ScopedValueSetter<bool> svs (applyingHistory, true);
+        for (auto& kv : kvs)
+        {
+            const uint8 d[9] = { 0x43, SyVoice::deviceByte (sysexDeviceNumber), 0x34,
+                                 (uint8) EditHist::gOf (kv.first), (uint8) EditHist::hiOf (kv.first),
+                                 (uint8) EditHist::loOf (kv.first), (uint8) EditHist::pOf (kv.first),
+                                 (uint8) EditHist::v1Of (kv.second), (uint8) EditHist::v2Of (kv.second) };
+            auto m = MidiMessage::createSysExMessage (d, 9);
+            m.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
+            sendToOutputs (m);
+        }
+    }
+
+    void applyKV (const std::vector<EditHist::KV>& kvs) { replayToUi (kvs); sendParams (kvs); }
+
+    static String unknownStatus (int n)
+    {
+        return n > 0 ? String (n) + " " + TRANS ("value(s) not restorable (not read from the dump)") : String();
+    }
+
+    void historyUndo()
+    {
+        if (showingA) setShowingA (false);
+        int unknown = 0;
+        applyKV (editHistory.undo (unknown));
+        publishHistoryState (unknownStatus (unknown));
+    }
+    void historyRedo()
+    {
+        if (showingA) setShowingA (false);
+        int unknown = 0;
+        applyKV (editHistory.redo (unknown));
+        publishHistoryState (unknownStatus (unknown));
+    }
+
+    void setShowingA (bool a)
+    {
+        if (a == showingA || ! editHistory.isLoaded() || originalVoiceBlock.getSize() < 2) return;
+        if (a)
+        {
+            // A: the voice as loaded, sent whole to the edit buffer (covers every param).
+            sendRaw (originalVoiceBlock.getData(), (long) originalVoiceBlock.getSize());
+            replayToUi (editHistory.originalValues());
+            seqPlayer.editHappened();   // a bulk is not a param-change: restart explicitly
+        }
+        else
+            applyKV (editHistory.diffFromOriginal());   // B: only what was edited
+        showingA = a;
+        lockEditing (a);
+        publishHistoryState (a ? TRANS ("Listening to the original - editing locked") : String());
+    }
+
+    void askRevert()
+    {
+        if (! editHistory.isLoaded() || originalVoiceBlock.getSize() < 2) return;
+        NativeMessageBox::showOkCancelBox (MessageBoxIconType::QuestionIcon, TRANS ("Original"),
+            TRANS ("Go back to the voice as loaded? Your edits stay in the history (Cmd+Z restores them)."),
+            this, ModalCallbackFunction::create ([this] (int r) { if (r == 1) revertToOriginal(); }));
+    }
+
+    void revertToOriginal()
+    {
+        if (showingA) { showingA = false; lockEditing (false); }
+        sendRaw (originalVoiceBlock.getData(), (long) originalVoiceBlock.getSize());
+        replayToUi (editHistory.originalValues());
+        editHistory.makeRevertStep (Time::getMillisecondCounterHiRes());
+        seqPlayer.editHappened();
+        publishHistoryState ({});
+    }
+
+    void lockEditing (bool locked)
+    {
+        for (int i = 0; i < tabs.getNumTabs(); ++i)
+        {
+            auto* c = tabs.getTabContentComponent (i);
+            if (auto* vp = dynamic_cast<VoicePage*> (c))           vp->setEditLocked (locked);
+            else if (dynamic_cast<EffectsPage*> (c) != nullptr
+                     || dynamic_cast<ControllersPage*> (c) != nullptr) c->setEnabled (! locked);
+        }
+    }
+
+    void publishHistoryState (const String& status)
+    {
+        auto& h = EditHist::Hooks::get();
+        h.canUndo  = editHistory.canUndo();
+        h.canRedo  = editHistory.canRedo();
+        h.loaded   = editHistory.isLoaded() && originalVoiceBlock.getSize() > 1;
+        h.showingA = showingA;
+        h.status   = status;
+        h.sendChangeMessage();
+    }
     Seq::Player seqPlayer { [this] (const MidiMessage& m) { sendToOutputs (m); },
                             [] { return currentPlayChannel(); } };
     std::array<int, 128> keyChannel {};   // channel each on-screen key was sent on
