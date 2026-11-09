@@ -90,7 +90,7 @@ struct SysexUtilsTests : public juce::UnitTest
     static constexpr int kFilt = 2 * (1 + 5 + 4) + 2;  // FTYPE, FRS, BP1-4, FOS1-4 x2 filtres + FVSON/FCMS
     static constexpr int kAfmLfo = 14;              // PEG range/RS + Main LFO 0x0D-13 + Sub LFO 0x15-19
     // Par élément AWM : N2 0x02..0x18 (23) + HOLD, PARS, BP1-4, VEL, ARVSW, AMS (9).
-    static constexpr int kAwmExtra = 23 + 9 + 4;   // + PAOS1-4 (o/b2)
+    static constexpr int kAwmExtra = 23 + 9 + 4 + 2 * (21 + 4) + 3;   // + filtres AWM (2 x (N2 0x00-0x14 + FOS1-4) + commun)   // + PAOS1-4 (o/b2)
     SysexUtilsTests() : juce::UnitTest ("SysexUtils") {}
 
     // Construit un faux dump : pour chaque voix, 0xF0 puis 32 octets, puis 10 chars de nom.
@@ -927,6 +927,13 @@ struct SysexUtilsTests : public juce::UnitTest
             };
 
             auto p = SyVoice::voiceBlobToParams (awm, (int) sizeof (awm));
+            {   // Filtres AWM : FTYPE f1 @107+27, f2 @107+56, FRES @107+85 (fN 3/4/5).
+                auto v = [&] (int hi, int n2) { for (auto& q : p) if (q.group == 0x09 && q.addrHi == hi && q.param == n2) return q.value; return -1; };
+                expectEquals (v (3, 0x00), (int) awm[107 + 27]);
+                expectEquals (v (4, 0x00), (int) awm[107 + 56]);
+                expectEquals (v (3, 0x14), (int) awm[107 + 27 + 0x14]);
+                expectEquals (v (5, 0x32), (int) awm[107 + 85]);
+            }
             // 1 AWM : par élément = ELVL + waveform + 7 params amp-EG ; + VVOL commun = 10 ; + contrôleurs.
             expectEquals (p.size(), 10 + kCtrl + kAwmExtra + kElemCom + kFx);
 

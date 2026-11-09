@@ -352,6 +352,21 @@ namespace SyVoice
                     out.add ({ 0x07, aH, 0, n2, (int) d[base + n2 + 13] }); // (2 octets chacun) -> +13
                 for (int k = 0; k < 4; ++k)                     // PAOS1-4 (0x5C-0x5F) : o/b2, MSB @101+2k
                     out.add ({ 0x07, aH, 0, 0x5C + k, (int) d[base + 102 + 2 * k], (int) d[base + 101 + 2 * k] });
+                // FILTRES AWM (group 0x09, fN 3/4/5 = AWM filt1/filt2/commun) : bloc Table 1-10 en
+                // ordre N2 (FOS en paires MSB/low7), filtre 1 @+27, filtre 2 @+56, commun @+85..87
+                // (FRES, FVSON, FCMS). +26 = 0 dans 99 % (non décodé). 4 161 éléments AWM réels :
+                // type @+27 0/1/2 (même codage THRU/LPF/HPF que l'AFM), BP croissants 36/55/76/96.
+                for (int f = 0; f < 2; ++f)
+                {
+                    const int fb = base + (f == 0 ? 27 : 56);
+                    const int hi = aH | (3 + f);
+                    for (int n2 = 0x00; n2 <= 0x14; ++n2)
+                        out.add ({ 0x09, hi, 0, n2, (int) d[fb + n2] });
+                    for (int k = 0; k < 4; ++k)
+                        out.add ({ 0x09, hi, 0, 0x15 + k, (int) d[fb + 0x16 + 2 * k], (int) d[fb + 0x15 + 2 * k] });
+                }
+                for (int k = 0; k < 3; ++k)
+                    out.add ({ 0x09, aH | 0x05, 0, 0x32 + k, (int) d[base + 85 + k] });
                 base += 112;   // bloc AWM
             }
         }
