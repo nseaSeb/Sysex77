@@ -91,8 +91,10 @@ namespace EditHist
             open = true;
         }
 
-        /** Value received FROM the synth: keeps the state true, never creates a step. */
-        void noteRx (Key k, int v) { state[k] = v; open = false; }
+        /** Value received FROM the synth: keeps the state true, never creates a step.
+            Ignored when nothing is loaded: the state must not refill from an empty original
+            (a later revert/undo would otherwise resend those values). */
+        void noteRx (Key k, int v) { if (! loaded) return; state[k] = v; open = false; }
 
         bool canUndo() const { return pos > 0; }
         bool canRedo() const { return pos < (int) steps.size(); }

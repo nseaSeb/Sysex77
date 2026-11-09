@@ -191,7 +191,14 @@ void openVoiceBlock (MemoryBlock block)
             // voix stockée. getVoiceBlock renvoie une COPIE : currentBankData reste intact.
             // Device courant + edit buffer $7F (octets disjoints, checksum recalcule). Fait avant
             // settleAfterLoad() : settle ne touche pas le bloc -> flux emis identique.
-            SyVoice::prepareEditBufferBulk ((uint8*) block.getData(), (int) block.getSize(), sysexDeviceNumber);
+            // SECURITE : si le bloc ne peut PAS etre redirige vers $7F (trop court, non cadre,
+            // pas un bulk 43 .. 7A), il garderait son type memoire d'origine et pourrait ecraser
+            // une voix interne -> on REFUSE : aucun envoi, ni settle, ni changement d'historique.
+            if (! SyVoice::prepareEditBufferBulk ((uint8*) block.getData(), (int) block.getSize(), sysexDeviceNumber))
+            {
+                Logger::writeToLog ("openVoiceBlock refuse : pas un bulk voix redirigeable vers l'edit buffer");
+                return;
+            }
             settleAfterLoad();   // widget echoes of this load are neither sent nor recorded
             sendRaw (block.getData(), (long) block.getSize());
 
@@ -214,8 +221,7 @@ void openVoiceBlock (MemoryBlock block)
 
                 // Affiche la voix ouverte dans le titre de la fenêtre (visible sur tous les onglets).
                 if (auto* tlw = getTopLevelComponent())
-                    tlw->setName ("Sysex77 v" + String (Sysex77::kVersion)
-                                  + (name.isNotEmpty() ? "  -  " + name : String()));
+                    tlw->setName (Sysex77::windowTitle (name));
 
                 // Charge aussi les paramètres sonores CONFIRMÉS hardware (opérateurs AFM,
                 // élément 1) en les rejouant comme des messages param-change entrants :
@@ -239,6 +245,12 @@ void openVoiceBlock (MemoryBlock block)
             else
             {
                 discardLoadedVoice();    // previous voice no longer in the edit buffer
+                // Presentation seulement : le nom affiche n'est plus celui de l'edit buffer.
+                // VOICENAME vide -> Voice.h vide le champ (dontSendNotification, aucun VNAM
+                // emis : seul Return dans le champ envoie le nom au synthe).
+                valueTreeVoice.setProperty (IDs::VOICENAME, String(), nullptr);
+                if (auto* tlw = getTopLevelComponent())
+                    tlw->setName (Sysex77::windowTitle ({}));
             }
 
             // Bascule sur l'éditeur (onglet Voice = index 2) pour éditer la voix ouverte.

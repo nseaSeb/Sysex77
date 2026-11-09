@@ -233,6 +233,7 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         editName.setText("INIT");
         editName.setMultiLine(false);
         editName.setInputRestrictions(10);
+        editName.setTextToShowWhenEmpty (TRANS ("(unknown voice)"), Colours::grey);
         editName.setJustification(Justification::centred);
         //      editName.setColour(TextEditor::ColourIds::textColourId, SYColText);
         editName.addListener(this);
@@ -623,9 +624,11 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         // Nom de voix chargé depuis la librairie -> reflète dans le champ d'édition.
         if (value.refersToSameSourceAs (voiceNameVal))
         {
+            // Vide = voix inconnue (bloc court charge) : on vide le champ, le texte neutre
+            // « (unknown voice) » s'affiche. dontSendNotification : aucun VNAM n'est emis
+            // (seul Return dans le champ envoie le nom au synthe).
             const auto n = voiceNameVal.getValue().toString();
-            if (n.isNotEmpty())
-                editName.setText (n, dontSendNotification);
+            editName.setText (n, dontSendNotification);
         }
 
         // Clic sur une carte d'element -> ouvre l'editeur correspondant (presentation seule :

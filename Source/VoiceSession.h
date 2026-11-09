@@ -64,24 +64,39 @@ public:
     ~VoiceSession() { *alive = false; }
 
     //==========================================================================
+    enum class LoadResult
+    {
+        Loaded,     // bulk envoye, rejoue, historique charge
+        Discarded,  // bulk envoye mais trop court (sz <= 42) : historique oublie -> le shell
+                    // doit effacer le nom de voix / titre (la voix precedente n'est plus la)
+        Refused     // PAS un bulk voix redirigeable vers $7F : RIEN envoye, rien modifie
+    };
+
     /** Coeur d'openVoiceBlock. Ordre du flux (fige) :
         stamp device + retarget $7F -> settle -> envoi bulk -> beforeReplay (props UI :
         VOICEMODE/VOICENAME/titre) -> rejeu des params decodes -> onVoiceLoaded.
-        Renvoie false si sz <= 42 : le bulk est envoye (et settle pose) mais ni rejeu ni
+        Refused si prepareEditBufferBulk echoue (bloc < 34, non cadre, pas 43 .. 7A) : SECURITE,
+        le bloc garderait son type memoire d'origine et pourrait ecraser une voix interne ->
+        aucun envoi, ni settle, ni changement d'historique.
+        Discarded si sz <= 42 : le bulk est envoye (et settle pose) mais ni rejeu ni
         historique ; l'historique et l'original precedents sont oublies (discardLoadedVoice).
         typeOut = octet 32 brut (le shell ne pose VOICEMODE que pour 0..9), nameOut = 33..42. */
-    bool loadBlock (juce::MemoryBlock block, int& typeOut, juce::String& nameOut,
-                    std::function<void (int type, const juce::String& name)> beforeReplay = nullptr)
+    LoadResult loadBlock (juce::MemoryBlock block, int& typeOut, juce::String& nameOut,
+                          std::function<void (int type, const juce::String& name)> beforeReplay = nullptr)
     {
         typeOut = -1;
         nameOut = {};
-        SyVoice::prepareEditBufferBulk ((juce::uint8*) block.getData(), (int) block.getSize(), ports.device());
+        if (! SyVoice::prepareEditBufferBulk ((juce::uint8*) block.getData(), (int) block.getSize(), ports.device()))
+        {
+            juce::Logger::writeToLog ("openVoiceBlock refuse : pas un bulk voix redirigeable vers l'edit buffer");
+            return LoadResult::Refused;
+        }
         settleAfterLoad();   // widget echoes of this load are neither sent nor recorded
         sendRaw (block.getData(), (long) block.getSize());
 
         const juce::uint8* d = (const juce::uint8*) block.getData();
         const int sz = (int) block.getSize();
-        if (sz <= 42) { discardLoadedVoice(); return false; }
+        if (sz <= 42) { discardLoadedVoice(); return LoadResult::Discarded; }
 
         typeOut = d[32];
         juce::String name;
@@ -97,15 +112,20 @@ public:
                 ports.replayParam (vp.group, vp.addrHi, vp.addrLo, vp.param, vp.v1, vp.value);
         }
         onVoiceLoaded (block);
-        return true;
+        return LoadResult::Loaded;
     }
 
     /** Bloc d'enregistrement de sendToOutputs (AVANT le gate Out). raw = getRawData(). */
     void observeOutgoing (const juce::uint8* raw, int n, bool mouseDown)
     {
         if (SyVoice::isRecordableVoiceParamChange (raw, n)
-            && ! applyingHistory && ! showingA && ! loadSettling && editHistory.isLoaded())
+            && ! applyingHistory && ! showingA && loadSettling == 0 && editHistory.isLoaded())
         {
+            // Un B differe encore en attente (SY77 en train d'absorber le bulk A) : on l'AVANCE
+            // ici, avant que l'edit ne sorte (l'appelant emet raw APRES ce retour) -> le synthe
+            // recoit le diff B puis l'edit, et UI/synthe restent alignes. Pas une ecriture
+            // nouvelle : c'est l'envoi B deja demande. sendParams le pose sous applyingHistory.
+            flushPendingB();
             editHistory.recordEdit (EditHist::keyOf (raw[4], raw[5], raw[6], raw[7]),
                                     EditHist::valOf (raw[8], raw[9]), ports.nowMs(), mouseDown);
             ++historyGen;   // any pending delayed B send is now stale
@@ -114,10 +134,11 @@ public:
     }
 
     /** noteRx de handleAsyncUpdate. d = { g, hi, lo, p, v1, v2 } (octets 3..8 du param recu,
-        deja filtre 43 1n 34 + device accepte). Pas de garde isLoaded/loadSettling (fidele). */
+        deja filtre 43 1n 34 + device accepte). Ignore si aucune voix chargee : sinon l'etat se
+        repeuplerait depuis un original vide et un revert/undo renverrait ces valeurs. */
     void observeIncomingParam (const juce::uint8 d[6])
     {
-        if (d[0] != 0x0F && ! showingA)
+        if (d[0] != 0x0F && ! showingA && editHistory.isLoaded())
             editHistory.noteRx (EditHist::keyOf (d[0], d[1], d[2], d[3]), EditHist::valOf (d[4], d[5]));
     }
 
@@ -161,11 +182,12 @@ public:
             else
             {
                 auto token = alive;
-                const int gen = historyGen;   // cancelled by any later edit/undo/load/revert/A
-                ports.schedule ((int) wait + 1, [this, token, diff, gen]
+                const int gen = historyGen;   // cancelled by any later undo/load/revert/A;
+                pendingB = diff;              // advanced (flushPendingB) by a later edit
+                pendingBGen = gen;
+                ports.schedule ((int) wait + 1, [this, token, gen]
                 {
-                    if (*token && ! showingA && historyGen == gen)
-                        sendParams (diff);
+                    if (*token && historyGen == gen) flushPendingB();
                 });
             }
         }
@@ -177,6 +199,7 @@ public:
     /** revertToOriginal (la confirmation askRevert reste dans l'UI). */
     void revert()
     {
+        if (! canRevert()) return;   // rien de charge : pas de pas annulable depuis un original vide
         if (showingA) { showingA = false; ports.lockEditing (false); }
         ++historyGen;
         sendOriginalBulk();
@@ -216,7 +239,9 @@ private:
     juce::MemoryBlock originalVoiceBlock;   // edit-buffer copy of the loaded voice (A side)
     bool applyingHistory = false;           // our own sends: not recorded
     bool showingA = false;
-    bool loadSettling = false;              // a voice load's async widget echoes are still pending
+    int loadSettling = 0;                   // voice loads whose async widget echoes are still pending
+    std::vector<EditHist::KV> pendingB;     // delayed B diff not yet sent...
+    int pendingBGen = -1;                   // ...valid only while historyGen == pendingBGen
     double bulkBusyUntilMs = 0;             // SY77 still absorbing the last voice bulk (A / Original)
     int historyGen = 0;                     // bumped by every edit/undo/redo/load/revert/A
 
@@ -226,7 +251,7 @@ private:
     void settleAfterLoad()
     {
         SysexBus::get().suppressSend.fetch_add (1, std::memory_order_acq_rel);
-        loadSettling = true;
+        ++loadSettling;   // compteur : deux chargements en file -> le 1er settle ne libere pas le 2e
         auto token = alive;
         auto post  = ports.post;
         post ([this, token, post]
@@ -234,9 +259,21 @@ private:
             post ([this, token]
             {
                 SysexBus::get().suppressSend.fetch_sub (1, std::memory_order_acq_rel);
-                if (*token) loadSettling = false;
+                if (*token && loadSettling > 0) --loadSettling;
             });
         });
+    }
+
+    /** Envoie le B differe en attente s'il est encore valide (meme generation, pas en A),
+        puis l'invalide. Appele par le timer ou, en avance, par le premier edit enregistre. */
+    void flushPendingB()
+    {
+        if (pendingBGen < 0) return;
+        const bool valid = pendingBGen == historyGen && ! showingA;
+        auto diff = std::move (pendingB);
+        pendingB.clear();
+        pendingBGen = -1;
+        if (valid) sendParams (diff);
     }
 
     /** Copie de MidiSysex.h::sendRaw. */

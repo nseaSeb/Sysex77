@@ -12,6 +12,7 @@
 #include "SysexUtils.h"
 #include "SysexBus.h"
 #include "SyParam.h"
+#include "Version.h"
 #include "VoiceSession.h"   // decoupage MidiDemo etape 1 : non branchee, caracterisee ici
 
 //==============================================================================
@@ -1026,6 +1027,18 @@ public:
         r = h3.undo (unk);
         expect (r.size() == 1 && r[0].second == 50);
 
+        beginTest ("noteRx is ignored when no voice is loaded (never loaded / unloaded)");
+        {
+            History h5;
+            h5.noteRx (a, 5);
+            expect (h5.diffFromOriginal().empty());
+            h5.load ({ { a, 1 } });
+            h5.unload();
+            h5.noteRx (a, 7);
+            expect (h5.diffFromOriginal().empty());
+            expect (h5.makeRevertStep (0).empty() && ! h5.canUndo());
+        }
+
         beginTest ("B diff and undoable revert");
         History h4; h4.load ({ { a, 1 }, { b, 2 } });
         h4.recordEdit (a, 9, 0, false);
@@ -1190,7 +1203,7 @@ public:
             for (int i = 0; i < (int) VoiceTemplates::list().size(); ++i)
             {
                 auto a = VoiceTemplates::make (i), b = a;
-                SyVoice::prepareEditBufferBulk ((juce::uint8*) a.getData(), (int) a.getSize(), 5);
+                expect (SyVoice::prepareEditBufferBulk ((juce::uint8*) a.getData(), (int) a.getSize(), 5));
                 SyVoice::setBulkDevice ((juce::uint8*) b.getData(), (int) b.getSize(), 5);
                 SyVoice::retargetVoiceToEditBuffer ((juce::uint8*) b.getData(), (int) b.getSize());
                 expect (a == b);
@@ -1204,8 +1217,21 @@ public:
             }
             juce::uint8 p[11] = { 0xF0, 0x43, 0x10, 0x34, 1, 2, 3, 4, 5, 6, 0xF7 };   // pas un bulk : intact
             const juce::uint8 p0[11] = { 0xF0, 0x43, 0x10, 0x34, 1, 2, 3, 4, 5, 6, 0xF7 };
-            SyVoice::prepareEditBufferBulk (p, 11, 9);
+            expect (! SyVoice::prepareEditBufferBulk (p, 11, 9));
             expect (std::equal (p, p + 11, p0));
+            juce::uint8 tiny[20] = { 0xF0, 0x43, 0x00, 0x7A };            // bulk mais < 34 : refuse
+            tiny[19] = 0xF7;
+            expect (! SyVoice::prepareEditBufferBulk (tiny, 20, 9));
+            juce::uint8 unframed[40] = { 0xF0, 0x43, 0x00, 0x7A };        // pas de F7 final : refuse
+            expect (! SyVoice::prepareEditBufferBulk (unframed, 40, 9));
+            expectEquals ((int) unframed[30], 0x00);
+        }
+
+        beginTest ("constat 5: window title without a voice name has no stale name");
+        {
+            const juce::String base = juce::String ("Sysex77 v") + Sysex77::kVersion;
+            expect (Sysex77::windowTitle ({}) == base);
+            expect (Sysex77::windowTitle ("BRASS 1") == base + "  -  BRASS 1");
         }
     }
 };
@@ -1271,6 +1297,13 @@ public:
             for (size_t i = 0; i < posted.size(); ++i) { auto f = posted[i]; f(); }
             posted.clear();
         }
+        void stepOne()   // un seul message de la file (pour entrelacer les sauts FIFO)
+        {
+            if (posted.empty()) return;
+            auto f = posted.front();
+            posted.erase (posted.begin());
+            f();
+        }
         void advance (double ms)
         {
             now += ms;
@@ -1320,7 +1353,7 @@ public:
         auto loadTpl = [&] (Rig& r)
         {
             int type = 0; juce::String name;
-            const bool ok = r.s->loadBlock (tpl, type, name);
+            const bool ok = r.s->loadBlock (tpl, type, name) == VoiceSession::LoadResult::Loaded;
             r.drain();
             return ok;
         };
@@ -1330,7 +1363,8 @@ public:
             Rig r;
             int type = 0; juce::String name; size_t outAtHeader = 99, replayAtHeader = 99;
             const bool ok = r.s->loadBlock (tpl, type, name, [&] (int, const juce::String&)
-                                            { outAtHeader = r.out.size(); replayAtHeader = r.replay.size(); });
+                                            { outAtHeader = r.out.size(); replayAtHeader = r.replay.size(); })
+                            == VoiceSession::LoadResult::Loaded;
             expect (ok);
             expectEquals (type, 3);
             expect (name == juce::String ((const char*) tpl.getData() + 33, 10).trimEnd());
@@ -1429,9 +1463,9 @@ public:
             const int v2 = valOf (params[1].v1, params[1].value) == 3 ? 4 : 3;
             r.now += 1000;                          // pas de regroupement avec l'edit precedent
             r.userEdit (k2, v2);                    // ++historyGen
-            const size_t n0 = r.out.size();
+            const size_t n0 = r.out.size();   // (l'edit a avance le diff B, cf. constat 4)
             r.advance (10000);
-            expectEquals ((int) r.out.size(), (int) n0);
+            expectEquals ((int) r.out.size(), (int) n0);   // le timer ne renvoie rien
 
             r.s->setShowingA (true);
             r.s->setShowingA (false);
@@ -1512,9 +1546,9 @@ public:
             {
                 Rig r;
                 int type = 0; juce::String name; bool called = false;
-                const bool ok = r.s->loadBlock (juce::MemoryBlock (small, 40), type, name,
-                                                [&] (int, const juce::String&) { called = true; });
-                expect (! ok && ! called && type == -1 && name.isEmpty());
+                const auto res = r.s->loadBlock (juce::MemoryBlock (small, 40), type, name,
+                                                 [&] (int, const juce::String&) { called = true; });
+                expect (res == VoiceSession::LoadResult::Discarded && ! called && type == -1 && name.isEmpty());
                 expectEquals ((int) r.out.size(), 1);
                 expect (r.out[0] == e);
                 expect (r.replay.empty() && ! r.s->history().isLoaded());
@@ -1573,6 +1607,93 @@ public:
             r.userEdit (k, edited == 5 ? 13 : 14);
             r.s->undo();
             expect (r.out.back() == paramMsg (3, k, edited));
+        }
+
+        beginTest ("constat 1: non-bulk or < 34-byte block is refused: nothing sent, history kept");
+        {
+            Rig r; loadTpl (r);
+            r.userEdit (k, edited);
+            const size_t n0 = r.out.size();
+            juce::uint8 tiny[20] = { 0xF0, 0x43, 0x00, 0x7A };        // bulk voix, mais < 34
+            tiny[19] = 0xF7;
+            juce::uint8 notBulk[60] = { 0xF0, 0x43, 0x00, 0x7B };     // > 42 mais pas 7A
+            notBulk[59] = 0xF7;
+            for (auto mb : { juce::MemoryBlock (tiny, sizeof (tiny)), juce::MemoryBlock (notBulk, sizeof (notBulk)) })
+            {
+                int type = 0; juce::String name;
+                expect (r.s->loadBlock (mb, type, name) == VoiceSession::LoadResult::Refused);
+                expectEquals ((int) r.out.size(), (int) n0);                    // rien n'est emis
+                expectEquals (bus.suppressSend.load(), depth0);                 // pas de settle
+                expect (r.s->history().isLoaded() && r.s->history().canUndo()); // historique intact
+                r.drain();
+            }
+            expectEquals (bus.suppressSend.load(), depth0);
+        }
+
+        beginTest ("constat 2: after unload an incoming param + revert + undo emit nothing");
+        {
+            Rig r; loadTpl (r);
+            r.userEdit (k, edited);
+            juce::uint8 small[40] = { 0xF0, 0x43, 0x00, 0x7A };
+            small[39] = 0xF7;
+            int type = 0; juce::String name;
+            r.s->loadBlock (juce::MemoryBlock (small, 40), type, name);
+            r.drain();
+            expect (! r.s->history().isLoaded());
+            const size_t n0 = r.out.size();
+            const int rx = edited == 5 ? 9 : 10;
+            const juce::uint8 d[6] = { (juce::uint8) gOf (k), (juce::uint8) hiOf (k), (juce::uint8) loOf (k),
+                                       (juce::uint8) pOf (k), (juce::uint8) v1Of (rx), (juce::uint8) v2Of (rx) };
+            r.s->observeIncomingParam (d);
+            expect (! r.s->hasUnsavedEdits());
+            r.s->revert();
+            r.s->undo();
+            r.drain();
+            r.advance (10000);
+            expectEquals ((int) r.out.size(), (int) n0);
+            expect (! r.s->history().canUndo() && r.editHappened == 0);
+        }
+
+        beginTest ("constat 3: two queued loads: echoes of the 2nd are not recorded after the 1st settles");
+        {
+            Rig r;
+            int type = 0; juce::String name;
+            r.s->loadBlock (tpl, type, name);
+            r.s->loadBlock (tpl, type, name);
+            expectEquals ((int) r.posted.size(), 2);
+            r.stepOne();            // L1 saut 1 -> poste L1 saut 2
+            r.stepOne();            // L2 saut 1 -> poste L2 saut 2
+            r.stepOne();            // L1 saut 2 : le 1er chargement est stabilise...
+            r.userEdit (k, edited); // ...mais un echo du 2e arrive encore
+            expect (! r.s->history().canUndo());
+            expect (! r.s->hasUnsavedEdits());
+            r.drain();              // L2 saut 2
+            expectEquals (bus.suppressSend.load(), depth0);
+            r.now += 1000;
+            r.userEdit (k, edited == 5 ? 7 : 8);   // une fois tout stabilise : enregistre
+            expect (r.s->history().canUndo());
+        }
+
+        beginTest ("constat 4: an edit during the bulk window sends the pending B diff first, then the edit");
+        {
+            Rig r; loadTpl (r);
+            r.userEdit (k, edited);
+            r.s->setShowingA (true);
+            r.s->setShowingA (false);
+            expectEquals ((int) r.timers.size(), 1);
+            const Key k2 = keyOf (params[1].group, params[1].addrHi, params[1].addrLo, params[1].param);
+            const int v2 = valOf (params[1].v1, params[1].value) == 3 ? 4 : 3;
+            const size_t n0 = r.out.size();
+            r.now += 10;                            // avant l'echeance du B differe
+            r.userEdit (k2, v2);
+            expectEquals ((int) r.out.size(), (int) n0 + 2);
+            if (r.out.size() == n0 + 2)
+            {
+                expect (r.out[n0]     == paramMsg (3, k, edited));   // diff B d'abord
+                expect (r.out[n0 + 1] == paramMsg (3, k2, v2));      // puis l'edit
+            }
+            r.advance (10000);
+            expectEquals ((int) r.out.size(), (int) n0 + 2);         // rien apres l'echeance
         }
 
         beginTest ("lifetime: settle decrement and B cancellation survive session destruction");

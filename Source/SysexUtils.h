@@ -472,21 +472,23 @@ namespace SyVoice
         voix est chargée dans l'edit buffer : le SY77 l'affiche/joue immédiatement SANS toucher
         à la mémoire. Le checksum Yamaha est RECALCULÉ (offsets 30/31 sont dans la zone couverte).
 
-        Pure et testable (cf. Tests.h). No-op si le bloc n'est pas un bulk voix bien cadré. */
-    inline void retargetVoiceToEditBuffer (juce::uint8* block, int size)
+        Pure et testable (cf. Tests.h). No-op si le bloc n'est pas un bulk voix bien cadré.
+        Renvoie true SEULEMENT si la redirection vers $7F a été faite (false = bloc intact :
+        il garderait son type mémoire d'origine -> NE PAS l'envoyer, cf. prepareEditBufferBulk). */
+    inline bool retargetVoiceToEditBuffer (juce::uint8* block, int size)
     {
-        if (block == nullptr || size < 34)                 return;  // besoin des offsets 30/31 + checksum
-        if (block[0] != 0xF0 || block[size - 1] != 0xF7)   return;
-        if (block[1] != 0x43 || block[3] != 0x7A)          return;  // bulk voix Yamaha
+        if (block == nullptr || size < 34)                 return false;  // besoin des offsets 30/31 + checksum
+        if (block[0] != 0xF0 || block[size - 1] != 0xF7)   return false;
+        if (block[1] != 0x43 || block[3] != 0x7A)          return false;  // bulk voix Yamaha
 
         block[30] = 0x7F;   // Memory type = Edit Buffer
         block[31] = 0x00;   // Memory# (ignoré en réception pour l'edit buffer)
 
         const int checksumIndex = size - 2;
         const int dataStart     = 6;
-        const int dataCount     = checksumIndex - dataStart;
-        if (dataCount <= 0) return;
+        const int dataCount     = checksumIndex - dataStart;   // > 0 : size >= 34
         block[checksumIndex] = yamahaChecksum (block + dataStart, dataCount);
+        return true;
     }
 
     //==============================================================================
@@ -889,10 +891,14 @@ namespace SyVoice
     /** Prepare un bloc voix pour l'audition/ouverture : device byte = device courant
         (setBulkDevice, hors checksum) puis redirection vers l'EDIT BUFFER $7F avec checksum
         recalcule (retargetVoiceToEditBuffer). Les deux operations touchent des octets
-        disjoints (2 vs 30/31/checksum) : resultat identique a l'ancien enchainement. */
-    inline void prepareEditBufferBulk (juce::uint8* block, int size, int deviceNumber)
+        disjoints (2 vs 30/31/checksum) : resultat identique a l'ancien enchainement.
+        SECURITE : renvoie true SEULEMENT si le bloc vise reellement l'edit buffer $7F. Sur false
+        (bloc < 34 octets, pas F0..F7, pas un bulk 43 .. 7A) l'appelant DOIT refuser d'envoyer :
+        le device aurait pu etre re-tamponne mais le type memoire d'origine serait conserve et
+        le bloc pourrait ecraser une voix interne du SY77. */
+    inline bool prepareEditBufferBulk (juce::uint8* block, int size, int deviceNumber)
     {
         setBulkDevice (block, size, deviceNumber);
-        retargetVoiceToEditBuffer (block, size);
+        return retargetVoiceToEditBuffer (block, size);
     }
 }

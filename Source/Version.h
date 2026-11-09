@@ -22,4 +22,12 @@ namespace Sysex77
     {
         return juce::String ("Sysex77 v") + kVersion + "  (build " __DATE__ " " __TIME__ ")";
     }
+
+    /** Titre de la fenetre principale : version + nom de la voix ouverte (rien si inconnu,
+        ex. apres un bloc trop court qui a remplace l'edit buffer). */
+    inline juce::String windowTitle (const juce::String& voiceName)
+    {
+        return juce::String ("Sysex77 v") + kVersion
+               + (voiceName.isNotEmpty() ? "  -  " + voiceName : juce::String());
+    }
 }

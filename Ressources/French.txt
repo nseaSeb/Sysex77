@@ -105,6 +105,7 @@ countries: FR
 "Original" = "Original"
 "value(s) not restorable (not read from the dump)" = "valeur(s) non restaurable(s) (non lue(s) dans le dump)"
 "Listening to the original - editing locked" = "Écoute de l'original - édition bloquée"
+"(unknown voice)" = "(voix inconnue)"
 "Go back to the voice as loaded? Your edits stay in the history (Cmd+Z restores them)." = "Revenir à la voix telle que chargée ? Vos modifications restent dans l'historique (Cmd+Z les rétablit)."
 "Undo" = "Annuler"
 "Redo" = "Rétablir"

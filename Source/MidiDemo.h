@@ -1531,7 +1531,8 @@ private:
                     valueSysexIn = make_var_array(data[3], data[4],data[5],data[6],data[7],data[8]);
                     valueSysexIn.getValueSource().sendChangeMessage (true);
                     // Keep the edit history's state true (never creates an undo step).
-                    if (data[3] != 0x0F && ! showingA)
+                    // Ignored when no voice is loaded (else revert/undo would resend these).
+                    if (data[3] != 0x0F && ! showingA && editHistory.isLoaded())
                         editHistory.noteRx (EditHist::keyOf (data[3], data[4], data[5], data[6]),
                                             EditHist::valOf (data[7], data[8]));
 
@@ -1571,8 +1572,12 @@ public:
         // undo/redo/B sends, not while A is shown, not system setup group 0x0F).
         if (SyVoice::isRecordableVoiceParamChange (msg.getRawData(), msg.getRawDataSize())
             && MessageManager::existsAndIsCurrentThread()
-            && ! applyingHistory && ! showingA && ! loadSettling && editHistory.isLoaded())
+            && ! applyingHistory && ! showingA && loadSettling == 0 && editHistory.isLoaded())
         {
+            // A delayed B still pending (SY77 absorbing the A bulk): ADVANCE it here, before
+            // this edit goes out below -> the synth gets the B diff THEN the edit, UI and synth
+            // stay aligned. Not a new write: the B send already requested (under applyingHistory).
+            flushPendingB();
             const uint8* d = msg.getRawData();
             editHistory.recordEdit (EditHist::keyOf (d[4], d[5], d[6], d[7]), EditHist::valOf (d[8], d[9]),
                                     Time::getMillisecondCounterHiRes(),
@@ -1830,7 +1835,9 @@ public:
     MemoryBlock originalVoiceBlock;   // edit-buffer copy of the loaded voice (A side)
     bool applyingHistory = false;     // our own sends: not recorded
     bool showingA = false;
-    bool loadSettling = false;        // a voice load's async widget echoes are still pending
+    int loadSettling = 0;             // voice loads whose async widget echoes are still pending
+    std::vector<EditHist::KV> pendingB;   // delayed B diff not yet sent...
+    int pendingBGen = -1;                 // ...valid only while historyGen == pendingBGen
     double bulkBusyUntilMs = 0;       // SY77 still absorbing the last voice bulk (A / Original)
     int historyGen = 0;               // bumped by every edit/undo/redo/load/revert/A: cancels a delayed B send
 
@@ -1841,16 +1848,28 @@ public:
     void settleAfterLoad()
     {
         SysexBus::get().suppressSend.fetch_add (1, std::memory_order_acq_rel);
-        loadSettling = true;
+        ++loadSettling;   // counter: with two queued loads the 1st settle must not release the 2nd
         Component::SafePointer<MidiDemo> safe (this);
         MessageManager::callAsync ([safe]
         {
             MessageManager::callAsync ([safe]
             {
                 SysexBus::get().suppressSend.fetch_sub (1, std::memory_order_acq_rel);
-                if (safe != nullptr) safe->loadSettling = false;
+                if (safe != nullptr && safe->loadSettling > 0) --safe->loadSettling;
             });
         });
+    }
+
+    /** Sends the pending delayed B if still valid (same generation, not showing A), then
+        drops it. Called by the timer or, early, by the first recorded edit. */
+    void flushPendingB()
+    {
+        if (pendingBGen < 0) return;
+        const bool valid = pendingBGen == historyGen && ! showingA;
+        auto diff = std::move (pendingB);
+        pendingB.clear();
+        pendingBGen = -1;
+        if (valid) sendParams (diff);
     }
 
     /** Sends the original voice to the edit buffer, stamped with the CURRENT device number. */
@@ -1975,11 +1994,12 @@ public:
             else
             {
                 Component::SafePointer<MidiDemo> safe (this);
-                const int gen = historyGen;   // cancelled by any later edit/undo/load/revert/A
-                Timer::callAfterDelay ((int) wait + 1, [safe, diff, gen]
+                const int gen = historyGen;   // cancelled by any later undo/load/revert/A;
+                pendingB = diff;              // advanced (flushPendingB) by a later edit
+                pendingBGen = gen;
+                Timer::callAfterDelay ((int) wait + 1, [safe, gen]
                 {
-                    if (safe != nullptr && ! safe->showingA && safe->historyGen == gen)
-                        safe->sendParams (diff);
+                    if (safe != nullptr && safe->historyGen == gen) safe->flushPendingB();
                 });
             }
         }
@@ -2007,6 +2027,8 @@ public:
 
     void revertToOriginal()
     {
+        // Nothing loaded: no undoable step from an empty original (askRevert's condition).
+        if (! editHistory.isLoaded() || originalVoiceBlock.getSize() < 2) return;
         if (showingA) { showingA = false; lockEditing (false); }
         ++historyGen;
         sendOriginalBulk();
