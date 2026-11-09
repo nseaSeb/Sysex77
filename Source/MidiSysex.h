@@ -183,78 +183,40 @@ void oscMessageReceived (const OSCMessage& message)
 }
 
 /** Sends a voice block to the EDIT BUFFER and opens it in the editor (library audition,
-    templates). The block is a copy: retargeted here, never written to a memory slot. */
+    templates). The block is a copy: retargeted here, never written to a memory slot.
+    Coque UI : le flux sysex (redirection $7F + device courant, garde de securite, settle,
+    bulk, rejeu anti-echo, historique) est dans VoiceSession::loadBlock. */
 void openVoiceBlock (MemoryBlock block)
 {
-            // AUDITION : on redirige la voix vers l'EDIT BUFFER ($7F) au lieu de son slot
-            // mémoire d'origine -> le SY77 l'affiche/joue tout de suite, SANS écraser une
-            // voix stockée. getVoiceBlock renvoie une COPIE : currentBankData reste intact.
-            // Device courant + edit buffer $7F (octets disjoints, checksum recalcule). Fait avant
-            // settleAfterLoad() : settle ne touche pas le bloc -> flux emis identique.
-            // SECURITE : si le bloc ne peut PAS etre redirige vers $7F (trop court, non cadre,
-            // pas un bulk 43 .. 7A), il garderait son type memoire d'origine et pourrait ecraser
-            // une voix interne -> on REFUSE : aucun envoi, ni settle, ni changement d'historique.
-            if (! SyVoice::prepareEditBufferBulk ((uint8*) block.getData(), (int) block.getSize(), sysexDeviceNumber))
-            {
-                Logger::writeToLog ("openVoiceBlock refuse : pas un bulk voix redirigeable vers l'edit buffer");
-                return;
-            }
-            settleAfterLoad();   // widget echoes of this load are neither sent nor recorded
-            sendRaw (block.getData(), (long) block.getSize());
+    int type = -1;
+    String name;
+    const auto r = session.loadBlock (std::move (block), type, name,
+        [this] (int t, const String& n)
+        {
+            // Props AVANT le rejeu des params (meme ordre qu'avant le decoupage).
+            if (t >= 0 && t <= 9)
+                valueTreeVoice.setProperty (IDs::VOICEMODE, t + 1, nullptr); // id comboMode
+            valueTreeVoice.setProperty (IDs::VOICENAME, n, nullptr);
+            // Affiche la voix ouverte dans le titre de la fenetre (visible sur tous les onglets).
+            if (auto* tlw = getTopLevelComponent())
+                tlw->setName (Sysex77::windowTitle (n));
+        });
 
-            // Ouvre aussi la voix dans l'éditeur : on décode ce qui est FIABLE
-            // (vérifié sur banques réelles) — type/mode (offset 32) et nom (offset 33,
-            // 10 car.). Les paramètres sonores détaillés nécessitent la carte d'offsets
-            // vérifiée (la structure du codec Elixir ne correspond PAS aux banques réelles).
-            const uint8* d = (const uint8*) block.getData();
-            const int sz = (int) block.getSize();
-            if (sz > 42)
-            {
-                const int type = d[32];                          // 0..10 (cf. enum voice type)
-                if (type >= 0 && type <= 9)
-                    valueTreeVoice.setProperty (IDs::VOICEMODE, type + 1, nullptr); // id comboMode
-                String name;
-                for (int i = 33; i < 43; ++i)
-                    name += String::charToString ((juce_wchar) d[i]);
-                name = name.trimEnd();
-                valueTreeVoice.setProperty (IDs::VOICENAME, name, nullptr);
+    // SECURITE : bloc non redirigeable vers $7F -> rien envoye, rien modifie, pas de bascule.
+    if (r == VoiceSession::LoadResult::Refused) return;
 
-                // Affiche la voix ouverte dans le titre de la fenêtre (visible sur tous les onglets).
-                if (auto* tlw = getTopLevelComponent())
-                    tlw->setName (Sysex77::windowTitle (name));
+    if (r == VoiceSession::LoadResult::Discarded)
+    {
+        // Presentation seulement : le nom affiche n'est plus celui de l'edit buffer.
+        // VOICENAME vide -> Voice.h vide le champ (dontSendNotification, aucun VNAM
+        // emis : seul Return dans le champ envoie le nom au synthe).
+        valueTreeVoice.setProperty (IDs::VOICENAME, String(), nullptr);
+        if (auto* tlw = getTopLevelComponent())
+            tlw->setName (Sysex77::windowTitle ({}));
+    }
 
-                // Charge aussi les paramètres sonores CONFIRMÉS hardware (opérateurs AFM,
-                // élément 1) en les rejouant comme des messages param-change entrants :
-                // chaque widget se met à jour via son propre chemin de réception (vérifié
-                // Track A). Notification SYNCHRONE par param, sinon les Value JUCE coalescent
-                // et seul le dernier paramètre serait appliqué.
-                // ANTI-ÉCHO : on rejoue le contenu de la voix comme des RX, mais on NE veut
-                // RIEN renvoyer au synthé (ce serait un flot de param-changes = re-écriture
-                // non sollicitée + risque de boucle). Suppression d'envoi sur tout le replay.
-                {
-                    const ScopedEchoSuppress noEcho;
-                    // SLP/HT sont decodes du dump (record op @12/@13) : plus de reset force.
-                    for (auto& vp : SyVoice::voiceBlobToParams (d, sz))
-                    {
-                        valueSysexIn = make_var_array (vp.group, vp.addrHi, vp.addrLo, vp.param, vp.v1, vp.value);
-                        valueSysexIn.getValueSource().sendChangeMessage (true);
-                    }
-                }
-                onVoiceLoaded (block);   // edit history + A/B original
-            }
-            else
-            {
-                discardLoadedVoice();    // previous voice no longer in the edit buffer
-                // Presentation seulement : le nom affiche n'est plus celui de l'edit buffer.
-                // VOICENAME vide -> Voice.h vide le champ (dontSendNotification, aucun VNAM
-                // emis : seul Return dans le champ envoie le nom au synthe).
-                valueTreeVoice.setProperty (IDs::VOICENAME, String(), nullptr);
-                if (auto* tlw = getTopLevelComponent())
-                    tlw->setName (Sysex77::windowTitle ({}));
-            }
-
-            // Bascule sur l'éditeur (onglet Voice = index 2) pour éditer la voix ouverte.
-            tabs.setCurrentTabIndex (2);
+    // Bascule sur l'editeur (onglet Voice = index 2) pour editer la voix ouverte.
+    tabs.setCurrentTabIndex (2);
 }
 void sendSysex(const OSCMessage& message, uint8 sysexdata[0])
 {

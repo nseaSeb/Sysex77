@@ -105,13 +105,20 @@ Sortir de `MidiDemo` (2000+ lignes) la session d'édition de la voix ouverte (hi
 |---|---|---|---|---|
 | 0 | Helpers purs extraits | sysex | **FAIT (2026-11-09)** | `SyVoice::paramChangeBytes` (9 octets d'undo/redo/B, dataHi=v1), `isRecordableVoiceParamChange` (F0 43 1n 34, 11 o., g≠0F), `prepareEditBufferBulk` (stamp device + retarget $7F) dans `SysexUtils.h` ; MidiDemo/MidiSysex les appellent à la place de l'inline. Tests `VoiceSessionHelpers` contre l'ancien code inline recopié. |
 | 1 | `VoiceSession` non branchée + caractérisation | sysex | **FAIT (2026-11-09)** | `Source/VoiceSession.h` (copie fidèle), incluse par `Tests.h` seulement. Tests `VoiceSession` (ports factices, faux sendToOutputs qui rappelle `observeOutgoing` avant le gate Out) : load → bulk $7F au device courant + rejeu verbatim ; settle ; undo/redo non enregistrés ; A bulk / B diff différé + annulation par historyGen ; revert ; Out OFF ; sz ≤ 42 ; noteRx ; durée de vie (décrément suppressSend même session détruite). 8354/8354. |
-| 2 | Déplacement verbatim dans MidiDemo | sysex+midi | à faire | UN SEUL commit : `sendParams`/`applyingHistory`/branchement de la sortie (`observeOutgoing` dans `sendToOutputs`, AVANT le gate Out, thread message seulement) basculent ensemble ; `post` = `MessageManager::callAsync` (FIFO, PAS `callAfterDelay(0)`). **Test hardware conseillé** (load, A/B rapide, undo, revert). |
-| 3 | `noteRx` via `observeIncomingParam` | midi | à faire | `handleAsyncUpdate` appelle `session.observeIncomingParam(&data[3])` (pas de garde isLoaded/settle, fidèle). |
-| 4 | `openVoiceBlock` découpé + `hasUnsavedEdits()` | ui | à faire | Coque UI (props VOICEMODE/VOICENAME + titre dans le callback `beforeReplay` de `loadBlock`, onglet 2 quel que soit la taille) ; askNewVoice/navigation utilisent `hasUnsavedEdits()`, askRevert `canRevert()`. |
+| 2 | Déplacement verbatim dans MidiDemo | sysex+midi | **FAIT (2026-11-09, non commité)** | UN SEUL commit : `sendParams`/`applyingHistory`/branchement de la sortie (`observeOutgoing` dans `sendToOutputs`, AVANT le gate Out, thread message seulement) basculent ensemble ; `post` = `MessageManager::callAsync` (FIFO, PAS `callAfterDelay(0)`). **Test hardware conseillé** (load, A/B rapide, undo, revert). | Fait : membre `VoiceSession session` (après seqPlayer, ports `makeSessionPorts`, seuls send/replayParam/lockEditing/editHappened capturent this), copies MidiDemo/MidiSysex supprimées. MidiDemo.h 2127 → 1951 l., MidiSysex.h 288 → 250. 8393/8393. Test hardware à faire.
+| 3 | `noteRx` via `observeIncomingParam` | midi | **FAIT (avec l'étape 2, imposé par la compilation)** | `handleAsyncUpdate` appelle `session.observeIncomingParam(&data[3])` (pas de garde isLoaded/settle, fidèle). |
+| 4 | `openVoiceBlock` découpé + `hasUnsavedEdits()` | ui | **FAIT (avec l'étape 2)** | Coque UI (props VOICEMODE/VOICENAME + titre dans le callback `beforeReplay` de `loadBlock`, onglet 2 quel que soit la taille) ; askNewVoice/navigation utilisent `hasUnsavedEdits()`, askRevert `canRevert()`. | Navigation voiceprev/next, askNewVoice → `hasUnsavedEdits()` ; askRevert → `canRevert()` ; raccourcis ab/undo/redo + Hooks → session. Audition Librairie toujours SANS confirmation.
 
 ---
 
 ## Journal
+- **2026-11-09 (architecture — découpage MidiDemo, étapes 2-4)** — `VoiceSession` branchée dans
+  MidiDemo (un seul changement : observeOutgoing dans sendToOutputs avant le gate Out, sendParams/
+  applyingHistory dans la session, openVoiceBlock = coque UI autour de `loadBlock`, noteRx via
+  `observeIncomingParam`, gardes via `hasUnsavedEdits()/canRevert()`). Flux émis inchangé (même
+  code, tests de caractérisation 8393/8393). Pas d'invalidation explicite au destructeur : le
+  thread séquenceur ne touche pas la session (garde thread message) et post/schedule ne capturent
+  pas this. À valider sur SY77 (load, A/B rapide + edit, undo/redo, Original, Out OFF).
 - **2026-11-09 (architecture — découpage MidiDemo, étapes 0-1 VoiceSession)** — Helpers purs
   extraits (`paramChangeBytes`, `isRecordableVoiceParamChange`, `prepareEditBufferBulk`) et
   consommés par MidiDemo/MidiSysex (flux émis identique, prouvé par tests contre l'ancien inline).

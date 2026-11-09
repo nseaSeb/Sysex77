@@ -11,7 +11,8 @@
     toKV, onVoiceLoaded, replayToUi, sendParams, applyKV, undo/redo, setShowingA,
     revertToOriginal, unknownStatus, publishHistoryState, coeur d'openVoiceBlock,
     bloc d'enregistrement de sendToOutputs, noteRx de handleAsyncUpdate).
-    PAS ENCORE BRANCHEE dans MidiDemo : seulement compilee et caracterisee par Tests.h.
+    ETAPES 2-4 : BRANCHEE dans MidiDemo (membre `session`, ports dans makeSessionPorts) ;
+    les copies de MidiDemo/MidiSysex sont supprimees. Caracterisee par Tests.h.
 
     Toutes les dependances sont injectees (Ports) pour etre testable sans boucle de
     messages (en --test elle ne tourne pas) :

@@ -13,7 +13,7 @@
 #include "SysexBus.h"
 #include "SyParam.h"
 #include "Version.h"
-#include "VoiceSession.h"   // decoupage MidiDemo etape 1 : non branchee, caracterisee ici
+#include "VoiceSession.h"   // decoupage MidiDemo : branchee dans MidiDemo (etape 2), caracterisee ici
 
 //==============================================================================
 /** Boucle d'écho éditeur<->synthé : le garde anti-écho doit empêcher TOUT envoi
@@ -1240,7 +1240,7 @@ static VoiceSessionHelpersTests voiceSessionHelpersTests;
 
 //==============================================================================
 // Decoupage MidiDemo, etape 1 : caracterisation de VoiceSession (copie de la logique
-// MidiDemo, non branchee). Ports factices ; le faux `send` modelise sendToOutputs :
+// MidiDemo, branchee depuis l etape 2). Ports factices ; le faux `send` modelise sendToOutputs :
 // observeOutgoing AVANT le gate Out, puis coupe si Out OFF (note-off exceptes), puis trace.
 class VoiceSessionTests : public juce::UnitTest
 {
