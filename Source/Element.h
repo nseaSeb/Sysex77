@@ -596,7 +596,7 @@ public:
             SyDraw::drawEnvelope (g, pc, lv, w, 63.0f, SYColSelected, {}, false);
 
             // Bordure accent nette (comme les cartes FILTER/VOLUME).
-            g.setColour (SYColSelected);
+            g.setColour (syCardBorder());
             g.drawRoundedRectangle (pc.reduced (0.5f), 6.0f, 1.5f);
 
             // Ligne centrale (pan au milieu).

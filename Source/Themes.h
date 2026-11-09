@@ -18,7 +18,7 @@
 inline std::vector<SyPalette> syBuiltinPalettes()
 {
     return { syPaletteDarkOrange(), syPaletteFmDark(), syPaletteLight(),
-             syPaletteCrimson(), syPaletteTangerine() };
+             syPaletteCrimson(), syPaletteTangerine(), syPaletteIndigoNight() };
 }
 
 // Dossier utilisateur des thèmes : <appData>/Application Support/Sysex77/Themes

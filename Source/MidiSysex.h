@@ -214,7 +214,7 @@ void openVoiceBlock (MemoryBlock block)
                 // Affiche la voix ouverte dans le titre de la fenêtre (visible sur tous les onglets).
                 if (auto* tlw = getTopLevelComponent())
                     tlw->setName ("Sysex77 v" + String (Sysex77::kVersion)
-                                  + (name.isNotEmpty() ? "  —  " + name : String()));
+                                  + (name.isNotEmpty() ? "  -  " + name : String()));
 
                 // Charge aussi les paramètres sonores CONFIRMÉS hardware (opérateurs AFM,
                 // élément 1) en les rejouant comme des messages param-change entrants :

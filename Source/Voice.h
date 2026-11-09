@@ -332,8 +332,17 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         // Carte ROUTAGE : contour ACCENT + titre, dessinés à la main (le LnF ignore l'accent
         // sur GroupComponent, cf. constructeur).
         Rectangle<float> algoArea ((float) algoX, (float) algoY, (float) algoW, (float) algoH);
-        g.setColour (SYColSelected);
-        g.drawRoundedRectangle (algoArea.reduced (1.0f), 8.0f, 1.5f);
+        if (SYPal.panelStyle == "flat")
+        {
+            // Style sans cadre : simple filet sous le titre, comme les GroupComponent.
+            g.setColour (SYPal.panelBorder.withAlpha (0.6f));
+            g.drawHorizontalLine ((int) algoY + 22, algoArea.getX() + 2.0f, algoArea.getRight() - 2.0f);
+        }
+        else
+        {
+            g.setColour (syCardBorder());
+            g.drawRoundedRectangle (algoArea.reduced (1.0f), 8.0f, 1.5f);
+        }
         g.setColour (SYColLabel);
         g.setFont (Font (13.0f, Font::bold));
         g.drawText ("ROUTAGE", (int) algoX + 12, (int) algoY + 4, 160, 16, Justification::left);

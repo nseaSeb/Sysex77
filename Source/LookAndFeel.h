@@ -186,8 +186,42 @@ inline SyPalette syPaletteTangerine()
     return p;
 }
 
+// "Indigo Night" : gris anthracite (pas de noir pur), accent indigo unique reserve aux
+// valeurs/etats, panneaux sans cadre (titre + filet), potards a arc fin. Style "studio" sobre.
+inline SyPalette syPaletteIndigoNight()
+{
+    SyPalette p;
+    p.name            = "Indigo Night";
+    p.dark            = true;
+    p.background      = Colour (0xff1a1a1c);
+    p.surface         = Colour (0xff222224);
+    p.surfaceAlt      = Colour (0xff2e2e30);
+    p.panelBorder     = Colour (0xff38383c);
+    p.textPrimary     = Colour (0xffe8e8ea);
+    p.textMuted       = Colour (0xff8a8a90);
+    p.accent          = Colour (0xff8b5cf0);
+    p.accentSecondary = Colour (0xff2fd6e0);
+    p.knobTrack       = Colour (0xff2c2c30);
+    p.knobFill        = Colour (0xffa98af0);
+    p.knobBody        = Colour (0xff27272a);
+    p.shadow          = Colour (0x70000000);
+    p.glow            = Colour (0x338b5cf0);
+    p.buttonStyle     = "flat";
+    p.panelStyle      = "flat";
+    p.sliderStyle     = "bar";
+    p.knobStyle       = "thin";
+    return p;
+}
+
 // Palette active (initialisée au thème historique pour rester identique avant tout applySyTheme).
 static SyPalette SYPal = syPaletteDarkOrange();
+
+// Bordure des cartes dessinees a la main (ROUTAGE, PAN, ecrans d'EG) : accent vif pour les
+// styles encadres, filet discret pour le style "flat" (l'accent reste reserve aux valeurs).
+inline Colour syCardBorder()
+{
+    return SYPal.panelStyle == "flat" ? SYPal.panelBorder : SYColSelected;
+}
 
 // Dérive les 4 alias legacy depuis la palette active.
 inline void deriveLegacyAliases()
@@ -449,6 +483,7 @@ public:
         if (SYPal.knobStyle == "tick")    { drawKnobTick    (g, cx, cy, radius, startA, endA, angle, s); return; }
         if (SYPal.knobStyle == "neon")    { drawKnobNeon    (g, cx, cy, radius, startA, endA, angle, s); return; }
         if (SYPal.knobStyle == "arctick") { drawKnobArcTick (g, cx, cy, radius, startA, endA, angle, s); return; }
+        if (SYPal.knobStyle == "thin")    { drawKnobThin    (g, cx, cy, radius, startA, endA, angle, s); return; }
 
         const float ringThick = jmax (3.0f, radius * 0.30f);
         const float ringR      = radius - ringThick * 0.5f - 1.0f;
@@ -665,8 +700,8 @@ public:
             if (text.isNotEmpty())
             {
                 g.setColour (SYPal.panelBorder.withAlpha (0.6f));
-                g.drawLine (r.getX() + 6.0f, r.getY() + (float) SyMetrics::panelHeaderH,
-                            r.getRight() - 6.0f, r.getY() + (float) SyMetrics::panelHeaderH, 1.0f);
+                g.drawLine (r.getX() + 2.0f, r.getY() + (float) SyMetrics::panelHeaderH,
+                            r.getRight() - 2.0f, r.getY() + (float) SyMetrics::panelHeaderH, 1.0f);
             }
         }
         else if (style == "round")
@@ -698,9 +733,20 @@ public:
 
         if (text.isNotEmpty())
         {
-            g.setColour (style == "flat" ? SYPal.textMuted : SYPal.textPrimary);
-            g.setFont (Font (FontOptions (13.0f)).boldened());
-            g.drawText (text, 12, 3, w - 24, SyMetrics::panelHeaderH, Justification::left, true);
+            if (style == "flat")
+            {
+                // Titre de section en capitales espacees (transformees au dessin : les
+                // traductions restent intactes), gris clair, a gauche.
+                g.setColour (SYPal.textPrimary.withAlpha (0.78f));
+                g.setFont (Font (FontOptions (12.0f)).boldened().withExtraKerningFactor (0.08f));
+                g.drawText (text.toUpperCase(), 8, 2, w - 16, SyMetrics::panelHeaderH, Justification::left, true);
+            }
+            else
+            {
+                g.setColour (SYPal.textPrimary);
+                g.setFont (Font (FontOptions (13.0f)).boldened());
+                g.drawText (text, 12, 3, w - 24, SyMetrics::panelHeaderH, Justification::left, true);
+            }
         }
     }
 
@@ -715,6 +761,22 @@ public:
         {
             g.setColour (SYPal.accent);
             g.fillRect (area.getX(), area.getY(), area.getWidth(), 2.5f); // liseré accent côté contenu
+        }
+        if (SYPal.panelStyle == "flat")
+        {
+            // Style "studio" : onglet actif teinte accent + soulignement, libelles en capitales.
+            if (front)
+            {
+                g.setColour (SYPal.accent.withAlpha (0.16f));
+                g.fillRect (area);
+                g.setColour (SYPal.accent);
+                g.fillRect (area.getX(), area.getY(), area.getWidth(), 2.0f);
+            }
+            g.setColour (front ? SYPal.textPrimary : SYPal.textMuted.brighter (isOver ? 0.4f : 0.0f));
+            g.setFont (Font (FontOptions (12.5f)).boldened().withExtraKerningFactor (0.06f));
+            g.drawFittedText (button.getButtonText().trim().toUpperCase(), area.reduced (8, 0).toNearestInt(),
+                              Justification::centred, 1);
+            return;
         }
         g.setColour (front ? SYPal.textPrimary : SYPal.textMuted);
         g.setFont (Font (FontOptions (14.0f)));
@@ -909,6 +971,53 @@ private:
 
     //========================================================= Recettes de potard
     // « dot » : corps plat + anneau de valeur fin + point indicateur (minimaliste).
+    // "thin" : arc de valeur fin sur piste discrete, corps mat sans repere ; la valeur est
+    // ecrite au centre seulement si le slider n'a pas deja sa propre text-box (pas de doublon).
+    void drawKnobThin (Graphics& g, float cx, float cy, float radius,
+                       float startA, float endA, float angle, Slider& s)
+    {
+        const float thick = jlimit (2.0f, 3.5f, radius * 0.10f);
+        const float ringR = radius - thick * 0.5f - 1.0f;
+        if (ringR <= 2.0f) return;
+
+        Path track;
+        track.addCentredArc (cx, cy, ringR, ringR, 0.0f, startA, endA, true);
+        g.setColour (SYPal.knobTrack);
+        g.strokePath (track, PathStrokeType (thick, PathStrokeType::curved, PathStrokeType::rounded));
+
+        if (s.isEnabled())
+        {
+            const float fillA = isBipolar (s) ? (startA + endA) * 0.5f : startA;
+            Path val;
+            val.addCentredArc (cx, cy, ringR, ringR, 0.0f, jmin (fillA, angle), jmax (fillA, angle), true);
+            if (s.isMouseOverOrDragging())
+            {
+                g.setColour (SYPal.glow);
+                g.strokePath (val, PathStrokeType (thick + 3.0f, PathStrokeType::curved, PathStrokeType::rounded));
+            }
+            g.setColour (SYPal.knobFill);
+            g.strokePath (val, PathStrokeType (thick, PathStrokeType::curved, PathStrokeType::rounded));
+        }
+
+        const float bodyR = ringR - thick * 0.5f - jmax (2.0f, radius * 0.10f);
+        if (bodyR <= 1.0f) return;
+        Rectangle<float> body (cx - bodyR, cy - bodyR, bodyR * 2.0f, bodyR * 2.0f);
+        Path bodyPath; bodyPath.addEllipse (body);
+        DropShadow (SYPal.shadow, 6, { 0, 2 }).drawForPath (g, bodyPath);
+        g.setColour (SYPal.knobBody);
+        g.fillEllipse (body);
+        g.setColour (SYPal.textPrimary.withAlpha (0.06f));
+        g.drawEllipse (body.reduced (0.5f), 1.0f);
+
+        if (s.getTextBoxPosition() == Slider::NoTextBox && bodyR >= 11.0f)
+        {
+            g.setColour (s.isEnabled() ? SYPal.textPrimary : SYPal.textMuted);
+            g.setFont (Font (FontOptions (jlimit (10.0f, 15.0f, bodyR * 0.62f))).boldened());
+            g.drawFittedText (s.getTextFromValue (s.getValue()), body.reduced (2.0f).toNearestInt(),
+                              Justification::centred, 1, 0.8f);
+        }
+    }
+
     void drawKnobDot (Graphics& g, float cx, float cy, float radius,
                       float startA, float endA, float angle, Slider& s)
     {

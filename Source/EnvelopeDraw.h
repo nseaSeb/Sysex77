@@ -34,7 +34,7 @@ namespace SyDraw
         g.setColour (juce::Colours::white.withAlpha (SYPal.dark ? 0.05f : 0.30f));
         g.drawLine (area.getX() + 6.0f, area.getY() + 1.0f, area.getRight() - 6.0f, area.getY() + 1.0f, 1.0f);
         // Bord accent.
-        g.setColour (accent.withAlpha (0.45f));
+        g.setColour (SYPal.panelStyle == "flat" ? SYPal.panelBorder : accent.withAlpha (0.45f));
         g.drawRoundedRectangle (area, 6.0f, 1.2f);
     }
 
