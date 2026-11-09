@@ -466,11 +466,48 @@ public:
         valueSysexIn.addListener (this);   // RX : PANNM (0x07) + OUTSEL packé (0x08) de CET élément
     }
 
+    // Filtres de CET element (group 0x09, addrHi = element<<5 | fN ; fN 0-2 AFM, 3-5 AWM) ->
+    // proprietes ELEMENT<n>... directement. L'editeur de filtre est une vue UNIQUE re-ciblee
+    // sur l'element affiche (et sur AFM/AWM) : au chargement d'une voix, il n'ecoute qu'un
+    // seul element/moteur, les autres gardaient leur valeur (ex. filtres AWM restes Thru).
+    // La carte d'element, elle, existe pour les 4 elements. Etat UI seulement, aucun envoi.
+    void handleFilterRx (const var& a)
+    {
+        const int hi = (int) a[1];
+        if ((hi & 0x60) != outSelAddrHi || (int) a[2] != 0) return;
+        const int fn = (hi & 0x07) % 3;            // 0 = filtre 1, 1 = filtre 2, 2 = commun
+        const int n2 = (int) a[3], v = (int) a[5];
+        auto set = [this] (const char* suffix, const var& val)
+        {
+            valueTreeVoice.setProperty (Identifier (String ("ELEMENT") + String (operatorID) + suffix), val, nullptr);
+        };
+        if (fn == 0)
+        {
+            if (n2 == 0x00) set ("MODEFILTRE1", jlimit (0, 2, v));    // 0 Thru, 1 LPF, 2 HPF
+            if (n2 == 0x01) set ("FQ1", v);
+            if (n2 == 0x02) set ("CONTROLEURFILTRE1", v);
+        }
+        else if (fn == 1)
+        {
+            if (n2 == 0x00) set ("MODEFILTRE2", v != 0);             // 0 Thru, 1 LPF
+            if (n2 == 0x01) set ("FQ2", v);
+            if (n2 == 0x02) set ("CONTROLEURFILTRE2", v);
+        }
+        else
+        {
+            if (n2 == 0x32) set ("RESONNANCEFILTRE", v);
+            if (n2 == 0x33) set ("VELOCITYFILTRE", SyVoice::smToDisplay (v, 7, 8));
+            if (n2 == 0x34) set ("LFOFILTRE", SyVoice::smToDisplay (v, 7, 8));
+        }
+        repaint();
+    }
+
     // Reception (synthe ou chargement de dump) : table de pan et groupes de sortie. Etat UI
     // seulement (dontSendNotification / propriete) -> aucun envoi.
     void handleElementRx (const var& a)
     {
         if (! a.isArray() || a.size() < 6) return;
+        if ((int) a[0] == 0x09) { handleFilterRx (a); return; }
         if ((int) a[0] != 0x03 || (int) a[1] != outSelAddrHi || (int) a[2] != 0) return;
         const int n2 = (int) a[3], v = (int) a[5];
         if (n2 == 0x07)
