@@ -13,6 +13,7 @@
 #include "SysexBus.h"
 #include "SyParam.h"
 #include "Version.h"
+#include "PresetHexView.h"   // outil dev : sondage offsets -> params
 #include "VoiceSession.h"   // decoupage MidiDemo : branchee dans MidiDemo (etape 2), caracterisee ici
 
 //==============================================================================
@@ -853,6 +854,19 @@ struct SysexUtilsTests : public juce::UnitTest
             juce::uint8 unh[466] = { 0 }; unh[32] = 0x08;
             expect (SyVoice::voiceBlobToParams (unh, 466).isEmpty());
             expect (SyVoice::voiceBlobToParams (steel, 100).isEmpty());   // tronqué
+
+            // Vue hexa dev (PresetHexView) : le sondage par inversion de bit retrouve les
+            // offsets du loader. Base E1 = 107 : ALGNUM @+270, TL OP1 = record 5 (OP6..OP1) +29.
+            {
+                juce::MemoryBlock blk (steel, sizeof (steel));
+                const auto notes = PresetHex::probe (blk);
+                expect (notes[377].joinIntoString (";").contains ("ALGORITHM"));
+                expect (notes[107 + 5 * 45 + 29].joinIntoString (";").contains ("LEVEL OP1"));
+                expect (notes[35].isEmpty());                                   // nom : non sonde
+                expect (PresetHex::regionOf (107 + 5 * 45 + 29, (int) blk.getSize(),
+                                             PresetHex::layoutFor (0x03)).contains ("OP1 +29"));
+                expect (PresetHex::report (blk, "t").contains ("Checksum : OK"));
+            }
             expect (SyVoice::voiceBlobToParams (nullptr, 466).isEmpty());
         }
 

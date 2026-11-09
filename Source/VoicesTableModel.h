@@ -43,6 +43,9 @@ public:
         LibrairiePage désélectionne les autres → une seule voix active parmi les 64). */
     std::function<void (BankVoicesTable*)> onRowSelected;
 
+    /** Clic droit sur une voix (index global 0..63) : menu contextuel (vue hexa en mode dev). */
+    std::function<void (int)> onRowRightClicked;
+
     /** Retire la sélection de cette colonne (sans déclencher onRowSelected). */
     void deselectAllRows() { sourceListBox.deselectAllRows(); }
 
@@ -128,6 +131,13 @@ private:
         void listBoxItemDoubleClicked (int row, const MouseEvent&) override
         {
             requestSendVoice (row + offset);
+        }
+
+        void listBoxItemClicked (int row, const MouseEvent& e) override
+        {
+            if (e.mods.isPopupMenu() && owner.onRowRightClicked != nullptr
+                && arrayListVoices[row + offset].isNotEmpty())
+                owner.onRowRightClicked (row + offset);
         }
 
         var getDragSourceDescription (const SparseSet<int>& selectedRows) override

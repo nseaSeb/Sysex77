@@ -25,6 +25,7 @@
 #pragma once
 #include "BankTableModel.h"
 #include "VoicesTableModel.h"
+#include "PresetHexView.h"   // outil dev : contenu hexa + interpretation d'un preset
 
 
 struct LibrairiePage   : public Component,public Button::Listener, private Timer,public ChangeListener, public ChangeBroadcaster, public KeyListener
@@ -109,6 +110,17 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         addChildComponent (resultsList);   // masquée tant qu'aucune recherche active
         resultsModel.onSelect = [this] (int r) { openHit (r); };
         resultsModel.onSend   = [this] (int r) { sendHit (r); };
+        resultsModel.onRightClick = [this] (int r)
+        {
+            if (! isDevMode()) return;
+            showPresetMenu ([this, r] { openHit (r); showPresetHex (currentSlot); });
+        };
+        for (auto* col : { &voicesListA, &voicesListB, &voicesListC, &voicesListD })
+            col->onRowRightClicked = [this] (int glob)
+            {
+                if (! isDevMode()) return;
+                showPresetMenu ([this, glob] { showPresetHex (glob); });
+            };
 
         // Tri de la liste des banques.
         addAndMakeVisible (sortCombo);
@@ -224,6 +236,39 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
     }
 
     void stepBank (int delta) { bankList.selectRelative (delta); }
+
+    // --- Outil developpeur : vue hexa du preset ------------------------------------
+    // Lu a la demande (et non via le static devMode de MidiDemo.h, inclus apres ce fichier) :
+    // suit aussi le toggle en direct.
+    static bool isDevMode() { return getAppSettings()->getBoolValue ("DevMode", false); }
+
+    static void showPresetMenu (std::function<void()> showHex)
+    {
+        PopupMenu m;
+        m.addItem (TRANS("Preset hex view") + "   " + Shortcuts::hint ("presethex").trim(), std::move (showHex));
+        m.showMenuAsync (PopupMenu::Options());
+    }
+
+    /** Ouvre la vue hexa du slot donne de la banque courante (lecture seule). */
+    void showPresetHex (int slot)
+    {
+        if (slot < 0 || currentBankData.getSize() == 0) return;
+        auto block = SyVoice::getVoiceBlock ((const uint8*) currentBankData.getData(),
+                                             currentBankData.getSize(), slot);
+        if (block.getSize() <= 1) return;
+        const String bank = currentBankRelPath.fromLastOccurrenceOf ("/", false, false);
+        const String slotName = String::charToString ((juce_wchar) ('A' + slot / 16))
+                              + String (slot % 16 + 1).paddedLeft ('0', 2);
+        PresetHexView::show (block, arrayListVoices[slot].trim() + "  (" + bank + " " + slotName + ")");
+    }
+
+    /** Raccourci : preset selectionne (colonnes ou resultats de recherche). */
+    bool showSelectedPresetHex()
+    {
+        if (! isDevMode() || currentSlot < 0) return false;
+        showPresetHex (currentSlot);
+        return true;
+    }
 
     bool keyPressed (const KeyPress& key, Component* /*origin*/) override
     {
@@ -751,7 +796,7 @@ private:
     struct ResultsModel : public juce::ListBoxModel
     {
         juce::Array<LibraryIndex::Hit>& hits;
-        std::function<void(int)> onSelect, onSend;
+        std::function<void(int)> onSelect, onSend, onRightClick;
         ResultsModel (juce::Array<LibraryIndex::Hit>& h) : hits (h) {}
 
         int getNumRows() override { return hits.size(); }
@@ -772,6 +817,10 @@ private:
         }
         void selectedRowsChanged (int row) override        { if (onSelect) onSelect (row); }
         void listBoxItemDoubleClicked (int row, const MouseEvent&) override { if (onSend) onSend (row); }
+        void listBoxItemClicked (int row, const MouseEvent& e) override
+        {
+            if (e.mods.isPopupMenu() && onRightClick) onRightClick (row);
+        }
     };
     ResultsModel resultsModel { results };
     ListBox      resultsList { "results", &resultsModel };

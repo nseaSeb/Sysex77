@@ -37,6 +37,7 @@ namespace Shortcuts
             { "bankprev",  "Previous bank",             "command + cursor left" },
             { "ab",        "Compare A/B",               "command + B" },
             { "newvoice",  "New voice...",              "command + N" },
+            { "presethex", "Preset hex view (developer)", "command + shift + H" },
             { "help",      "Show keyboard shortcuts",   "command + /" } };
         return a;
     }

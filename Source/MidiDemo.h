@@ -458,6 +458,13 @@ public:
             return true;
         }
         if (id == "ab")       { session.setShowingA (! session.isShowingA()); return true; }
+        if (id == "presethex")
+        {
+            for (int i = 0; i < tabs.getNumTabs(); ++i)
+                if (auto* l = dynamic_cast<LibrairiePage*> (tabs.getTabContentComponent (i)))
+                    return l->showSelectedPresetHex();
+            return false;
+        }
         if (id == "newvoice")
         {
             tabs.setCurrentTabIndex (2);   // meme effet qu'avant : on atterrit sur la page Voice
