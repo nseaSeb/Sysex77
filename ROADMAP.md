@@ -96,9 +96,28 @@ paramètre par paramètre) et `Source/SysexUtils.h` (logique pure + conventions)
 | 3.3e | Libellé de forme d'onde dans le panneau détail AFM — **FAIT (2026-06-25)** | ui | bas | Le glyphe de forme d'onde de l'op sélectionné (roue `sliderOsc*`/`waveLook`, cadre haut-droite du détail) n'affichait pas le nom/numéro. Ajout d'un label `lblWave` (Oscillator.h) **sous le glyphe** (bande de 16 px réservée dans `waveCell`, `layoutDetail`), couleur `SYPal.accent`, Inter bold 12px. Texte = **« Wave N »** (N = 1..16) : **aucune liste de noms des 16 formes AFM** trouvée dans le projet/spec (recherché `LookAndFeel.h`/`AfmWaveLookAndFeel` = sprite `OscAfm_png` sans noms ; OCR l.429 = « PWAVE 0~15 Waveform of oscilator » sans libellés ; TG77_Voice.json = « Wave 1..6 » pour les LFO seulement) → numéro 1-indexé cohérent avec `setOscSliderStyle`. Mise à jour live : Oscillator devient `Value::Listener`, abonné une fois aux 6 `sliderOsc.getValueObject()` (referTo conserve la liste d'écouteurs, cf. `Operator::sliderAlgo`) → `valueChanged`/`updateWaveLabel` rafraîchit au drag ET au chargement de voix ; `setSelOp`/`updateSelVisibility` resynchronisent le texte sur l'op affiché. **Aucun recâblage sysex.** Build/test **695/695, 0 régression**. À juger en test. |
 | 3.4 | Nettoyer le code mort + couleurs en dur → rôles de thème | ui | bas |
 
+
+### Chantier architecture — Découpage MidiDemo
+#### Découpage MidiDemo — étape 1 : VoiceSession
+Sortir de `MidiDemo` (2000+ lignes) la session d'édition de la voix ouverte (historique undo/redo, A/B, revert, flux de chargement edit buffer) vers `Source/VoiceSession.h`, **sans changer un seul octet émis** (ordre, device, garde SY77-only, anti-écho). Dépendances injectées (`Ports` : send, replayParam, lockEditing, editHappened, nowMs, post=callAsync, schedule=callAfterDelay, sendEnabled, device, historyState).
+
+| # | Étape | Agent | Statut | Critère de fini |
+|---|---|---|---|---|
+| 0 | Helpers purs extraits | sysex | **FAIT (2026-11-09)** | `SyVoice::paramChangeBytes` (9 octets d'undo/redo/B, dataHi=v1), `isRecordableVoiceParamChange` (F0 43 1n 34, 11 o., g≠0F), `prepareEditBufferBulk` (stamp device + retarget $7F) dans `SysexUtils.h` ; MidiDemo/MidiSysex les appellent à la place de l'inline. Tests `VoiceSessionHelpers` contre l'ancien code inline recopié. |
+| 1 | `VoiceSession` non branchée + caractérisation | sysex | **FAIT (2026-11-09)** | `Source/VoiceSession.h` (copie fidèle), incluse par `Tests.h` seulement. Tests `VoiceSession` (ports factices, faux sendToOutputs qui rappelle `observeOutgoing` avant le gate Out) : load → bulk $7F au device courant + rejeu verbatim ; settle ; undo/redo non enregistrés ; A bulk / B diff différé + annulation par historyGen ; revert ; Out OFF ; sz ≤ 42 ; noteRx ; durée de vie (décrément suppressSend même session détruite). 8354/8354. |
+| 2 | Déplacement verbatim dans MidiDemo | sysex+midi | à faire | UN SEUL commit : `sendParams`/`applyingHistory`/branchement de la sortie (`observeOutgoing` dans `sendToOutputs`, AVANT le gate Out, thread message seulement) basculent ensemble ; `post` = `MessageManager::callAsync` (FIFO, PAS `callAfterDelay(0)`). **Test hardware conseillé** (load, A/B rapide, undo, revert). |
+| 3 | `noteRx` via `observeIncomingParam` | midi | à faire | `handleAsyncUpdate` appelle `session.observeIncomingParam(&data[3])` (pas de garde isLoaded/settle, fidèle). |
+| 4 | `openVoiceBlock` découpé + `hasUnsavedEdits()` | ui | à faire | Coque UI (props VOICEMODE/VOICENAME + titre dans le callback `beforeReplay` de `loadBlock`, onglet 2 quel que soit la taille) ; askNewVoice/navigation utilisent `hasUnsavedEdits()`, askRevert `canRevert()`. |
+
 ---
 
 ## Journal
+- **2026-11-09 (architecture — découpage MidiDemo, étapes 0-1 VoiceSession)** — Helpers purs
+  extraits (`paramChangeBytes`, `isRecordableVoiceParamChange`, `prepareEditBufferBulk`) et
+  consommés par MidiDemo/MidiSysex (flux émis identique, prouvé par tests contre l'ancien inline).
+  `Source/VoiceSession.h` créée, NON branchée, caractérisée par 11 scénarios (Tests.h). Écarts au
+  plan : port `historyState` ajouté, `post` séparé de `schedule`, callback `beforeReplay` dans
+  `loadBlock` (les props doivent précéder le rejeu). 8204 → 8354 assertions.
 - **2026-11-08 (v1.4.0 — écrans inspirés de Swayed + chargement des dumps)** — Comparaison avec
   le manuel de l'émulation Swayed (organisation des écrans, UX des graphes) : EG (clic droit, Shift,
   double-clic, KEY OFF, loop point SLP + hold HT), graphe de Level Scaling (EGOS en o/b 2 octets,

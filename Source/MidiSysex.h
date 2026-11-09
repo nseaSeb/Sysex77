@@ -189,9 +189,10 @@ void openVoiceBlock (MemoryBlock block)
             // AUDITION : on redirige la voix vers l'EDIT BUFFER ($7F) au lieu de son slot
             // mémoire d'origine -> le SY77 l'affiche/joue tout de suite, SANS écraser une
             // voix stockée. getVoiceBlock renvoie une COPIE : currentBankData reste intact.
-            SyVoice::setBulkDevice ((uint8*) block.getData(), (int) block.getSize(), sysexDeviceNumber);
+            // Device courant + edit buffer $7F (octets disjoints, checksum recalcule). Fait avant
+            // settleAfterLoad() : settle ne touche pas le bloc -> flux emis identique.
+            SyVoice::prepareEditBufferBulk ((uint8*) block.getData(), (int) block.getSize(), sysexDeviceNumber);
             settleAfterLoad();   // widget echoes of this load are neither sent nor recorded
-            SyVoice::retargetVoiceToEditBuffer ((uint8*) block.getData(), (int) block.getSize());
             sendRaw (block.getData(), (long) block.getSize());
 
             // Ouvre aussi la voix dans l'éditeur : on décode ce qui est FIABLE

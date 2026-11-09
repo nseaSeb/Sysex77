@@ -12,6 +12,7 @@
 #include "SysexUtils.h"
 #include "SysexBus.h"
 #include "SyParam.h"
+#include "VoiceSession.h"   // decoupage MidiDemo etape 1 : non branchee, caracterisee ici
 
 //==============================================================================
 /** Boucle d'écho éditeur<->synthé : le garde anti-écho doit empêcher TOUT envoi
@@ -1112,3 +1113,481 @@ public:
 };
 
 static ShortcutsTests shortcutsTests;
+
+//==============================================================================
+// Decoupage MidiDemo, etape 0 : helpers purs extraits de MidiDemo/MidiSysex. Les attendus
+// reproduisent le code inline AVANT extraction (vecteurs figes).
+class VoiceSessionHelpersTests : public juce::UnitTest
+{
+public:
+    VoiceSessionHelpersTests() : juce::UnitTest ("VoiceSessionHelpers", "Sysex77") {}
+
+    // Ancien code inline de MidiDemo::sendParams (copie verbatim, reference).
+    static std::array<juce::uint8, 9> legacySendParams (int dev, EditHist::KV kv)
+    {
+        const juce::uint8 d[9] = { 0x43, SyVoice::deviceByte (dev), 0x34,
+                                   (juce::uint8) EditHist::gOf (kv.first), (juce::uint8) EditHist::hiOf (kv.first),
+                                   (juce::uint8) EditHist::loOf (kv.first), (juce::uint8) EditHist::pOf (kv.first),
+                                   (juce::uint8) EditHist::v1Of (kv.second), (juce::uint8) EditHist::v2Of (kv.second) };
+        std::array<juce::uint8, 9> a {};
+        std::copy (d, d + 9, a.begin());
+        return a;
+    }
+    // Ancien test inline de MidiDemo::sendToOutputs (isSysEx + 11 + bytes).
+    static bool legacyRecordable (const juce::uint8* d, int n)
+    {
+        return n == 11 && d[0] == 0xF0 && d[1] == 0x43 && (d[2] & 0xF0) == 0x10 && d[3] == 0x34 && d[4] != 0x0F;
+    }
+
+    void runTest() override
+    {
+        using namespace EditHist;
+        beginTest ("paramChangeBytes == legacy sendParams inline array (v1 != 0, device clamp)");
+        {
+            const KV kvs[] = { { keyOf (0x56, 0x00, 0x00, 0x10), valOf (0, 99) },
+                               { keyOf (0x03, 0x20, 0x00, 0x2A), valOf (1, 5) },     // v1 != 0
+                               { keyOf (0x08, 0x00, 0x00, 0x02), valOf (0x7F, 0x7F) },
+                               { keyOf (0x0F, 0x7F, 0x7F, 0x7F), valOf (0, 0) } };
+            for (int dev : { 0, 1, 3, 16, 17 })
+                for (auto& kv : kvs)
+                {
+                    const auto got = SyVoice::paramChangeBytes (dev, gOf (kv.first), hiOf (kv.first), loOf (kv.first),
+                                                                pOf (kv.first), v1Of (kv.second), v2Of (kv.second));
+                    expect (got == legacySendParams (dev, kv));
+                }
+            // Vecteurs figes.
+            auto a = SyVoice::paramChangeBytes (3, 0x03, 0x20, 0x00, 0x2A, 1, 5);
+            const std::array<juce::uint8, 9> ea { { 0x43, 0x12, 0x34, 0x03, 0x20, 0x00, 0x2A, 0x01, 0x05 } };
+            expect (a == ea);
+            expectEquals ((int) SyVoice::paramChangeBytes (0,  0, 0, 0, 0, 0, 0)[1], 0x10);
+            expectEquals ((int) SyVoice::paramChangeBytes (16, 0, 0, 0, 0, 0, 0)[1], 0x1F);
+            expectEquals ((int) SyVoice::paramChangeBytes (17, 0, 0, 0, 0, 0, 0)[1], 0x1F);
+        }
+
+        beginTest ("isRecordableVoiceParamChange == legacy sendToOutputs test");
+        {
+            juce::uint8 ok[11]   = { 0xF0, 0x43, 0x12, 0x34, 0x56, 0, 0, 0x10, 0, 0x40, 0xF7 };
+            juce::uint8 sys[11]  = { 0xF0, 0x43, 0x10, 0x34, 0x0F, 0, 0, 0x01, 0, 0x01, 0xF7 };  // system setup
+            juce::uint8 dev2[11] = { 0xF0, 0x43, 0x20, 0x34, 0x56, 0, 0, 0x10, 0, 0x40, 0xF7 };  // 0x2n
+            juce::uint8 blk[11]  = { 0xF0, 0x43, 0x00, 0x7A, 0x56, 0, 0, 0x10, 0, 0x40, 0xF7 };  // bulk
+            juce::uint8 maker[11]= { 0xF0, 0x41, 0x10, 0x34, 0x56, 0, 0, 0x10, 0, 0x40, 0xF7 };
+            juce::uint8 nsx[11]  = { 0x90, 0x43, 0x10, 0x34, 0x56, 0, 0, 0x10, 0, 0x40, 0xF7 };  // pas F0
+            expect (SyVoice::isRecordableVoiceParamChange (ok, 11));
+            expect (! SyVoice::isRecordableVoiceParamChange (sys, 11));
+            expect (! SyVoice::isRecordableVoiceParamChange (dev2, 11));
+            expect (! SyVoice::isRecordableVoiceParamChange (blk, 11));
+            expect (! SyVoice::isRecordableVoiceParamChange (maker, 11));
+            expect (! SyVoice::isRecordableVoiceParamChange (nsx, 11));
+            expect (! SyVoice::isRecordableVoiceParamChange (ok, 9));
+            expect (! SyVoice::isRecordableVoiceParamChange (nullptr, 11));
+            for (auto* v : { ok, sys, dev2, blk, maker, nsx })
+                for (int n : { 9, 11 })
+                    expect (SyVoice::isRecordableVoiceParamChange (v, n) == legacyRecordable (v, n));
+        }
+
+        beginTest ("prepareEditBufferBulk == legacy setBulkDevice + retarget (template + vector)");
+        {
+            for (int i = 0; i < (int) VoiceTemplates::list().size(); ++i)
+            {
+                auto a = VoiceTemplates::make (i), b = a;
+                SyVoice::prepareEditBufferBulk ((juce::uint8*) a.getData(), (int) a.getSize(), 5);
+                SyVoice::setBulkDevice ((juce::uint8*) b.getData(), (int) b.getSize(), 5);
+                SyVoice::retargetVoiceToEditBuffer ((juce::uint8*) b.getData(), (int) b.getSize());
+                expect (a == b);
+                auto* d = (const juce::uint8*) a.getData();
+                const int n = (int) a.getSize();
+                expectEquals ((int) d[2], 0x04);
+                expectEquals ((int) d[30], 0x7F);
+                expectEquals ((int) d[31], 0x00);
+                expectEquals ((int) d[n - 2], (int) SyVoice::yamahaChecksum (d + 6, n - 8));
+                expect (SyVoice::verifyYamahaBulkChecksum (d, n));
+            }
+            juce::uint8 p[11] = { 0xF0, 0x43, 0x10, 0x34, 1, 2, 3, 4, 5, 6, 0xF7 };   // pas un bulk : intact
+            const juce::uint8 p0[11] = { 0xF0, 0x43, 0x10, 0x34, 1, 2, 3, 4, 5, 6, 0xF7 };
+            SyVoice::prepareEditBufferBulk (p, 11, 9);
+            expect (std::equal (p, p + 11, p0));
+        }
+    }
+};
+
+static VoiceSessionHelpersTests voiceSessionHelpersTests;
+
+//==============================================================================
+// Decoupage MidiDemo, etape 1 : caracterisation de VoiceSession (copie de la logique
+// MidiDemo, non branchee). Ports factices ; le faux `send` modelise sendToOutputs :
+// observeOutgoing AVANT le gate Out, puis coupe si Out OFF (note-off exceptes), puis trace.
+class VoiceSessionTests : public juce::UnitTest
+{
+public:
+    VoiceSessionTests() : juce::UnitTest ("VoiceSession", "Sysex77") {}
+
+    using Bytes = std::vector<juce::uint8>;
+
+    struct Rig
+    {
+        std::vector<Bytes> out;                        // ce qui sort reellement (apres gate)
+        std::vector<std::array<int, 6>> replay;
+        std::vector<int> replayDepth;                  // suppressSend vu pendant chaque rejeu
+        std::vector<bool> locks;
+        std::vector<VoiceSession::HistoryState> states;
+        std::vector<std::function<void()>> posted;
+        struct T { double due; int ms; std::function<void()> fn; };
+        std::vector<T> timers;
+        int editHappened = 0;
+        double now = 1000.0;
+        bool outOn = true, mouse = false;
+        int device = 3;
+        std::unique_ptr<VoiceSession> s;
+        std::function<void (const juce::MidiMessage&)> sendToOutputs;
+
+        Rig()
+        {
+            VoiceSession::Ports p;
+            sendToOutputs = [this] (const juce::MidiMessage& m)
+            {
+                if (s != nullptr) s->observeOutgoing (m.getRawData(), m.getRawDataSize(), mouse);
+                if (! outOn && ! m.isNoteOff()) return;
+                out.push_back (Bytes (m.getRawData(), m.getRawData() + m.getRawDataSize()));
+            };
+            p.send = sendToOutputs;
+            p.replayParam = [this] (int g, int hi, int lo, int pp, int v1, int v2)
+            {
+                replay.push_back ({ { g, hi, lo, pp, v1, v2 } });
+                replayDepth.push_back (SysexBus::get().suppressSend.load());
+            };
+            p.lockEditing  = [this] (bool l) { locks.push_back (l); };
+            p.editHappened = [this] { ++editHappened; };
+            p.nowMs        = [this] { return now; };
+            p.post         = [this] (std::function<void()> f) { posted.push_back (std::move (f)); };
+            p.schedule     = [this] (int ms, std::function<void()> f) { timers.push_back ({ now + ms, ms, std::move (f) }); };
+            p.sendEnabled  = [this] { return outOn; };
+            p.device       = [this] { return device; };
+            p.historyState = [this] (const VoiceSession::HistoryState& h) { states.push_back (h); };
+            s = std::make_unique<VoiceSession> (p);
+        }
+
+        void drain()   // boucle de messages : FIFO, les posts imbriques passent en fin de file
+        {
+            for (size_t i = 0; i < posted.size(); ++i) { auto f = posted[i]; f(); }
+            posted.clear();
+        }
+        void advance (double ms)
+        {
+            now += ms;
+            auto due = timers;
+            timers.clear();
+            for (auto& t : due) { if (t.due <= now) t.fn(); else timers.push_back (t); }
+        }
+        // Edit utilisateur tel qu'il arrive a sendToOutputs (widget -> bus -> choke-point).
+        void userEdit (EditHist::Key k, int v)
+        {
+            auto b = SyVoice::paramChangeBytes (device, EditHist::gOf (k), EditHist::hiOf (k), EditHist::loOf (k),
+                                                EditHist::pOf (k), EditHist::v1Of (v), EditHist::v2Of (v));
+            sendToOutputs (juce::MidiMessage::createSysExMessage (b.data(), 9));
+        }
+    };
+
+    // Attendu derive du code MidiDemo actuel : bulk = copie, device byte 0n, $7F/0, checksum.
+    static Bytes expectedLoadBulk (const juce::MemoryBlock& tpl, int device)
+    {
+        Bytes e ((const juce::uint8*) tpl.getData(), (const juce::uint8*) tpl.getData() + tpl.getSize());
+        const int n = (int) e.size();
+        e[2] = (juce::uint8) (device - 1);
+        e[30] = 0x7F; e[31] = 0x00;
+        e[(size_t) n - 2] = SyVoice::yamahaChecksum (e.data() + 6, n - 8);
+        return e;
+    }
+    static Bytes paramMsg (int device, EditHist::Key k, int v)
+    {
+        auto b = SyVoice::paramChangeBytes (device, EditHist::gOf (k), EditHist::hiOf (k), EditHist::loOf (k),
+                                            EditHist::pOf (k), EditHist::v1Of (v), EditHist::v2Of (v));
+        Bytes m { 0xF0 }; m.insert (m.end(), b.begin(), b.end()); m.push_back (0xF7);
+        return m;
+    }
+
+    void runTest() override
+    {
+        using namespace EditHist;
+        auto& bus = SysexBus::get();
+        const int depth0 = bus.suppressSend.load();
+        const auto tpl = VoiceTemplates::make (0);
+        const auto params = SyVoice::voiceBlobToParams ((const juce::uint8*) tpl.getData(), (int) tpl.getSize());
+        // Cle editee : premier param decode (connue de l'original).
+        const Key k = keyOf (params[0].group, params[0].addrHi, params[0].addrLo, params[0].param);
+        const int orig = valOf (params[0].v1, params[0].value);
+        const int edited = orig == 5 ? 6 : 5;
+
+        auto loadTpl = [&] (Rig& r)
+        {
+            int type = 0; juce::String name;
+            const bool ok = r.s->loadBlock (tpl, type, name);
+            r.drain();
+            return ok;
+        };
+
+        beginTest ("load: one bulk to the edit buffer ($7F) at the current device, verbatim replay");
+        {
+            Rig r;
+            int type = 0; juce::String name; size_t outAtHeader = 99, replayAtHeader = 99;
+            const bool ok = r.s->loadBlock (tpl, type, name, [&] (int, const juce::String&)
+                                            { outAtHeader = r.out.size(); replayAtHeader = r.replay.size(); });
+            expect (ok);
+            expectEquals (type, 3);
+            expect (name == juce::String ((const char*) tpl.getData() + 33, 10).trimEnd());
+            expect (name.isNotEmpty());
+            expectEquals ((int) r.out.size(), 1);
+            expect (r.out[0] == expectedLoadBulk (tpl, 3));
+            expect (outAtHeader == 1 && replayAtHeader == 0);       // ordre : bulk -> props -> rejeu
+            expectEquals ((int) r.replay.size(), params.size());
+            bool verbatim = (int) r.replay.size() == params.size(), guarded = true;
+            for (int i = 0; verbatim && i < params.size(); ++i)
+            {
+                const auto& vp = params.getReference (i);
+                verbatim = r.replay[(size_t) i] == std::array<int, 6> { { vp.group, vp.addrHi, vp.addrLo, vp.param, vp.v1, vp.value } };
+            }
+            for (int dpt : r.replayDepth) guarded = guarded && dpt >= depth0 + 2;   // settle + ScopedEchoSuppress
+            expect (verbatim);
+            expect (guarded);
+            expect (r.s->history().isLoaded() && ! r.s->history().canUndo());
+            expect (! r.states.empty() && r.states.back().loaded && ! r.states.back().showingA);
+            expect (r.locks.empty() && r.editHappened == 0 && r.timers.empty());
+            expectEquals (bus.suppressSend.load(), depth0 + 1);    // settle tenu
+            r.drain();
+            expectEquals (bus.suppressSend.load(), depth0);        // relache apres 2 sauts FIFO
+        }
+
+        beginTest ("edits during settle are not recorded; recorded once settled");
+        {
+            Rig r;
+            int type = 0; juce::String name;
+            r.s->loadBlock (tpl, type, name);
+            r.userEdit (k, edited);
+            expect (! r.s->history().canUndo());
+            r.drain();
+            r.userEdit (k, edited == 5 ? 7 : 8);
+            expect (r.s->history().canUndo());
+            expectEquals (bus.suppressSend.load(), depth0);
+        }
+
+        beginTest ("edit -> undo/redo: sent at the CURRENT device, not recorded");
+        {
+            Rig r; loadTpl (r);
+            r.userEdit (k, edited);
+            expectEquals (r.s->history().numSteps(), 1);
+            r.device = 5;
+            const size_t n0 = r.out.size(), rp0 = r.replay.size();
+            r.s->undo();
+            expectEquals ((int) r.out.size(), (int) n0 + 1);
+            expect (r.out.back() == paramMsg (5, k, orig));
+            expect (r.out.back()[2] == 0x14);
+            expectEquals ((int) r.replay.size(), (int) rp0 + 1);
+            expect (r.replayDepth.back() > depth0);
+            expect (! r.s->history().canUndo() && r.s->history().canRedo());   // undo's own send not recorded
+            r.s->redo();
+            expect (r.out.back() == paramMsg (5, k, edited));
+            expect (r.s->history().canUndo() && ! r.s->history().canRedo());
+            expectEquals (r.s->history().numSteps(), 1);
+            expect (r.states.back().status.isEmpty());
+        }
+
+        beginTest ("A: whole original bulk (current device), editing locked, editHappened; B: diff after delay");
+        {
+            Rig r; loadTpl (r);
+            r.userEdit (k, edited);
+            r.device = 2;
+            const size_t n0 = r.out.size();
+            r.s->setShowingA (true);
+            expectEquals ((int) r.out.size(), (int) n0 + 1);
+            expect (r.out.back() == expectedLoadBulk (tpl, 2));
+            expect (r.s->isShowingA() && r.locks.back() && r.editHappened == 1);
+            expect (r.states.back().showingA);
+            // While A is shown nothing is recorded.
+            r.userEdit (k, 99);
+            expectEquals (r.s->history().numSteps(), 1);
+            r.out.pop_back();   // (le faux edit est sorti : en vrai l'UI est verrouillee)
+
+            const size_t n1 = r.out.size(), rp1 = r.replay.size();
+            r.s->setShowingA (false);
+            expectEquals ((int) r.out.size(), (int) n1);                 // pas encore : SY77 occupe
+            expectEquals ((int) r.replay.size(), (int) rp1 + 1);         // UI tout de suite (diff)
+            expect (! r.s->isShowingA() && ! r.locks.back() && r.editHappened == 1);
+            expectEquals ((int) r.timers.size(), 1);
+            expectEquals (r.timers[0].ms, (int) ((double) tpl.getSize() / 3.0 + 60.0) + 1);
+            r.advance (r.timers[0].ms);
+            expectEquals ((int) r.out.size(), (int) n1 + 1);
+            expect (r.out.back() == paramMsg (2, k, edited));
+            expectEquals (r.s->history().numSteps(), 1);                  // B's send not recorded
+        }
+
+        beginTest ("B delayed send cancelled when historyGen changes (edit / A again / undo)");
+        {
+            Rig r; loadTpl (r);
+            r.userEdit (k, edited);
+            r.s->setShowingA (true);
+            r.s->setShowingA (false);
+            const Key k2 = keyOf (params[1].group, params[1].addrHi, params[1].addrLo, params[1].param);
+            const int v2 = valOf (params[1].v1, params[1].value) == 3 ? 4 : 3;
+            r.now += 1000;                          // pas de regroupement avec l'edit precedent
+            r.userEdit (k2, v2);                    // ++historyGen
+            const size_t n0 = r.out.size();
+            r.advance (10000);
+            expectEquals ((int) r.out.size(), (int) n0);
+
+            r.s->setShowingA (true);
+            r.s->setShowingA (false);
+            r.s->setShowingA (true);                // A again: showingA + gen
+            const size_t n1 = r.out.size();
+            r.advance (10000);
+            expectEquals ((int) r.out.size(), (int) n1);
+
+            // Undo while A (bulk fraichement envoye) : B est programme par setShowingA(false)
+            // puis annule par ++historyGen ; seules les valeurs d'undo sortent.
+            r.s->setShowingA (false);
+            r.s->setShowingA (true);
+            const size_t n2 = r.out.size();
+            r.s->undo();
+            expectEquals ((int) r.out.size(), (int) n2 + 1);
+            expect (r.out.back() == paramMsg (3, k2, valOf (params[1].v1, params[1].value)));
+            expectEquals ((int) r.timers.size(), 1);   // programme...
+            r.advance (10000);                         // ...mais annule
+            expectEquals ((int) r.out.size(), (int) n2 + 1);
+        }
+
+        beginTest ("B sends immediately once the bulk is absorbed");
+        {
+            Rig r; loadTpl (r);
+            r.userEdit (k, edited);
+            r.s->setShowingA (true);
+            r.now += 5000;
+            const size_t n0 = r.out.size();
+            r.s->setShowingA (false);
+            expect (r.timers.empty());
+            expectEquals ((int) r.out.size(), (int) n0 + 1);
+            expect (r.out.back() == paramMsg (3, k, edited));
+        }
+
+        beginTest ("revert: original bulk, undoable step, editHappened");
+        {
+            Rig r; loadTpl (r);
+            r.userEdit (k, edited);
+            expect (r.s->hasUnsavedEdits());
+            const size_t n0 = r.out.size();
+            r.s->revert();
+            expectEquals ((int) r.out.size(), (int) n0 + 1);
+            expect (r.out.back() == expectedLoadBulk (tpl, 3));
+            expect (r.editHappened == 1 && ! r.s->hasUnsavedEdits());
+            expectEquals (r.s->history().numSteps(), 2);
+            r.s->undo();
+            expect (r.out.back() == paramMsg (3, k, edited));
+            expect (r.s->hasUnsavedEdits());
+            // revert from A: unlocks first
+            r.s->setShowingA (true);
+            r.s->revert();
+            expect (! r.s->isShowingA() && ! r.locks.back());
+        }
+
+        beginTest ("Out OFF: nothing is emitted but the edit is recorded; B not delayed");
+        {
+            Rig r; r.outOn = false;
+            loadTpl (r);
+            expect (r.out.empty() && r.s->history().isLoaded());
+            r.userEdit (k, edited);
+            expect (r.out.empty());
+            expect (r.s->history().canUndo());
+            r.s->setShowingA (true);
+            r.s->setShowingA (false);
+            expect (r.timers.empty());               // bulkBusyUntilMs pas mis a jour
+            r.s->undo();
+            r.s->revert();
+            expect (r.out.empty());
+            expectEquals (bus.suppressSend.load(), depth0);
+        }
+
+        beginTest ("sz <= 42: bulk still sent + settle, no replay, previous history kept");
+        {
+            juce::uint8 small[40] = { 0xF0, 0x43, 0x00, 0x7A };
+            small[39] = 0xF7;
+            Bytes e (small, small + 40);
+            e[2] = 0x02; e[30] = 0x7F; e[31] = 0x00; e[38] = SyVoice::yamahaChecksum (e.data() + 6, 32);
+            {
+                Rig r;
+                int type = 0; juce::String name; bool called = false;
+                const bool ok = r.s->loadBlock (juce::MemoryBlock (small, 40), type, name,
+                                                [&] (int, const juce::String&) { called = true; });
+                expect (! ok && ! called && type == -1 && name.isEmpty());
+                expectEquals ((int) r.out.size(), 1);
+                expect (r.out[0] == e);
+                expect (r.replay.empty() && ! r.s->history().isLoaded() && r.states.empty());
+                expectEquals (bus.suppressSend.load(), depth0 + 1);
+                r.drain();
+                expectEquals (bus.suppressSend.load(), depth0);
+            }
+            {
+                Rig r; loadTpl (r);
+                r.userEdit (k, edited);
+                int type = 0; juce::String name;
+                r.s->loadBlock (juce::MemoryBlock (small, 40), type, name);
+                r.drain();
+                expect (r.s->history().canUndo() && r.s->hasUnsavedEdits());
+                r.s->setShowingA (true);
+                expect (r.out.back() == expectedLoadBulk (tpl, 3));   // original = voix precedente
+            }
+        }
+
+        beginTest ("incoming params keep the state (noteRx), ignored for group 0F and while A");
+        {
+            Rig r; loadTpl (r);
+            const int rx = edited == 5 ? 9 : 10;
+            const juce::uint8 d[6] = { (juce::uint8) gOf (k), (juce::uint8) hiOf (k), (juce::uint8) loOf (k),
+                                       (juce::uint8) pOf (k), (juce::uint8) v1Of (rx), (juce::uint8) v2Of (rx) };
+            r.s->observeIncomingParam (d);
+            expect (! r.s->history().canUndo() && r.s->hasUnsavedEdits());
+            r.userEdit (k, edited);
+            r.s->undo();
+            expect (r.out.back() == paramMsg (3, k, rx));
+            const juce::uint8 sys[6] = { 0x0F, 0, 0, 0x01, 0, 0x05 };
+            const int diffBefore = (int) r.s->history().diffFromOriginal().size();
+            r.s->observeIncomingParam (sys);
+            expectEquals ((int) r.s->history().diffFromOriginal().size(), diffBefore);
+
+            // While A: the received value is NOT noted -> undo restores the pre-A value.
+            r.now += 1000;
+            r.userEdit (k, edited);                     // state = edited (new step)
+            r.s->setShowingA (true);
+            const int third = edited == 5 ? 11 : 12;
+            const juce::uint8 dA[6] = { d[0], d[1], d[2], d[3], (juce::uint8) v1Of (third), (juce::uint8) v2Of (third) };
+            r.s->observeIncomingParam (dA);
+            r.s->setShowingA (false);
+            r.advance (10000);
+            r.now += 1000;
+            r.userEdit (k, edited == 5 ? 13 : 14);
+            r.s->undo();
+            expect (r.out.back() == paramMsg (3, k, edited));
+        }
+
+        beginTest ("lifetime: settle decrement and B cancellation survive session destruction");
+        {
+            Rig r;
+            int type = 0; juce::String name;
+            r.s->loadBlock (tpl, type, name);
+            expectEquals (bus.suppressSend.load(), depth0 + 1);
+            r.s.reset();
+            r.drain();
+            expectEquals (bus.suppressSend.load(), depth0);
+
+            Rig r2; loadTpl (r2);
+            r2.userEdit (k, edited);
+            r2.s->setShowingA (true);
+            r2.s->setShowingA (false);
+            expectEquals ((int) r2.timers.size(), 1);
+            const size_t n0 = r2.out.size();
+            r2.s.reset();
+            r2.advance (10000);
+            expectEquals ((int) r2.out.size(), (int) n0);
+        }
+
+        bus.suppressSend.store (depth0);
+    }
+};
+
+static VoiceSessionTests voiceSessionTests;

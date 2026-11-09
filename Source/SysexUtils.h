@@ -859,4 +859,40 @@ namespace SyVoice
         // createSysExMessage encadre par F0…F7 (octet 30 = F7) -> 31 octets, « 32 ou moins ».
         return juce::MidiMessage::createSysExMessage (body, (int) sizeof (body));
     }
+
+    //==============================================================================
+    // Helpers de l'historique d'edition (extraits de MidiDemo, decoupage VoiceSession etape 0).
+    // Octet pour octet identiques au code inline qu'ils remplacent (cf. Tests.h).
+
+    /** 9 octets (sans F0/F7) d'un param-change voix COMPLET (dataHi = v1, dataLo = v2), tel
+        qu'emis par l'historique (undo/redo/B). Different de paramBytes(), qui force dataHi = 0.
+        Chaque champ est tronque a 8 bits par simple cast, comme l'ancien code inline
+        (les appelants passent deja des valeurs masquees par EditHist::gOf/v1Of...). */
+    inline std::array<juce::uint8, 9> paramChangeBytes (int deviceNumber, int group, int addrHi,
+                                                        int addrLo, int param, int v1, int v2)
+    {
+        return { { 0x43, deviceByte (deviceNumber), 0x34,
+                   (juce::uint8) group, (juce::uint8) addrHi, (juce::uint8) addrLo,
+                   (juce::uint8) param, (juce::uint8) v1, (juce::uint8) v2 } };
+    }
+
+    /** Message brut sortant (F0 inclus, getRawData()) = param-change VOIX a enregistrer dans
+        l'historique : 11 octets, F0 43 1n 34, groupe != 0F (system setup exclu).
+        Le test d0 == F0 equivaut au MidiMessage::isSysEx() de l'ancien code.
+        NB : le test « retrig » de sendToOutputs n'exclut PAS le groupe 0F -> ne pas unifier. */
+    inline bool isRecordableVoiceParamChange (const juce::uint8* raw, int size)
+    {
+        return raw != nullptr && size == 11 && raw[0] == 0xF0
+               && raw[1] == 0x43 && (raw[2] & 0xF0) == 0x10 && raw[3] == 0x34 && raw[4] != 0x0F;
+    }
+
+    /** Prepare un bloc voix pour l'audition/ouverture : device byte = device courant
+        (setBulkDevice, hors checksum) puis redirection vers l'EDIT BUFFER $7F avec checksum
+        recalcule (retargetVoiceToEditBuffer). Les deux operations touchent des octets
+        disjoints (2 vs 30/31/checksum) : resultat identique a l'ancien enchainement. */
+    inline void prepareEditBufferBulk (juce::uint8* block, int size, int deviceNumber)
+    {
+        setBulkDevice (block, size, deviceNumber);
+        retargetVoiceToEditBuffer (block, size);
+    }
 }

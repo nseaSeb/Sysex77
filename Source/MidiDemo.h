@@ -1569,18 +1569,16 @@ public:
         // donc OFF = rien ne sort, Thru compris (cohérence demandée).
         // Edit history: record user voice param-changes (message thread only; not our own
         // undo/redo/B sends, not while A is shown, not system setup group 0x0F).
-        if (msg.isSysEx() && msg.getRawDataSize() == 11 && MessageManager::existsAndIsCurrentThread()
+        if (SyVoice::isRecordableVoiceParamChange (msg.getRawData(), msg.getRawDataSize())
+            && MessageManager::existsAndIsCurrentThread()
             && ! applyingHistory && ! showingA && ! loadSettling && editHistory.isLoaded())
         {
             const uint8* d = msg.getRawData();
-            if (d[1] == 0x43 && (d[2] & 0xF0) == 0x10 && d[3] == 0x34 && d[4] != 0x0F)
-            {
-                editHistory.recordEdit (EditHist::keyOf (d[4], d[5], d[6], d[7]), EditHist::valOf (d[8], d[9]),
-                                        Time::getMillisecondCounterHiRes(),
-                                        ModifierKeys::currentModifiers.isAnyMouseButtonDown());
-                ++historyGen;   // any pending delayed B send is now stale
-                publishHistoryState ({});
-            }
+            editHistory.recordEdit (EditHist::keyOf (d[4], d[5], d[6], d[7]), EditHist::valOf (d[8], d[9]),
+                                    Time::getMillisecondCounterHiRes(),
+                                    ModifierKeys::currentModifiers.isAnyMouseButtonDown());
+            ++historyGen;   // any pending delayed B send is now stale
+            publishHistoryState ({});
         }
         // Note-offs still pass when Out is OFF: otherwise a note started before the switch
         // (sequencer or keyboard) would hang on the synth with no way to release it.
@@ -1909,11 +1907,11 @@ public:
         const ScopedValueSetter<bool> svs (applyingHistory, true);
         for (auto& kv : kvs)
         {
-            const uint8 d[9] = { 0x43, SyVoice::deviceByte (sysexDeviceNumber), 0x34,
-                                 (uint8) EditHist::gOf (kv.first), (uint8) EditHist::hiOf (kv.first),
-                                 (uint8) EditHist::loOf (kv.first), (uint8) EditHist::pOf (kv.first),
-                                 (uint8) EditHist::v1Of (kv.second), (uint8) EditHist::v2Of (kv.second) };
-            auto m = MidiMessage::createSysExMessage (d, 9);
+            const auto d = SyVoice::paramChangeBytes (sysexDeviceNumber,
+                                 EditHist::gOf (kv.first), EditHist::hiOf (kv.first),
+                                 EditHist::loOf (kv.first), EditHist::pOf (kv.first),
+                                 EditHist::v1Of (kv.second), EditHist::v2Of (kv.second));
+            auto m = MidiMessage::createSysExMessage (d.data(), 9);
             m.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
             sendToOutputs (m);
         }
