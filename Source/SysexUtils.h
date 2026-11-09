@@ -332,7 +332,10 @@ namespace SyVoice
             else
             {
                 // AWM (Table 1-8, group 0x07). Offsets confirmés sur TARKUSCYMB.
-                out.add ({ 0x07, aH, 0, 0x01, (int) d[base + 2]  });   // AWMWAVE (low 7 bits)
+                // Table 1-8 : WSOURCE (N2 0x00) @+0, AWMWAVE (N2 0x01) sur 2 octets : V1 = MSB @+1,
+                // V2 = low 7 bits @+2 (ondes > 127 / carte : le MSB compte pour undo/A-B).
+                out.add ({ 0x07, aH, 0, 0x00, (int) d[base + 0] });    // WSOURCE
+                out.add ({ 0x07, aH, 0, 0x01, (int) d[base + 2], (int) d[base + 1] });   // AWMWAVE
                 // amp-EG AWM (params @50-56, désormais câblés dans WaveEg mode AWM) :
                 out.add ({ 0x07, aH, 0, 0x50, (int) d[base + 89] });   // PAR1
                 out.add ({ 0x07, aH, 0, 0x51, (int) d[base + 90] });   // PAR2

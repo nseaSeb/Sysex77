@@ -27,6 +27,52 @@ namespace PresetHex
 {
     inline juce::String hex2 (int v) { return juce::String::toHexString (v & 0xFF).paddedLeft ('0', 2).toUpperCase(); }
 
+    /** Noms des parametres absents du dictionnaire (SyParamTable) : Tables 1-4/1-7/1-8. */
+    inline juce::String fallbackName (int g, int n2)
+    {
+        if ((g & 0x0F) == 0x06)   // operateur AFM
+        {
+            const int op = 6 - ((g >> 4) & 0x0F);
+            juce::String n;
+            switch (n2)
+            {
+                case 0x0B: n = "RL2"; break;      case 0x0C: n = "EG LOOP"; break;
+                case 0x0D: n = "EG HOLD"; break;  case 0x15: n = "SHIFT"; break;
+                case 0x16: n = "COR"; break;      case 0x18: n = "PMS|PEGSW|MODE"; break;
+                case 0x19: n = "SYNC|PHASE"; break; case 0x24: n = "VEL SW"; break;
+                default:
+                    if (n2 >= 0x1C && n2 <= 0x1F) n = "BP" + juce::String (n2 - 0x1B);
+                    else if (n2 >= 0x20 && n2 <= 0x23) n = "EGOS" + juce::String (n2 - 0x1F);
+                    else n = "?";
+            }
+            return n + " OP" + juce::String (op);
+        }
+        if (g == 0x03)
+        {
+            static const char* e[] = { "ELEM LEVEL", "ELEM DETUNE", "NOTE SHIFT", "NOTE LOW", "NOTE HIGH",
+                                       "VEL LOW", "VEL HIGH", "PAN TABLE", "OUT SEL (MCT|G1|G2)" };
+            return n2 >= 0 && n2 <= 8 ? juce::String (e[n2]) : juce::String ("?");
+        }
+        if (g == 0x07)            // AWM (Table 1-8)
+        {
+            static const char* peg[] = { "PEG R1", "PEG R2", "PEG R3", "PEG RR1", "PEG L0", "PEG L1", "PEG L2",
+                                         "PEG L3", "PEG RL1", "PEG RANGE", "PEG RS", "PEG VEL SW" };
+            static const char* lfo[] = { "LFO SPEED", "LFO DELAY", "LFO PMD", "LFO AMD", "LFO FMD", "LFO WAVE", "LFO PHASE" };
+            static const char* aeg[] = { "AEG MODE", "AEG R1", "AEG R2", "AEG R3", "AEG R4", "AEG RR1", "AEG L2", "AEG L3",
+                                         "AEG RS", "AEG BP1", "AEG BP2", "AEG BP3", "AEG BP4", "AEG OS1", "AEG OS2",
+                                         "AEG OS3", "AEG OS4", "AEG VEL", "AEG VEL SW", "AEG AMS" };
+            juce::String n = "?";
+            if (n2 == 0x00) n = "WAVE SOURCE";  else if (n2 == 0x01) n = "WAVE";
+            else if (n2 == 0x02) n = "PITCH MODE"; else if (n2 == 0x03) n = "NOTE";
+            else if (n2 == 0x04) n = "FREQ";
+            else if (n2 >= 0x06 && n2 <= 0x11) n = peg[n2 - 0x06];
+            else if (n2 >= 0x12 && n2 <= 0x18) n = lfo[n2 - 0x12];
+            else if (n2 >= 0x4F && n2 <= 0x62) n = aeg[n2 - 0x4F];
+            return "AWM " + n;
+        }
+        return "?";
+    }
+
     /** Libelle lisible d'un parametre decode : nom du dictionnaire (si connu) + adresse brute. */
     inline juce::String paramLabel (const SyVoice::VoiceParam& p)
     {
@@ -37,7 +83,7 @@ namespace PresetHex
             const auto a = SyVoice::syTranslate (e.ui, 0, 0);
             if (a.ok && a.group == p.group && a.n2 == p.param) name = e.name;
         }
-        if (name.isEmpty()) name = (p.group == 0x07 ? "AWM" : "?");
+        if (name.isEmpty()) name = fallbackName (p.group, p.param);
 
         juce::String s = name;
         if (p.group != 0x02 && p.group != 0x08) s << " E" << ((p.addrHi >> 5) + 1);

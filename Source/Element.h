@@ -502,12 +502,49 @@ public:
         repaint();
     }
 
+    // AFM de CET element : octets packes operateur (0x18/0x19) et LFO main/sub (group 0x05).
+    // Meme raison que handleFilterRx : Oscillator/AfmLfo sont des vues UNIQUES re-ciblees sur
+    // l'element affiche -> les autres elements perdaient ces valeurs au chargement. Ecrit les
+    // proprietes que ces vues lient (referTo/bindTo). PHASE (0x19 V2) n'a pas de propriete :
+    // reste porte par Oscillator::handlePackedRx (element affiche seulement).
+    void handleAfmRx (const var& a)
+    {
+        const int g = (int) a[0], hi = (int) a[1], n2 = (int) a[3], v1 = (int) a[4], v = (int) a[5];
+        if (hi != outSelAddrHi || (int) a[2] != 0) return;
+        const String el (operatorID);
+        auto set = [] (const String& id, const var& val) { valueTreeVoice.setProperty (Identifier (id), val, nullptr); };
+        if (g == 0x05)
+        {
+            struct M { int n2; const char* sfx; int kind; };   // 0 = brut, 1 = combo (id = v+1), 2 = bool
+            static const M m[] = { { 0x0D, "MLFOSPEED", 0 }, { 0x0E, "MLFODELAY", 0 }, { 0x0F, "MLFOPMD", 0 },
+                                   { 0x10, "MLFOAMD", 0 }, { 0x11, "MLFOFMD", 0 }, { 0x12, "MLFOWAVE", 1 },
+                                   { 0x13, "MLFOPHASE", 0 }, { 0x15, "SLFOWAVE", 1 }, { 0x16, "SLFOSPEED", 0 },
+                                   { 0x17, "SLFOMODE", 2 }, { 0x18, "SLFOTIME", 0 }, { 0x19, "SLFOPMD", 0 } };
+            for (auto& e : m)
+                if (e.n2 == n2)
+                    set ("ELEMENT" + el + e.sfx, e.kind == 1 ? var (v + 1) : e.kind == 2 ? var (v != 0) : var (v));
+            return;
+        }
+        const int opIdx = (g >> 4) & 0x0F;                 // 0 = OP6 ... 5 = OP1
+        if (opIdx > 5) return;
+        const String opN (6 - opIdx);
+        if (n2 == 0x18)        // FMLPMS b4~2 | PES b1 | FPM b0
+        {
+            set ("ELEMENT" + el + "SPM" + opN, (v >> 2) & 0x07);
+            set ("ELEMENT" + el + "PEGSW" + opN, (v & 0x02) != 0);
+            set ("AFMELEMENT" + el + "OSCFIX" + opN, (v & 0x01) != 0);
+        }
+        else if (n2 == 0x19)   // V1 b0 = KOE (SYNC)
+            set ("AFMELEMENT" + el + "OSCSYNC" + opN, (v1 & 0x01) != 0);
+    }
+
     // Reception (synthe ou chargement de dump) : table de pan et groupes de sortie. Etat UI
     // seulement (dontSendNotification / propriete) -> aucun envoi.
     void handleElementRx (const var& a)
     {
         if (! a.isArray() || a.size() < 6) return;
         if ((int) a[0] == 0x09) { handleFilterRx (a); return; }
+        if ((int) a[0] == 0x05 || ((int) a[0] & 0x0F) == 0x06) { handleAfmRx (a); return; }
         if ((int) a[0] != 0x03 || (int) a[1] != outSelAddrHi || (int) a[2] != 0) return;
         const int n2 = (int) a[3], v = (int) a[5];
         if (n2 == 0x07)
