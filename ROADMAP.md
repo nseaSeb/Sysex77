@@ -113,6 +113,13 @@ Sortir de `MidiDemo` (2000+ lignes) la session d'édition de la voix ouverte (hi
 ---
 
 ## Journal
+- **2026-11-09 (v1.6.0 — release : décodage des dumps, librairie, outils dev)** — Release minor.
+  Depuis v1.5.0 : vue hexa dev des presets (interprétation par octet), décodage effets/LFO/commun
+  d'élément/RS/octets packés, filtres AFM+AWM (codage THRU/LPF/HPF confirmé sur le synthé),
+  RX par élément (piège des vues uniques), source d'onde AWM + cartes d'ondes éditables, voix Drum
+  décodées, badge de type + drapeau rouge, banques mixtes : seuls les blocs `8101VC` sont des
+  presets (index librairie v3 avec migration des tags). Correctifs issus de la code review (cache
+  par slot, cache WaveCards, log RX retiré). README (FR + EN) mis à jour.
 - **2026-11-09 (v1.5.0 — release : thème Indigo Night, bandeau, annuler/A-B)** — Release minor.
   Depuis v1.4.0 : thème intégré **Indigo Night** (style studio : potard « thin », barres « field »,
   couleur par opérateur, enveloppes redessinées), **Theme Builder** avec couleurs d'opérateurs

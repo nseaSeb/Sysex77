@@ -51,6 +51,14 @@ Inspiré, côté fonctionnalités, de l'éditeur *SynthWorks SY77*.
   (tags, notes, favoris), **recherche globale + filtre par tag** transversale à toutes les banques,
   **filtre par synthé** (si plusieurs présents) et **copie d'un preset** vers une banque perso.
   Double-clic sur une voix = envoi au synthé (audition dans l'edit buffer) + ouverture dans l'éditeur.
+  **Badge de type** par preset (1AFM, 2AWM, DRUM…) et **preset suspect en rouge** (en-tête, taille
+  ou checksum incohérents). Les banques mixtes (multis, tables de pan, système) n'affichent que les voix.
+- **Chargement des dumps plus complet** : effets, LFO, filtres AFM/AWM (type, cutoff, EG,
+  scaling), rate scaling des opérateurs, commun d'élément, source d'onde AWM ; **voix Drum** décodées.
+- **Cartes d'ondes AWM** : noms d'ondes des cartouches (W77xx pré-remplies) éditables dans
+  *Setting > Wave cards...*.
+- **Mode développeur** : vue hexa d'un preset de la librairie avec l'interprétation de chaque octet
+  (clic droit ou Cmd+Maj+H).
 - **Persistance** des réglages : interfaces MIDI, device number, taille de fenêtre, onglet,
   clavier, et **couleurs personnalisées** (thème custom).
 - Synchronisation **tout-MIDI** bidirectionnelle (un seul *device number* global).
@@ -201,7 +209,10 @@ settable play channel), output groups + routing, an Effects tab, and persistence
 custom colours. **Modern library**: bank send/receive with progress, delete, search & sort,
 **per-preset metadata** (tags, notes, favourites) in `library.json`, **global preset search +
 tag filter** across all banks, per-synth filter, and copy-a-preset-to-a-user-bank (send/edit
-stay SY77-only). **Built-in updater**: checks GitHub Releases on launch and can download + install
+stay SY77-only); voice-type badges (1AFM/2AWM/DRUM...), broken presets flagged red, mixed banks
+show voices only. Fuller dump loading (effects, LFO, AFM/AWM filters, operator rate scaling,
+element common, AWM wave source, Drum voices), editable AWM wave-card name tables, and a
+developer-mode preset hex view (right-click / Cmd+Shift+H). **Built-in updater**: checks GitHub Releases on launch and can download + install
 the new version automatically (macOS; opt-out in *Setting*; opens the release page on Windows/Linux). Some editor edits are state-only for
 now (full sysex send is being firmed up).
 
