@@ -434,8 +434,9 @@ public:
         if (id == "ab")       { setShowingA (! showingA); return true; }
         if (id == "newvoice")
         {
-            tabs.setCurrentTabIndex (2);   // the menu hangs off the Voice editor's "New..." button
-            MessageManager::callAsync ([] { if (auto& f = EditHist::Hooks::get().openNewMenu) f(); });
+            tabs.setCurrentTabIndex (2);   // meme effet qu'avant : on atterrit sur la page Voice
+            MessageManager::callAsync ([safe = Component::SafePointer<MidiDemo> (this)]
+                                       { if (safe != nullptr) safe->showNewVoiceMenu(); });
             return true;
         }
         if (id == "help")
@@ -490,8 +491,6 @@ public:
             h.redo     = [this] { historyRedo(); };
             h.toggleAB = [this] { setShowingA (! showingA); };
             h.revert   = [this] { askRevert(); };
-            h.newVoice = [this] (int i) { askNewVoice (i); };
-            for (auto& t : VoiceTemplates::list()) h.templateNames.add (t.name);
         }
 
         // (Images de fond Sysex77/99.png supprimées : jamais dessinées — nettoyage des ressources.)
@@ -771,6 +770,11 @@ public:
             a->setAlwaysOnTop (true);
         }
         btVoicePrev.onClick = [this] { handleShortcut ("voiceprev"); };
+        // « New... » (voix depuis un modele) : DEPLACE depuis la barre d'historique de la page
+        // Voice. Meme menu, meme askNewVoice (meme confirmation si edits non sauves).
+        addAndMakeVisible (btNewVoice);
+        btNewVoice.setAlwaysOnTop (true);
+        btNewVoice.onClick = [this] { showNewVoiceMenu(); };
         btVoiceNext.onClick = [this] { handleShortcut ("voicenext"); };
         refreshVoiceNavTooltips();
         tipRefresher.f = [this] { refreshVoiceNavTooltips(); };
@@ -833,7 +837,6 @@ public:
         {
             auto& h = EditHist::Hooks::get();
             h.undo = h.redo = h.toggleAB = h.revert = nullptr;
-            h.newVoice = nullptr;
         }
         stopTimer();
         Updater::get().onUpdateAvailable = nullptr;
@@ -1104,8 +1107,10 @@ public:
         btMidiIn .setBounds (inX,  by, selW, 26);
         btMidiOut.setBounds (outX, by, selW, 26);
 
-        // Pilule centree sur la fenetre, retrecie si la place manque (entre le logo et In).
-        const int leftLimit = 150, rightLimit = inX - 12;
+        // Pilule centree sur la fenetre, retrecie si la place manque (entre [logo New] et In).
+        // « New... » colle a gauche de la pilule ; la pilule ne descend jamais sous logo+New.
+        const int newW = 64, newGap = 8, logoEnd = 112;
+        const int leftLimit = logoEnd + newW + newGap, rightLimit = inX - 12;
         const int pillH = 30, arrowW = 30;
         int pillW = jmin (320, rightLimit - leftLimit);
         int pillX = jlimit (leftLimit, jmax (leftLimit, rightLimit - pillW), getWidth() / 2 - pillW / 2);
@@ -1113,10 +1118,11 @@ public:
         auto pr = namePill;
         btVoicePrev.setBounds (pr.removeFromLeft (arrowW).reduced (0, 1));
         btVoiceNext.setBounds (pr.removeFromRight (arrowW).reduced (0, 1));
+        btNewVoice.setBounds (namePill.getX() - newGap - newW, by, newW, 26);
         if (nameEditor != nullptr)
             nameEditor->setBounds (pr.reduced (4, 2));
         for (Component* c : { (Component*) &btBarMode, (Component*) &btMidiIn, (Component*) &btMidiOut,
-                              (Component*) &btVoicePrev, (Component*) &btVoiceNext })
+                              (Component*) &btVoicePrev, (Component*) &btVoiceNext, (Component*) &btNewVoice })
             c->toFront (false);
         if (nameEditor != nullptr) nameEditor->toFront (false);
         repaint (0, 0, getWidth(), topH);
@@ -2015,6 +2021,20 @@ public:
     // Bandeau superieur (cf. paint/resized) : < nom de voix > + In/Out/barre du bas a droite.
     static constexpr int kTopBarH = 42;
     VoiceNavArrow btVoicePrev { true }, btVoiceNext { false };
+    TextButton    btNewVoice { TRANS ("New...") };   // menu des modeles (Templates.h)
+    void showNewVoiceMenu()
+    {
+        PopupMenu m;
+        int id = 1;
+        for (auto& t : VoiceTemplates::list()) m.addItem (id++, TRANS (t.name));
+        m.showMenuAsync (PopupMenu::Options().withTargetComponent (&btNewVoice),
+            [safe = Component::SafePointer<MidiDemo> (this)] (int r)
+            {
+                if (r <= 0 || safe == nullptr) return;
+                safe->tabs.setCurrentTabIndex (2);   // le resultat s'affiche dans l'editeur Voice
+                safe->askNewVoice (r - 1);
+            });
+    }
     TextEditor*   nameEditor = nullptr;    // TextEditor de la VoicePage, re-parente ici
     Rectangle<int> namePill;               // fond de la pilule (dessine dans paint)
     struct TipRefresher : ChangeListener
@@ -2026,6 +2046,7 @@ public:
     {
         btVoicePrev.setTooltip (TRANS ("Previous voice (audition)") + Shortcuts::hint ("voiceprev"));
         btVoiceNext.setTooltip (TRANS ("Next voice (audition)")     + Shortcuts::hint ("voicenext"));
+        btNewVoice .setTooltip (TRANS ("New voice from a template (sent to the edit buffer)") + Shortcuts::hint ("newvoice"));
     }
     // Active TOUTES les infobulles (setTooltip) de l'app : sans un TooltipWindow vivant,
     // aucun tooltip ne s'affiche. Un seul suffit pour tout l'arbre.

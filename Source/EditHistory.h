@@ -171,9 +171,6 @@ namespace EditHist
     {
         static Hooks& get() { static Hooks h; return h; }
         std::function<void()> undo, redo, toggleAB, revert;
-        std::function<void (int)> newVoice;                 // template index (VoiceTemplates)
-        std::function<void()> openNewMenu;                  // set by the HistoryBar (Cmd+N)
-        juce::StringArray templateNames;
         bool canUndo = false, canRedo = false, loaded = false, showingA = false;
         juce::String status;   // short transient message (e.g. params that could not be restored)
     };
@@ -184,21 +181,13 @@ namespace EditHist
     public:
         HistoryBar()
         {
-            for (auto* b : { &btNew, &btUndo, &btRedo, &btAB, &btOrig })
+            for (auto* b : { &btUndo, &btRedo, &btAB, &btOrig })
                 addAndMakeVisible (*b);
             addAndMakeVisible (lab);
             lab.setFont (juce::Font (12.0f));
             btOrig.setTooltip (TRANS ("Back to the voice as loaded (can be undone)"));
             Shortcuts::changed().addChangeListener (this);
-            Hooks::get().openNewMenu = [this] { if (isShowing()) btNew.triggerClick(); };
-            btNew.onClick = [this]
-            {
-                juce::PopupMenu m;
-                auto& names = Hooks::get().templateNames;
-                for (int i = 0; i < names.size(); ++i) m.addItem (i + 1, TRANS (names[i]));
-                m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&btNew),
-                                 [] (int r) { if (r > 0) if (auto& f = Hooks::get().newVoice) f (r - 1); });
-            };
+            // (Le bouton « New... » vit desormais dans le bandeau superieur de MidiDemo.)
             btUndo.onClick = [] { if (auto& f = Hooks::get().undo) f(); };
             btRedo.onClick = [] { if (auto& f = Hooks::get().redo) f(); };
             btAB  .onClick = [] { if (auto& f = Hooks::get().toggleAB) f(); };
@@ -210,7 +199,6 @@ namespace EditHist
         {
             Hooks::get().removeChangeListener (this);
             Shortcuts::changed().removeChangeListener (this);
-            Hooks::get().openNewMenu = nullptr;
         }
 
         bool isLockExempt (juce::Component* c) const { return c == this; }
@@ -218,7 +206,6 @@ namespace EditHist
         void resized() override
         {
             auto r = getLocalBounds();
-            btNew.setBounds (r.removeFromLeft (64)); r.removeFromLeft (8);
             btUndo.setBounds (r.removeFromLeft (30)); r.removeFromLeft (2);
             btRedo.setBounds (r.removeFromLeft (30)); r.removeFromLeft (8);
             btAB  .setBounds (r.removeFromLeft (64)); r.removeFromLeft (4);
@@ -242,14 +229,12 @@ namespace EditHist
             btUndo.setTooltip (TRANS ("Undo the last edit") + Shortcuts::hint ("undo"));
             btRedo.setTooltip (TRANS ("Redo") + Shortcuts::hint ("redo"));
             btAB  .setTooltip (TRANS ("Compare: A = voice as loaded, B = your edits") + Shortcuts::hint ("ab"));
-            btNew .setTooltip (TRANS ("New voice from a template (sent to the edit buffer)") + Shortcuts::hint ("newvoice"));
         }
 
         juce::TextButton btUndo { juce::String::charToString ((juce::juce_wchar) 0x21B6) },   // undo arrow
                          btRedo { juce::String::charToString ((juce::juce_wchar) 0x21B7) },   // redo arrow
                          btAB   { "B" },
-                         btOrig { TRANS ("Original") },
-                         btNew  { TRANS ("New...") };
+                         btOrig { TRANS ("Original") };
         juce::Label lab;
     };
 }

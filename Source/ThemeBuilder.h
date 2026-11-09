@@ -12,6 +12,7 @@
 #pragma once
 #include <JuceHeader.h>
 #include <functional>
+#include <array>
 #include "LookAndFeel.h"
 #include "Themes.h"
 
@@ -50,6 +51,29 @@ public:
         addColour ("Remplissage",  &work.knobFill);
         addColour ("Corps potard", &work.knobBody);
 
+        // Couleurs d'operateurs : jeu predefini / monochrome (= accent) / personnalise.
+        addAndMakeVisible (lbOps);
+        lbOps.setText ("Operateurs", juce::dontSendNotification);
+        addAndMakeVisible (cbOps);
+        cbOps.addItem ("Monochrome", 1);
+        for (int k = 0; k < kNumOpSets; ++k) cbOps.addItem (opSets()[k].name, k + 2);
+        cbOps.addItem ("Personnalise", kCustomId);
+        cbOps.setSelectedId (detectOpSet(), juce::dontSendNotification);
+        cbOps.onChange = [this] { opSetChosen(); };
+        for (int i = 0; i < 6; ++i)
+        {
+            auto& r = opRows[(size_t) i];
+            r.label = std::make_unique<juce::Label> (juce::String(), "OP" + juce::String (i + 1));
+            r.swatch = std::make_unique<Swatch>();
+            r.target = &work.opColour[i];
+            r.swatch->target = r.target;
+            addAndMakeVisible (*r.label);
+            addAndMakeVisible (*r.swatch);
+            auto* sw = r.swatch.get();
+            auto* tg = r.target;
+            sw->onClick = [this, tg, sw] { openColourPicker (tg, sw); };
+        }
+
         addAndMakeVisible (labName);
         labName.setText ("Nom :", juce::dontSendNotification);
         addAndMakeVisible (edName);
@@ -65,7 +89,7 @@ public:
 
         setupPreview();
         apply();
-        setSize (760, 560);
+        setSize (760, 640);
     }
 
     void paint (juce::Graphics& g) override
@@ -111,6 +135,21 @@ public:
             cc.label->setBounds (cell.removeFromLeft (cw - 34));
             cc.swatch->setBounds (cell);
         }
+        left.removeFromTop (8);
+
+        // Operateurs : combo + 6 pastilles (3 par ligne).
+        comboRow (lbOps, cbOps);
+        {
+            auto og = left.removeFromTop (2 * (rowH + 2));
+            const int cw = (og.getWidth() - 16) / 3;
+            for (int i = 0; i < 6; ++i)
+            {
+                auto& r = opRows[(size_t) i];
+                juce::Rectangle<int> cell (og.getX() + (i % 3) * (cw + 8), og.getY() + (i / 3) * (rowH + 2), cw, rowH);
+                r.label->setBounds (cell.removeFromLeft (cw - 40));
+                r.swatch->setBounds (cell);
+            }
+        }
         left.removeFromTop (10);
 
         auto nameRow = left.removeFromTop (rowH);
@@ -153,6 +192,9 @@ public:
             kc[i]->setBounds (cell.removeFromBottom (16));
             kn[i]->setBounds (cell);
         }
+        inner.removeFromTop (14);
+        capOps.setBounds (inner.removeFromTop (16));
+        opTiles.setBounds (inner.removeFromTop (40).withWidth (juce::jmin (inner.getWidth(), 6 * 40)));
     }
 
     // Appelé après une sauvegarde réussie (ex. ConfigPage -> reloadThemes pour lister le nouveau).
@@ -170,7 +212,7 @@ private:
         void paint (juce::Graphics& g) override
         {
             auto r = getLocalBounds().toFloat().reduced (1.0f);
-            g.setColour (target != nullptr ? *target : juce::Colours::grey);
+            g.setColour ((target != nullptr ? *target : juce::Colours::grey).withMultipliedAlpha (isEnabled() ? 1.0f : 0.25f));
             g.fillRoundedRectangle (r, 4.0f);
             g.setColour (juce::Colours::black.withAlpha (0.45f));
             g.drawRoundedRectangle (r, 4.0f, 1.0f);
@@ -179,6 +221,73 @@ private:
     };
 
     struct ColourRow { std::unique_ptr<juce::Label> label; std::unique_ptr<Swatch> swatch; juce::Colour* target; };
+
+    // Apercu : 6 tuiles d'operateur, meme recette que AlgoDraw (tuile pleine couleur de l'op si
+    // le theme a des couleurs d'op, sinon tuile neutre cerclee d'accent).
+    struct OpTiles : public juce::Component
+    {
+        void paint (juce::Graphics& g) override
+        {
+            const float s = juce::jmin ((float) getHeight(), getWidth() / 6.0f) - 6.0f;
+            g.setFont (juce::Font (juce::FontOptions (s * 0.48f)).boldened());
+            for (int o = 0; o < 6; ++o)
+            {
+                juce::Rectangle<float> b (o * (s + 6.0f) + 3.0f, (getHeight() - s) * 0.5f, s, s);
+                if (SYPal.hasOpColours)
+                {
+                    const auto oc = syOpColour (o);
+                    g.setColour (oc);
+                    g.fillRoundedRectangle (b, 3.0f);
+                    g.setColour (oc.getPerceivedBrightness() > 0.62f ? juce::Colour (0xff141416) : juce::Colours::white);
+                }
+                else
+                {
+                    g.setColour (SYPal.surfaceAlt);
+                    g.fillRoundedRectangle (b, 3.0f);
+                    g.setColour (SYPal.accent);
+                    g.drawRoundedRectangle (b.reduced (0.5f), 3.0f, 1.4f);
+                }
+                g.drawText (juce::String (o + 1), b, juce::Justification::centred);
+            }
+        }
+    };
+
+    // Jeux de couleurs d'operateurs predefinis (noms generiques, op1 -> op6).
+    struct OpSet { const char* name; juce::uint32 c[6]; };
+    static constexpr int kNumOpSets = 4, kCustomId = 99;
+    static const OpSet* opSets()
+    {
+        static const OpSet sets[kNumOpSets] = {
+            { "Spectre", { 0xffe8333f, 0xffd6337a, 0xffb03ad0, 0xff5a3ae0, 0xff2e7be0, 0xff2fd6e0 } },
+            { "Pastel",  { 0xfff4a6a6, 0xfff4c59a, 0xffeee39b, 0xffa8e0b0, 0xff9fc8f0, 0xffc7aef0 } },
+            { "Neon",    { 0xffff2d95, 0xffff9f1c, 0xffe6ff2e, 0xff39ff88, 0xff2ee6ff, 0xffa64dff } },
+            { "Chaud",   { 0xffffc94d, 0xffffa632, 0xffff7a2b, 0xfff0532e, 0xffd23a3a, 0xffa82848 } },
+        };
+        return sets;
+    }
+
+    int detectOpSet() const
+    {
+        if (! work.hasOpColours) return 1;
+        for (int k = 0; k < kNumOpSets; ++k)
+        {
+            bool same = true;
+            for (int i = 0; i < 6; ++i) same = same && work.opColour[i].getARGB() == opSets()[k].c[i];
+            if (same) return k + 2;
+        }
+        return kCustomId;
+    }
+
+    void opSetChosen()
+    {
+        const int id = cbOps.getSelectedId();
+        work.hasOpColours = id != 1;
+        if (id >= 2 && id < 2 + kNumOpSets)
+            for (int i = 0; i < 6; ++i) work.opColour[i] = juce::Colour (opSets()[id - 2].c[i]);
+        apply();
+    }
+
+    bool isOpTarget (const juce::Colour* t) const { return t >= &work.opColour[0] && t <= &work.opColour[5]; }
 
     void addStyleCombo (juce::ComboBox& cb, const juce::String& name,
                         juce::StringArray opts, const juce::String& current)
@@ -222,7 +331,13 @@ private:
     void changeListenerCallback (juce::ChangeBroadcaster* src) override
     {
         if (auto* sel = dynamic_cast<juce::ColourSelector*> (src))
-            if (activeTarget != nullptr) { *activeTarget = sel->getCurrentColour(); apply(); }
+            if (activeTarget != nullptr)
+            {
+                *activeTarget = sel->getCurrentColour();
+                if (isOpTarget (activeTarget))   // pastille OP retouchee -> jeu « Personnalise »
+                    cbOps.setSelectedId (detectOpSet(), juce::dontSendNotification);
+                apply();
+            }
     }
 
     void setupPreview()
@@ -255,6 +370,8 @@ private:
         cap (capKn1, "Potard",           juce::Justification::centred);
         cap (capKn2, "Potard",           juce::Justification::centred);
         cap (capPan, "Pan",              juce::Justification::centred);
+        cap (capOps, "Operateurs",       juce::Justification::centredLeft);
+        addAndMakeVisible (opTiles);
     }
 
     void apply()
@@ -262,7 +379,13 @@ private:
         work.glow = work.accent.withAlpha (work.dark ? 0.5f : 0.33f);   // halo suit l'accent
         for (auto& c : colours)
             c.swatch->repaint();                 // la pastille relit *target
-        for (auto* l : { &capSl1, &capSl2, &capKn1, &capKn2, &capPan })
+        for (auto& r : opRows)
+        {
+            r.swatch->setEnabled (work.hasOpColours);   // Monochrome : pastilles grisees
+            r.label->setEnabled (work.hasOpColours);
+            r.swatch->repaint();
+        }
+        for (auto* l : { &capSl1, &capSl2, &capKn1, &capKn2, &capPan, &capOps })
             l->setColour (juce::Label::textColourId, work.textMuted);   // légendes suivent le thème
         applySyPalette (work);
         repaintEverything();
@@ -297,6 +420,9 @@ private:
     juce::ComboBox cbButtons, cbPanels, cbSliders, cbKnobs;
     juce::ToggleButton tgDark;
     std::vector<ColourRow> colours;
+    juce::Label lbOps;
+    juce::ComboBox cbOps;
+    std::array<ColourRow, 6> opRows;
 
     juce::Label labName, labStatus;
     juce::TextEditor edName;
@@ -307,7 +433,8 @@ private:
     juce::TextButton btP1, btP2;
     juce::ToggleButton tgP;
     juce::Slider slP1, slP2, knP1, knP2, knPan;
-    juce::Label  capSl1, capSl2, capKn1, capKn2, capPan;
+    juce::Label  capSl1, capSl2, capKn1, capKn2, capPan, capOps;
+    OpTiles      opTiles;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ThemeBuilder)
 };
