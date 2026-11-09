@@ -1422,7 +1422,9 @@ public:
         // donc OFF = rien ne sort, Thru compris (cohérence demandée).
         // Edit history: record user voice param-changes (message thread only; not our own
         // undo/redo/B sends, not while A is shown, not system setup group 0x0F).
-        if (! applyingHistory && ! showingA && editHistory.isLoaded() && msg.isSysEx() && msg.getRawDataSize() == 11
+        if (! applyingHistory && ! showingA && editHistory.isLoaded()
+            && Time::getMillisecondCounterHiRes() >= ignoreEditsUntilMs   // async load echoes
+            && msg.isSysEx() && msg.getRawDataSize() == 11
             && MessageManager::existsAndIsCurrentThread())
         {
             const uint8* d = msg.getRawData();
@@ -1684,6 +1686,14 @@ public:
     MemoryBlock originalVoiceBlock;   // edit-buffer copy of the loaded voice (A side)
     bool applyingHistory = false;     // our own sends: not recorded
     bool showingA = false;
+    double ignoreEditsUntilMs = 0;    // just after a voice load: async widget sends are not edits
+    double bulkBusyUntilMs = 0;       // SY77 still absorbing the last voice bulk (A / Original)
+
+    /** Time the SY77 needs for a voice bulk: wire time (~size/3 ms) + processing margin. */
+    void noteBulkSent (const MemoryBlock& b)
+    {
+        bulkBusyUntilMs = Time::getMillisecondCounterHiRes() + (double) b.getSize() / 3.0 + 60.0;
+    }
 
     static std::vector<EditHist::KV> toKV (const Array<SyVoice::VoiceParam>& ps)
     {
@@ -1699,6 +1709,8 @@ public:
     {
         if (showingA) { showingA = false; lockEditing (false); }
         originalVoiceBlock = editBufferBlock;
+        ignoreEditsUntilMs = Time::getMillisecondCounterHiRes() + 400.0;
+        noteBulkSent (editBufferBlock);
         editHistory.load (toKV (SyVoice::voiceBlobToParams ((const uint8*) editBufferBlock.getData(),
                                                             (int) editBufferBlock.getSize())));
         publishHistoryState ({});
@@ -1760,11 +1772,27 @@ public:
         {
             // A: the voice as loaded, sent whole to the edit buffer (covers every param).
             sendRaw (originalVoiceBlock.getData(), (long) originalVoiceBlock.getSize());
+            noteBulkSent (originalVoiceBlock);
             replayToUi (editHistory.originalValues());
             seqPlayer.editHappened();   // a bulk is not a param-change: restart explicitly
         }
         else
-            applyKV (editHistory.diffFromOriginal());   // B: only what was edited
+        {
+            // B: only what was edited. UI now; the sends wait until the SY77 has absorbed
+            // the A bulk (fast A/B toggling would otherwise lose param-changes).
+            auto diff = editHistory.diffFromOriginal();
+            replayToUi (diff);
+            const double wait = bulkBusyUntilMs - Time::getMillisecondCounterHiRes();
+            if (wait <= 0) sendParams (diff);
+            else
+            {
+                Component::SafePointer<MidiDemo> safe (this);
+                Timer::callAfterDelay ((int) wait + 1, [safe, diff]
+                {
+                    if (safe != nullptr && ! safe->showingA) safe->sendParams (diff);
+                });
+            }
+        }
         showingA = a;
         lockEditing (a);
         publishHistoryState (a ? TRANS ("Listening to the original - editing locked") : String());
@@ -1791,6 +1819,7 @@ public:
     {
         if (showingA) { showingA = false; lockEditing (false); }
         sendRaw (originalVoiceBlock.getData(), (long) originalVoiceBlock.getSize());
+        noteBulkSent (originalVoiceBlock);
         replayToUi (editHistory.originalValues());
         editHistory.makeRevertStep (Time::getMillisecondCounterHiRes());
         seqPlayer.editHappened();

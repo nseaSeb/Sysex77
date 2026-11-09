@@ -187,6 +187,8 @@ void openVoiceBlock (MemoryBlock block)
             // AUDITION : on redirige la voix vers l'EDIT BUFFER ($7F) au lieu de son slot
             // mémoire d'origine -> le SY77 l'affiche/joue tout de suite, SANS écraser une
             // voix stockée. getVoiceBlock renvoie une COPIE : currentBankData reste intact.
+            // Device number of the bulk = the app's (files often carry device 1).
+            if (block.getSize() > 3) ((uint8*) block.getData())[2] = (uint8) ((sysexDeviceNumber - 1) & 0x0F);
             SyVoice::retargetVoiceToEditBuffer ((uint8*) block.getData(), (int) block.getSize());
             sendRaw (block.getData(), (long) block.getSize());
 
