@@ -237,6 +237,12 @@ namespace SyVoice
             const int aH = e << 5;                     // addrHi de l'élément (0/32/64/96)
 
             out.add ({ 0x03, aH, 0, 0x00, (int) d[98 + 9 * e] });    // ELVL (niveau élément, commun)
+            // Element commun (group 0x03) : 9 octets par élément = d[98 + 9e + N2], N2 0x00..0x08
+            // (ELVL, ELDT s/m, ELNS o/b, limites note bas/haut, vélocité bas/haut, PANNM, OUTSEL
+            // packé MCTEN b0 | grp1 b1 | grp2 b2). Vérifié sur 12 089 voix réelles, éléments 1..4 :
+            // ELNS centre 64, limites 0/127 et 1/127 à 99 %, PANNM <= 95, OUTSEL 6 (= 2 groupes).
+            for (int n2 = 0x01; n2 <= 0x08; ++n2)
+                out.add ({ 0x03, aH, 0, n2, (int) d[98 + 9 * e + n2] });
 
             if (eng[e])
             {
@@ -265,6 +271,12 @@ namespace SyVoice
                 out.add ({ 0x05, aH, 0, 0x08, (int) d[base + 278] }); // FPL3
                 out.add ({ 0x05, aH, 0, 0x09, (int) d[base + 279] }); // FPRL1 (release level, o/b)
                 out.add ({ 0x05, aH, 0, 0x0C, (int) d[base + 282] }); // FYPSW (PEG switch, élément)
+                // PEG range/RS + Main LFO (0x0D-0x13) + Sub LFO (0x15-0x19) : même bloc base+270+N2.
+                // 12 089 voix, éléments 1..4 : range 0..3, RS 0..7 (plain), wave main 0..5 / sub 0..3,
+                // sub mode 0/1, speed ~65. N2 0x14 (non documenté) volontairement omis.
+                for (int n2 : { 0x0A, 0x0B, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13,
+                                0x15, 0x16, 0x17, 0x18, 0x19 })
+                    out.add ({ 0x05, aH, 0, n2, (int) d[base + 270 + n2] });
                 // Filtres (group 0x09). Blocs N2-ordonnés (bornes vérifiées FTYPE@+296,
                 // FCTOF@+297, FFTYPE2@+325, BP4@+316) : filtre 1 = base+296+N2, filtre 2 = base+325+N2.
                 out.add ({ 0x09, aH,        0, 0x01, (int) d[base + 297] }); // FCTOF1
@@ -323,6 +335,12 @@ namespace SyVoice
         // MCTUN <= 65, PORM 0/1. Valeur filaire brute (ATPBR s/m décodé par le widget).
         for (int n2 = 0x28; n2 <= 0x3D; ++n2)
             out.add ({ 0x02, 0, 0, n2, (int) d[32 + n2] });
+        // EFFETS (group 0x08, N2 0x00..0x1C) : bloc contigu d[43 + N2] (= voix commune N2 0x0B..0x27).
+        // Ordre = Table 1-9 (EFMODE, CHR1 x7, CHR2 x7, REV1 x6, REV2 x6, ST_MIX1/2), même suite
+        // contiguë que dans le bulk Multi (EFMODE@52 .. ST_MIX2@80). 12 089 voix : EFMODE 0..3,
+        // types chorus 0..4, types reverb 0..40 (bornes exactes), balance/niveau 0..100, mix 0/1.
+        for (int n2 = 0x00; n2 <= 0x1C; ++n2)
+            out.add ({ 0x08, 0, 0, n2, (int) d[43 + n2] });
         // Volontairement OMIS (offset connu, encodage/câblage non vérifié) : type filtre @+296
         // (bulk≠enum), FFVSON/FFCMS (s/m), coarse/detune/RS/SLP opérateur, LFO, effets,
         // AWM fine/fixed/filtre, niveaux EG (o/b) ; voix drum (type 10).

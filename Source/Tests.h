@@ -85,6 +85,9 @@ struct SysexUtilsTests : public juce::UnitTest
 {
     // Contrôleurs voix commune N2 0x28..0x3D décodés de chaque dump (d[32 + N2]).
     static constexpr int kCtrl = 0x3D - 0x28 + 1;   // 22
+    static constexpr int kFx = 0x1C + 1;            // effets group 0x08 N2 0x00..0x1C (29)
+    static constexpr int kElemCom = 8;              // element commun group 0x03 N2 0x01..0x08
+    static constexpr int kAfmLfo = 14;              // PEG range/RS + Main LFO 0x0D-13 + Sub LFO 0x15-19
     // Par élément AWM : N2 0x02..0x18 (23) + HOLD, PARS, BP1-4, VEL, ARVSW, AMS (9).
     static constexpr int kAwmExtra = 23 + 9 + 4;   // + PAOS1-4 (o/b2)
     SysexUtilsTests() : juce::UnitTest ("SysexUtils") {}
@@ -762,7 +765,7 @@ struct SysexUtilsTests : public juce::UnitTest
                 }
             // 6 op×29 + (ELVL,ALGNUM,FCTOF1,FCTOF2,FFRES,FYPSW) + 4 pitch-rates + 5 pitch-levels
             // (FPL0-3+FPRL1) + 2×7 filtre-rates + 2×7 filtre-niveaux + VVOL.
-            expectEquals (params.size(), 6 * 33 + 6 + 4 + 5 + 14 + 14 + 1 + kCtrl);
+            expectEquals (params.size(), 6 * 33 + 6 + 4 + 5 + 14 + 14 + kElemCom + kAfmLfo + 1 + kCtrl + kFx);
 
             auto val = [&params] (int group, int param) -> int
             {
@@ -829,21 +832,21 @@ struct SysexUtilsTests : public juce::UnitTest
             juce::MemoryBlock mono (steel, sizeof (steel));
             ((juce::uint8*) mono.getData())[32] = 0x00;
             expectEquals (SyVoice::voiceBlobToParams ((const juce::uint8*) mono.getData(),
-                                                      (int) mono.getSize()).size(), 6 * 33 + 6 + 4 + 5 + 14 + 14 + 1 + kCtrl);
+                                                      (int) mono.getSize()).size(), 6 * 33 + 6 + 4 + 5 + 14 + 14 + kElemCom + kAfmLfo + 1 + kCtrl + kFx);
 
             // 2 AFM / 4 AFM : N « layers » identiques (Table 2). On vérifie le compte et que
             // l'adressage par élément (addrHi = élément<<5) est bien produit.
-            const int perElem = 6 * 33 + 6 + 4 + 5 + 14 + 14;   // op + 6 + 4 pitch-rates + 5 pitch-levels + 2×7 filtre-rates + 2×7 filtre-niveaux
+            const int perElem = 6 * 33 + 6 + 4 + 5 + 14 + 14 + kElemCom + kAfmLfo;   // op + 6 + 4 pitch-rates + 5 pitch-levels + 2×7 filtre-rates + 2×7 filtre-niveaux
             {
                 juce::MemoryBlock two; two.setSize (832, true);
                 ((juce::uint8*) two.getData())[32] = 0x01;   // 2 AFM
                 auto p2 = SyVoice::voiceBlobToParams ((const juce::uint8*) two.getData(), 832);
-                expectEquals (p2.size(), perElem * 2 + 1 + kCtrl);   // + VVOL + controleurs
+                expectEquals (p2.size(), perElem * 2 + 1 + kCtrl + kFx);   // + VVOL + controleurs
 
                 juce::MemoryBlock four; four.setSize (1564, true);
                 ((juce::uint8*) four.getData())[32] = 0x02;  // 4 AFM
                 auto p4 = SyVoice::voiceBlobToParams ((const juce::uint8*) four.getData(), 1564);
-                expectEquals (p4.size(), perElem * 4 + 1 + kCtrl);
+                expectEquals (p4.size(), perElem * 4 + 1 + kCtrl + kFx);
                 bool e2 = false, e4 = false;
                 for (auto& q : p4) { if (q.addrHi == 32) e2 = true; if (q.addrHi == 96) e4 = true; }
                 expect (e2);   // élément 2 (addrHi 0x20)
@@ -866,6 +869,23 @@ struct SysexUtilsTests : public juce::UnitTest
                 expect (PresetHex::regionOf (107 + 5 * 45 + 29, (int) blk.getSize(),
                                              PresetHex::layoutFor (0x03)).contains ("OP1 +29"));
                 expect (PresetHex::report (blk, "t").contains ("Checksum : OK"));
+
+                // Lot effets / LFO / element commun (offsets par statistiques, 12 089 voix).
+                auto val = [&] (int g, int hi, int n2) -> int
+                {
+                    for (auto& vp : SyVoice::voiceBlobToParams (steel, (int) sizeof (steel)))
+                        if (vp.group == g && vp.addrHi == hi && vp.param == n2) return vp.value;
+                    return -1;
+                };
+                expectEquals (val (0x08, 0, 0x00), (int) steel[43]);          // EFMODE
+                expectEquals (val (0x08, 0, 0x01), (int) steel[44]);          // CHR1 type
+                expectEquals (val (0x08, 0, 0x1C), (int) steel[71]);          // ST_MIX2
+                expectEquals (val (0x05, 0, 0x0D), (int) steel[107 + 270 + 0x0D]);   // LFO speed
+                expectEquals (val (0x05, 0, 0x19), (int) steel[107 + 270 + 0x19]);   // sub LFO PMD
+                expectEquals (val (0x05, 0, 0x14), -1);                      // N2 0x14 omis
+                expectEquals (val (0x03, 0, 0x07), (int) steel[98 + 7]);      // PANNM
+                expectEquals (val (0x03, 0, 0x08), (int) steel[98 + 8]);      // OUTSEL
+                expect (notes[43].joinIntoString (";").contains ("EF MODE"));
             }
             expect (SyVoice::voiceBlobToParams (nullptr, 466).isEmpty());
         }
@@ -892,7 +912,7 @@ struct SysexUtilsTests : public juce::UnitTest
 
             auto p = SyVoice::voiceBlobToParams (awm, (int) sizeof (awm));
             // 1 AWM : par élément = ELVL + waveform + 7 params amp-EG ; + VVOL commun = 10 ; + contrôleurs.
-            expectEquals (p.size(), 10 + kCtrl + kAwmExtra);
+            expectEquals (p.size(), 10 + kCtrl + kAwmExtra + kElemCom + kFx);
 
             auto val = [&p] (int g, int h, int prm) -> int {
                 for (auto& q : p) if (q.group == g && q.addrHi == h && q.param == prm) return q.value;
@@ -926,7 +946,7 @@ struct SysexUtilsTests : public juce::UnitTest
             auto* p = (juce::uint8*) mb.getData();
             p[0] = 0xF0; p[32] = 0x08;
             auto params = SyVoice::voiceBlobToParams (p, 586);
-            expectEquals (params.size(), 241 + 9 + kAwmExtra + 1 + kCtrl);   // AFM él.(217, dont niveaux EG o/b) + AWM él.(9) + VVOL
+            expectEquals (params.size(), 241 + 9 + kAwmExtra + 1 + kCtrl + 2 * kElemCom + kAfmLfo + kFx);   // AFM él.(217, dont niveaux EG o/b) + AWM él.(9) + VVOL
 
             bool afmE1 = false, awmE2 = false;
             for (auto& q : params)
@@ -1756,13 +1776,15 @@ public:
             }
         }
 
-        beginTest ("bug 2: values received for an undecoded key (effects/LFO) are not unsaved edits");
+        beginTest ("bug 2: values received for an undecoded key (filter type) are not unsaved edits");
         {
-            // Cle d'effet (groupe 08) absente des params decodes, mais enregistrable (g != 0F).
+            // Cle filtre (groupe 09, type FTYPE N2 0x00 : encodage bulk non verifie, donc NON
+            // decode) absente des params decodes, mais enregistrable (g != 0F). Les effets et
+            // le LFO sont desormais decodes du dump : ils ne peuvent plus servir ici.
             Key fx = 0;
             for (int p = 0; p < 128 && fx == 0; ++p)
             {
-                const Key c = keyOf (0x08, 0, 0, p);
+                const Key c = keyOf (0x09, 0, 0, p);
                 bool decoded = false;
                 for (auto& vp : params)
                     decoded = decoded || keyOf (vp.group, vp.addrHi, vp.addrLo, vp.param) == c;

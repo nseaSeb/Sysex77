@@ -241,6 +241,7 @@ public:
 
     ~Element()
     {
+        valueSysexIn.removeListener (this);
         btWave.removeListener(this);
         btVCA.removeListener(this);
         btFilter.removeListener(this);
@@ -335,6 +336,7 @@ public:
     void valueChanged(Value & value) override
     {
         Logger::writeToLog("Element value change");
+        if (value.refersToSameSourceAs (valueSysexIn)) { handleElementRx (value.getValue()); return; }
         if (value.refersToSameSourceAs (algoValue))
             updateFmWave();
         if (value.refersToSameSourceAs (waveNameValue))
@@ -460,6 +462,28 @@ public:
         outSelAddrHi = (operatorID - 1) << 5;
         btGroup1.onClick = [this] { sendOutSel(); };
         btGroup2.onClick = [this] { sendOutSel(); };
+        valueSysexIn.removeListener (this);
+        valueSysexIn.addListener (this);   // RX : PANNM (0x07) + OUTSEL packé (0x08) de CET élément
+    }
+
+    // Reception (synthe ou chargement de dump) : table de pan et groupes de sortie. Etat UI
+    // seulement (dontSendNotification / propriete) -> aucun envoi.
+    void handleElementRx (const var& a)
+    {
+        if (! a.isArray() || a.size() < 6) return;
+        if ((int) a[0] != 0x03 || (int) a[1] != outSelAddrHi || (int) a[2] != 0) return;
+        const int n2 = (int) a[3], v = (int) a[5];
+        if (n2 == 0x07)
+        {
+            valueTreeVoice.setProperty (Identifier (String ("ELEMENT") + String (operatorID) + "PANNM"),
+                                        jlimit (0, 95, v), nullptr);
+            repaint();
+        }
+        else if (n2 == 0x08)
+        {
+            btGroup1.setToggleState ((v & 0x02) != 0, dontSendNotification);
+            btGroup2.setToggleState ((v & 0x04) != 0, dontSendNotification);
+        }
     }
 
     // Émet l'octet OUTSEL (group 0x03, param 0x08, addrHi=(él-1)<<5). VÉRIFIÉ HW (dump SY77) :
