@@ -101,8 +101,11 @@ namespace Seq
     class Player : private juce::Thread
     {
     public:
-        explicit Player (std::function<void (const juce::MidiMessage&)> sendFn)
-            : juce::Thread ("Sysex77 sequencer"), send (std::move (sendFn)) {}
+        /** channelFn (optional) is read at each note-on, so a channel change in Settings
+            applies without restarting; note-offs keep the channel of their note-on. */
+        explicit Player (std::function<void (const juce::MidiMessage&)> sendFn,
+                         std::function<int()> channelFn = {})
+            : juce::Thread ("Sysex77 sequencer"), send (std::move (sendFn)), channelOf (std::move (channelFn)) {}
 
         ~Player() override { shutdown(); }
         void shutdown()    { stop(); stopThread (2000); }
@@ -218,7 +221,7 @@ namespace Seq
             if (t.on)
             {
                 if (active[(size_t) t.note]) emitOff (t.note);   // overlapping repeat
-                const int ch = channel;
+                const int ch = channelOf ? juce::jlimit (1, 16, channelOf()) : channel.load();
                 active[(size_t) t.note] = ch;                   // remember the note-on channel
                 out (juce::MidiMessage::noteOn (ch, t.note, (juce::uint8) t.vel));
             }
@@ -243,6 +246,7 @@ namespace Seq
         }
 
         std::function<void (const juce::MidiMessage&)> send;
+        std::function<int()> channelOf;
         std::atomic<bool>   playing { false }, restartPending { true }, retrig { false };
         std::atomic<int>    phraseIndex { 0 }, root { 60 }, channel { 1 };
         std::atomic<double> bpm { 120.0 }, retrigAtMs { 0.0 };

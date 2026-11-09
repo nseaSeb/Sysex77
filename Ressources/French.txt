@@ -93,3 +93,7 @@ countries: FR
 "Melody" = "Mélodie"
 "Pad" = "Nappe"
 "Sequencer play/stop" = "Séquenceur lecture/arrêt"
+"Play channel (keyboard / sequencer)" = "Canal de jeu (clavier / séquenceur)"
+"= Device" = "= Device"
+"MIDI channel of the notes sent by the keyboard and the sequencer. '= Device' follows the device number." = "Canal MIDI des notes envoyées par le clavier et le séquenceur. « = Device » suit le device number."
+"Telecharger" = "Télécharger"

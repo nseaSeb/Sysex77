@@ -46,6 +46,23 @@ struct ConfigPage   : public Component, public ComboBox::Listener
         addAndMakeVisible(comboEngine);
         labEngine.setText (TRANS("MIDI channel (Device 1-16 / ALL)"), dontSendNotification);
 
+        // Play channel: notes of the on-screen keyboard and the sequencer.
+        addAndMakeVisible (labPlayCh);
+        addAndMakeVisible (comboPlayCh);
+        labPlayCh.setText (TRANS("Play channel (keyboard / sequencer)"), dontSendNotification);
+        comboPlayCh.addItem (TRANS("= Device"), 100);
+        for (int ch = 1; ch <= 16; ++ch) comboPlayCh.addItem (String (ch), ch);
+        comboPlayCh.setTooltip (TRANS("MIDI channel of the notes sent by the keyboard and the sequencer. '= Device' follows the device number."));
+        playChannelSetting = jlimit (0, 16, getAppSettings()->getIntValue ("PlayChannel", 0));
+        comboPlayCh.setSelectedId (playChannelSetting == 0 ? 100 : playChannelSetting, dontSendNotification);
+        comboPlayCh.onChange = [this]
+        {
+            const int id = comboPlayCh.getSelectedId();
+            playChannelSetting = (id >= 1 && id <= 16) ? id : 0;
+            getAppSettings()->setValue ("PlayChannel", playChannelSetting);
+            getAppSettings()->saveIfNeeded();
+        };
+
         // Suivre le synthé : quand un paramètre arrive du SY77, ouvre la vue concernée.
         addAndMakeVisible (followBtn);
         followSynth = getAppSettings()->getBoolValue ("FollowSynth", false);
@@ -398,6 +415,9 @@ struct ConfigPage   : public Component, public ComboBox::Listener
         sysexDeviceNumber = 1;
         sysexReceiveOmni  = false;
         comboEngine.setSelectedId (1, dontSendNotification);
+        playChannelSetting = 0;
+        comboPlayCh.setSelectedId (100, dontSendNotification);
+        getAppSettings()->setValue ("PlayChannel", 0);
 
         followSynth = false;
         followBtn.setToggleState (false, dontSendNotification);
@@ -460,8 +480,15 @@ struct ConfigPage   : public Component, public ComboBox::Listener
         {
             auto c = cardMidi.reduced (pad);
             c.removeFromTop (titleH - pad);
-            labEngine.setBounds (c.removeFromTop (labH));
-            comboEngine.setBounds (c.removeFromTop (rowH));
+            {   // device number | play channel, side by side
+                auto labRow = c.removeFromTop (labH), comboRow = c.removeFromTop (rowH);
+                const int half = (labRow.getWidth() - 8) / 2;
+                labEngine.setBounds (labRow.removeFromLeft (half));
+                comboEngine.setBounds (comboRow.removeFromLeft (half));
+                labRow.removeFromLeft (8); comboRow.removeFromLeft (8);
+                labPlayCh.setBounds (labRow);
+                comboPlayCh.setBounds (comboRow);
+            }
             c.removeFromTop (vgap);
             auto io = c.removeFromTop (labH + selH);
             auto inCol  = io.removeFromLeft ((io.getWidth() - 8) / 2);
@@ -570,6 +597,8 @@ struct ConfigPage   : public Component, public ComboBox::Listener
     std::unique_ptr<XmlElement> tutorialData;
     Label labEngine {"","MIDI channel (Device 1-16 / ALL)"};
     ComboBox comboEngine;
+    Label    labPlayCh;
+    ComboBox comboPlayCh;
     Label labTheme {"", TRANS("Theme")};
     ComboBox comboTheme;
     TextButton btReloadThemes {TRANS("Reload themes")};

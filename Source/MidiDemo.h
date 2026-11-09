@@ -129,6 +129,14 @@ static int sysexModel;
 // Device number sysex SY77 (canal) : un seul réglage global, piloté par ConfigPage.
 static int  sysexDeviceNumber = 1;     // 1..16 ; octet émis = 0x10 | (n-1)
 static bool sysexReceiveOmni  = false; // "ALL" : accepte les messages entrants de tout device
+// Channel of the notes played by the on-screen keyboard and the sequencer.
+// 0 = follow the device number (channel 1 when the device is ALL), 1..16 = fixed.
+static int  playChannelSetting = 0;
+inline int currentPlayChannel()
+{
+    if (playChannelSetting >= 1 && playChannelSetting <= 16) return playChannelSetting;
+    return sysexReceiveOmni ? 1 : juce::jlimit (1, 16, sysexDeviceNumber);
+}
 static bool followSynth       = false; // "Suivre le synthé" : ouvre la vue du paramètre reçu
 static bool monitorRaw        = false; // moniteur : false = décodé (G/AH/AL/P/val), true = octets bruts hex
 static bool devMode           = false; // Mode développeur : affiche le moniteur MIDI + outils RE (onglet "Midi Setting")
@@ -686,7 +694,12 @@ public:
             "Sysex77 " + info.tag + TRANS(" est disponible (vous avez v") + Sysex77::kVersion + ").\n\n"
                 + info.notes.substring (0, 500),
             juce::MessageBoxIconType::InfoIcon);
+       #if JUCE_MAC
         w.addButton (TRANS("Installer"),               1, juce::KeyPress (juce::KeyPress::returnKey));
+       #else
+        // No auto-install outside macOS: "Download" opens the release page (Windows zip / Linux tar.gz).
+        w.addButton (TRANS("Telecharger"),             5, juce::KeyPress (juce::KeyPress::returnKey));
+       #endif
         w.addButton (TRANS("Notes"),                   2);
         w.addButton (TRANS("Plus tard"),               3, juce::KeyPress (juce::KeyPress::escapeKey));
         w.addButton (TRANS("Ignorer cette version"),   4);
@@ -695,6 +708,7 @@ public:
         if (r == 1)      Updater::get().downloadAndInstall (info);
         else if (r == 2) { juce::URL (info.htmlUrl).launchInDefaultBrowser(); showUpdateDialog (info); }
         else if (r == 4) Updater::get().skipVersion (info.tag);
+        else if (r == 5) juce::URL (info.htmlUrl).launchInDefaultBrowser();
     }
 
     ~MidiDemo()
@@ -848,11 +862,14 @@ public:
     {
         if (barMode == 2)   // Seq mode: a key sets the phrase root instead of sounding
         {
-            seqPlayer.setChannel (midiChannel);
             seqPanel.setRoot (midiNoteNumber);
             return;
         }
-        MidiMessage m (MidiMessage::noteOn (midiChannel, midiNoteNumber, velocity));
+        // Channel chosen in Settings (play channel), not the keyboard component's own one.
+        juce::ignoreUnused (midiChannel);
+        const int ch = currentPlayChannel();
+        keyChannel[(size_t) midiNoteNumber] = ch;   // note-off goes to the same channel
+        MidiMessage m (MidiMessage::noteOn (ch, midiNoteNumber, velocity));
         m.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
         sendToOutputs (m);
     }
@@ -860,7 +877,11 @@ public:
     void handleNoteOff (MidiKeyboardState*, int midiChannel, int midiNoteNumber, float velocity) override
     {
         if (barMode == 2) return;
-        MidiMessage m (MidiMessage::noteOff (midiChannel, midiNoteNumber, velocity));
+        juce::ignoreUnused (midiChannel);
+        const int ch = keyChannel[(size_t) midiNoteNumber] > 0 ? keyChannel[(size_t) midiNoteNumber]
+                                                               : currentPlayChannel();
+        keyChannel[(size_t) midiNoteNumber] = 0;
+        MidiMessage m (MidiMessage::noteOff (ch, midiNoteNumber, velocity));
         m.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
         sendToOutputs (m);
     }
@@ -1618,7 +1639,9 @@ public:
     std::unique_ptr<MidiSettingsPage>  midiSettingsPage;
     ReferenceCountedArray<MidiDeviceListEntry> midiInputs, midiOutputs;
     CriticalSection outLock;   // guards midiOutputs + sendMessageNow (see sendToOutputs)
-    Seq::Player seqPlayer { [this] (const MidiMessage& m) { sendToOutputs (m); } };
+    Seq::Player seqPlayer { [this] (const MidiMessage& m) { sendToOutputs (m); },
+                            [] { return currentPlayChannel(); } };
+    std::array<int, 128> keyChannel {};   // channel each on-screen key was sent on
     Seq::Panel  seqPanel  { seqPlayer };
     
     CriticalSection midiMonitorLock;

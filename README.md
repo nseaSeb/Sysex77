@@ -31,8 +31,12 @@ Inspiré, côté fonctionnalités, de l'éditeur *SynthWorks SY77*.
   pitch/amp/filtre, pan LFO/bias, cutoff/EG bias, volume, micro tuning, random pitch, portamento.
 - **AWM** : Pitch EG, onglet LFO, mode Hold de l'EG, chargement complet depuis le dump.
 - **Onglet Effets** : Effect Mode (0..3, topologie du mode affichée) + 2 unités Modulation + 2 unités Reverb.
-- **Raccourcis clavier configurables** : Cmd+1..6 pour les onglets, Échap ferme l'éditeur
-  (Réglages > Général > Raccourcis clavier ; compatible AZERTY).
+- **Séquenceur de phrases** (bandeau bas : Rien / Clavier / Séq.) : joue une phrase en boucle
+  pendant l'édition (note tenue, accord, arpège, basse, mélodie, nappe…), tempo réglable,
+  transposition au clavier, mode *Relance* après chaque modif, pause automatique pendant un envoi
+  de banque. **Canal de jeu** du clavier / séquenceur réglable (Setting).
+- **Raccourcis clavier configurables** : Cmd+1..6 pour les onglets, Échap ferme l'éditeur,
+  Cmd+P lance/arrête le séquenceur (Réglages > Général > Raccourcis clavier ; compatible AZERTY).
 - **Librairie de banques** (`.SYX`) moderne : **envoi/réception** avec barre de progression,
   **suppression** de banque, **recherche** (banques et presets), **tri**, **métadonnées par preset**
   (tags, notes, favoris), **recherche globale + filtre par tag** transversale à toutes les banques,
@@ -43,6 +47,7 @@ Inspiré, côté fonctionnalités, de l'éditeur *SynthWorks SY77*.
 - Synchronisation **tout-MIDI** bidirectionnelle (un seul *device number* global).
 - **Mise à jour intégrée** : l'app vérifie les *GitHub Releases* au démarrage et propose de
   télécharger + installer la nouvelle version automatiquement (macOS ; désactivable dans *Setting*).
+  Sous Windows / Linux, elle ouvre la page de la release.
 
 > ⚠️ Certaines éditions (effets, groupes, enveloppes…) sont pour l'instant en **rendu/état seul**
 > côté éditeur ; l'envoi sysex complet vers le synthé est en cours de fiabilisation. Tous n'est pas implémenté.
@@ -71,6 +76,20 @@ Elle n'est **pas signée ni notariée** par Apple : au **premier lancement**, ma
 
 > ⚠️ Binaire **Apple Silicon (arm64)** pour l'instant. Sur Mac **Intel** (ou en cas de doute),
 > compilez depuis les sources (ci-dessous) — c'est tout aussi simple.
+
+## Windows / Linux
+
+Chaque release (à partir de la v1.5.0) contient aussi, compilés par la CI GitHub :
+
+- **Windows** : `Sysex77-<version>-windows-x64.zip` — dézippez puis lancez `Sysex77.exe`.
+  L'exécutable n'est **pas signé** : Windows SmartScreen affiche « Windows a protégé votre
+  ordinateur » → **Informations complémentaires** → **Exécuter quand même**.
+- **Linux** (x64) : `Sysex77-<version>-linux-x64.tar.gz` — `tar xzf …` puis `./Sysex77`.
+  Nécessite ALSA (et JACK si utilisé), FreeType, fontconfig et X11, présents sur la plupart des
+  distributions de bureau.
+
+Ces versions sont compilées et testées automatiquement (tests unitaires) mais **pas encore
+essayées avec un SY77 réel** — retours bienvenus.
 
 ---
 
@@ -143,6 +162,11 @@ Prebuilt macOS app: `dist/Sysex77.app` (Apple Silicon, **unsigned**). First laun
 Open → Open, or (recent macOS) System Settings → Privacy & Security → **Open Anyway** then reopen.
 If "damaged" after download: `xattr -dr com.apple.quarantine dist/Sysex77.app`.
 
+Windows / Linux builds (from v1.5.0) are attached to each GitHub Release by CI:
+`Sysex77-<v>-windows-x64.zip` (unsigned: SmartScreen → *More info* → *Run anyway*) and
+`Sysex77-<v>-linux-x64.tar.gz` (needs ALSA, FreeType, fontconfig, X11). Unit-tested in CI, not
+yet tried on real hardware.
+
 Build (no Projucer needed): `./build.sh` (macOS/Linux) or `cmake -B build && cmake --build build`
 (Windows incl.). JUCE is auto-resolved (local `JUCE_DIR`, `/Applications/JUCE`, or auto-downloaded).
 Run unit tests with `--test`.
@@ -155,12 +179,14 @@ Highlights: AFM/AWM voice editor, FM-waveform render of the real 45 algorithms, 
 filter & envelope graphs (right-click reset/copy/paste, Shift fine, AFM EG loop point & hold),
 graphical level scaling, algorithm input shift/output correction, a Controllers tab (pitch bend,
 modulation, pan, bias, portamento, micro tuning), AWM pitch EG/LFO/hold, configurable keyboard
-shortcuts (Cmd+1..6 tabs, Esc closes the editor), output groups + routing, an Effects tab, and persistence of settings &
+shortcuts (Cmd+1..6 tabs, Esc closes the editor, Cmd+P sequencer), a **phrase sequencer** in the
+bottom bar (loops a phrase while you edit; tempo, transpose, retrig, pauses during bank transfers;
+settable play channel), output groups + routing, an Effects tab, and persistence of settings &
 custom colours. **Modern library**: bank send/receive with progress, delete, search & sort,
 **per-preset metadata** (tags, notes, favourites) in `library.json`, **global preset search +
 tag filter** across all banks, per-synth filter, and copy-a-preset-to-a-user-bank (send/edit
 stay SY77-only). **Built-in updater**: checks GitHub Releases on launch and can download + install
-the new version automatically (macOS; opt-out in *Setting*). Some editor edits are state-only for
+the new version automatically (macOS; opt-out in *Setting*; opens the release page on Windows/Linux). Some editor edits are state-only for
 now (full sysex send is being firmed up).
 
 **Themes:** five built-in palettes (Dark Orange, FM Dark, Light, Crimson, Tangerine), selectable
