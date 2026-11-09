@@ -118,6 +118,8 @@ countries: FR
 "AFM + AWM layer" = "Couche AFM + AWM"
 "Next voice (audition)" = "Voix suivante (audition)"
 "Previous voice (audition)" = "Voix précédente (audition)"
+"Voice name (click to rename, Return sends it to the synth)" = "Nom de la voix (clic pour renommer, Entrée l'envoie au synthé)"
+"Element on/off (mute)" = "Élément on/off (mute)"
 "Next bank" = "Banque suivante"
 "Previous bank" = "Banque précédente"
 "Compare A/B" = "Comparer A/B"

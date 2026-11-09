@@ -94,7 +94,7 @@ public:
 
         // Titre de section : rappelle quel opérateur on édite (les combos/niveau ci-dessous).
         addAndMakeVisible (lblOpHdr);
-        setRoleLabelColour (lblOpHdr, [this] { return syOpColour (selOp); });
+        registerThemeColour (lblOpHdr, [this] { applyOpHdrColour(); });   // theme -> meme voie que selOp
         lblOpHdr.setFont (Font (FontOptions (12.0f)).boldened());
 
         // Niveau (TL) de l'op sélectionné : barre éditable. autoSend OFF -> n'émet pas elle-même ;
@@ -195,6 +195,10 @@ public:
     }
 
 private:
+    // Seule voie de coloration du titre « Operateur N » : appelee au changement de thème
+    // (registerThemeColour) et au changement d'operateur selectionne.
+    void applyOpHdrColour() { lblOpHdr.setColour (Label::textColourId, syOpColour (selOp)); }
+
     int  presetNum() const { return jlimit (1, 45, (int) sliderAlgo.getValue()); }
     bool isFree()    const { return (bool) freeValue.getValue(); }
 
@@ -242,7 +246,7 @@ private:
         cbAcc.setSelectedId (accItem, dontSendNotification);
 
         lblOpHdr.setText ("Operateur " + String (selOp + 1), dontSendNotification);
-        lblOpHdr.setColour (Label::textColourId, syOpColour (selOp));
+        applyOpHdrColour();
         sliderSh0.setValue (opProp ("SHA"), dontSendNotification);
         sliderSh1.setValue (opProp ("SHB"), dontSendNotification);
         sliderCor.setValue (opProp ("COR"), dontSendNotification);

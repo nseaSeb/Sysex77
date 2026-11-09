@@ -164,11 +164,9 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         op2.onClick = [this] { element2.setElementMuted (! op2.getToggleState()); };
         op3.onClick = [this] { element3.setElementMuted (! op3.getToggleState()); };
         op4.onClick = [this] { element4.setElementMuted (! op4.getToggleState()); };
-        addLabelStyle(labelOpOn);
         for (auto* b : { &op1, &op2, &op3, &op4 })
             b->setTooltip (TRANS ("Element on/off (mute)"));
         addLabelStyle(labelMode);
-        addLabelStyle(labelName);
 
         // (En-tetes de colonnes PITCH/WAVE/... supprimes : chaque carte d'element porte deja son
         // titre — « PITCH C3 », « WAVE »... — un seul niveau de titre suffit.)
@@ -298,8 +296,6 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
     // figent leur couleur via setColour (sinon ils gardent l'accent du thème de départ).
     void lookAndFeelChanged() override
     {
-        labelOpOn.setColour (Label::ColourIds::textColourId, SYColSelected);
-        labelName.setColour (Label::ColourIds::textColourId, SYColSelected);
         labelMode.setColour (Label::ColourIds::textColourId, SYColSelected);
         repaint();
     }
@@ -333,11 +329,13 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         // Carte ROUTAGE : contour ACCENT + titre, dessinés à la main (le LnF ignore l'accent
         // sur GroupComponent, cf. constructeur).
         Rectangle<float> algoArea ((float) algoX, (float) algoY, (float) algoW, (float) algoH);
-        if (SYPal.panelStyle == "flat")
+        if (syPanelStudio())
         {
-            // Style sans cadre : simple filet sous le titre, comme les GroupComponent.
+            // Style sans cadre : simple filet sous le titre, comme les GroupComponent. Pose SOUS
+            // les radios Effect Mode (algoY+3..+23) et au-dessus de Stereo Mix (algoY+26) : dessine
+            // en paintOverChildren, il les barrait a algoY+22.
             g.setColour (SYPal.panelBorder.withAlpha (0.6f));
-            g.drawHorizontalLine ((int) algoY + 22, algoArea.getX() + 2.0f, algoArea.getRight() - 2.0f);
+            g.drawHorizontalLine ((int) algoY + 24, algoArea.getX() + 2.0f, algoArea.getRight() - 2.0f);
         }
         else
         {
@@ -773,8 +771,9 @@ void setNombreElements (int nombre)
             els[i]->setAlpha (active ? 1.0f : 0.6f);   // replie mais lisible (0.35 = illisible)
 
             // Bouton on/off : actif = allumé/cliquable, hors mode courant = grisé/désactivé.
+            // Pas d'alpha en plus : le LookAndFeel grise deja un bouton desactive (texte attenue,
+            // fond attenue) ; un alpha 0.35 par-dessus rendait le selecteur 1 2 3 4 illisible.
             ons[i]->setEnabled (active);
-            ons[i]->setAlpha (active ? 1.0f : 0.35f);
             if (! active)
             {
                 // Élément absent du type de voix : repli en état « on » (non muté) sans envoi.
@@ -846,9 +845,7 @@ void setNombreElements (int nombre)
             editName.setBounds (histX, 4, 100, 24);
             histX += 110;
         }
-        labelName.setVisible (false);
         historyBar.setBounds (histX, 4, jmax (120, jmin (500, (int) wGrid - histX)), 24);
-        labelOpOn.setVisible (false);   // libelle sous les boutons : plus de place sans en-tetes
 
         // --- Colonne droite (façon SynthWorks) : VOICE (mode + master) / ROUTAGE ---
         const int rightX = 10 + (int) wGrid + 12;
@@ -972,8 +969,6 @@ void setNombreElements (int nombre)
     Element element3;
     Element element4;
     
-    Label labelOpOn{"-Operateurs-", "Operateurs On-Off"};
-    Label labelName {" ", TRANS("Name")};
     Label labelMode{"", "Operateurs Mode"};
 
     

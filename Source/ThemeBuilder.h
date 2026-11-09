@@ -25,7 +25,7 @@ public:
         work = SYPal;                       // on part du thème courant
 
         addStyleCombo (cbButtons, "Boutons",  { "square","round","flat","fun","outline" },     work.buttonStyle);
-        addStyleCombo (cbPanels,  "Panneaux", { "square","round","flat","fun" },               work.panelStyle);
+        addStyleCombo (cbPanels,  "Panneaux", { "square","round","flat","studio","fun" },      work.panelStyle);
         addStyleCombo (cbSliders, "Sliders",  { "bar","led","rail","groove","notch","dots","field" },  work.sliderStyle);
         addStyleCombo (cbKnobs,   "Potards",  { "arc","dot","vintage","tick","neon","arctick","thin" }, work.knobStyle);
 
@@ -350,6 +350,7 @@ private:
 
         auto bar = [&] (juce::Slider& s, double mn, double mx, double v, bool bip = false)
         { addAndMakeVisible (s); s.setSliderStyle (juce::Slider::LinearBar); s.setRange (mn, mx, 1); s.setValue (v, juce::dontSendNotification);
+          s.setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0);   // valeur deja ecrite par le LnF (sinon 2x)
           if (bip) s.getProperties().set ("bipolar", true); };
         bar (slP1, 0, 127, 88);
         bar (slP2,  0,  63, 48, true);           // barre bipolaire (pan) : centre 32, calque pan EG

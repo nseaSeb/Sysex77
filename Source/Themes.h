@@ -108,6 +108,7 @@ inline juce::String syPaletteToXml (const SyPalette& p)
     juce::XmlElement root ("THEME");
     root.setAttribute ("name", p.name);
     root.setAttribute ("dark", p.dark ? 1 : 0);
+    root.setAttribute ("format", 2);   // 2 = panelStyle "studio" distinct de "flat" (cf. migration)
 
     auto* c = new juce::XmlElement ("COLORS");
     c->setAttribute ("background",      hex (p.background));
@@ -143,6 +144,22 @@ inline juce::String syPaletteToXml (const SyPalette& p)
     return root.toString();
 }
 
+// Migration unique (fichiers format < 2) : avant l'introduction de "studio", le look studio
+// d'un theme integre (Indigo Night) etait porte par panels="flat". Un fichier exporte a cette
+// epoque garde "flat" -> on ne reecrit QUE cet attribut (+ format=2), le reste du fichier
+// (couleurs editees par l'utilisateur) est intact. Ensuite format=2 : un "flat" choisi plus
+// tard (Theme Builder, qui ecrit format=2) est respecte et n'est plus jamais migre.
+inline void syMigrateStudioPanels (const juce::File& xml)
+{
+    auto doc = juce::XmlDocument::parse (xml);
+    if (doc == nullptr || doc->getIntAttribute ("format", 1) >= 2) return;
+    auto* st = doc->getChildByName ("STYLE");
+    if (st == nullptr || st->getStringAttribute ("panels") != "flat") return;
+    st->setAttribute ("panels", "studio");
+    doc->setAttribute ("format", 2);
+    doc->writeTo (xml);
+}
+
 // Exporte les palettes intégrées en <Themes>/<nom>/theme.xml (modèles éditables, créés si absents).
 inline void syExportBuiltinThemes()
 {
@@ -155,6 +172,8 @@ inline void syExportBuiltinThemes()
         auto xml = sub.getChildFile ("theme.xml");
         if (! xml.existsAsFile())
             xml.replaceWithText (syPaletteToXml (p));
+        else if (p.panelStyle == "studio")
+            syMigrateStudioPanels (xml);
     }
 }
 

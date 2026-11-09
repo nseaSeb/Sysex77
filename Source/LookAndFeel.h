@@ -26,7 +26,8 @@ struct SyPalette
     File   knobImage;            // skin optionnel du potard (sprite vertical, façon OscAfm)
     File   backgroundImage;      // image de fond optionnelle (rendu : hook à venir)
     String buttonStyle;          // "square" | "round" | "flat" | "fun"  (recettes codées dans ModernLookAndFeel)
-    String panelStyle;           // "square" | "round" | "flat" | "fun"
+    String panelStyle;           // "square" | "round" | "flat" | "studio" | "fun"
+                                 // ("studio" = "flat" + titres/onglets en capitales, grilles pointillees...)
     String sliderStyle = "bar";  // "bar" | "led" | "rail" | "groove" | "field" (rendu des barres/sliders linéaires)
     String knobStyle   = "arc";  // "arc" | "dot" | "vintage"           (rendu des potards rotatifs)
     // Couleur d'identite des 6 operateurs FM (tuiles d'algo, onglets OP). Ignoree tant que
@@ -212,7 +213,7 @@ inline SyPalette syPaletteIndigoNight()
     p.shadow          = Colour (0x70000000);
     p.glow            = Colour (0x338b5cf0);
     p.buttonStyle     = "flat";
-    p.panelStyle      = "flat";
+    p.panelStyle      = "studio";
     p.sliderStyle     = "field";
     p.knobStyle       = "thin";
     p.hasOpColours    = true;    // palette op1..op6 par defaut (rouge -> cyan)
@@ -222,11 +223,17 @@ inline SyPalette syPaletteIndigoNight()
 // Palette active (initialisée au thème historique pour rester identique avant tout applySyTheme).
 static SyPalette SYPal = syPaletteDarkOrange();
 
-// Bordure des cartes dessinees a la main (ROUTAGE, PAN, ecrans d'EG) : accent vif pour les
-// styles encadres, filet discret pour le style "flat" (l'accent reste reserve aux valeurs).
+// Panneaux sans cadre : "flat" et "studio" (studio = flat + habillage studio, cf. syPanelStudio).
+inline bool syPanelFlat()   { return SYPal.panelStyle == "flat" || SYPal.panelStyle == "studio"; }
+// Habillage "studio" : onglets/titres en capitales, grilles pointillees, poignees creuses,
+// filet ROUTAGE, cartes a filet discret. Reserve au panelStyle "studio" (Indigo Night).
+inline bool syPanelStudio() { return SYPal.panelStyle == "studio"; }
+
+// Bordure des cartes dessinees a la main (ROUTAGE, PAN, ecrans d'EG) : accent vif par defaut,
+// filet discret pour le style "studio" (l'accent reste reserve aux valeurs).
 inline Colour syCardBorder()
 {
-    return SYPal.panelStyle == "flat" ? SYPal.panelBorder : SYColSelected;
+    return syPanelStudio() ? SYPal.panelBorder : SYColSelected;
 }
 
 // Couleur d'identite de l'operateur FM opIndex0 (0..5) ; accent si le theme n'en definit pas.
@@ -597,20 +604,22 @@ public:
                                bool isOver, bool isDown) override
     {
         auto r   = b.getLocalBounds().toFloat().reduced (0.5f);
+        const bool enabled = b.isEnabled();
+        // Desactive (tous styles) : jamais d'etat ON/survol affiche, fond attenue (cf. buttonFill)
+        // -> un bouton grise ne doit pas sembler cliquable (setEnabled ne touche pas l'alpha).
+        isOver = isOver && enabled;  isDown = isDown && enabled;
         auto bg  = buttonFill (b, isOver, isDown);
-        const bool on = b.getToggleState();
+        const bool on = b.getToggleState() && enabled;
         const auto& style = SYPal.buttonStyle;
         const Colour onC = onColour (b);   // accent, ou couleur d'operateur (propriete syOpIndex)
 
         if (style == "flat")
         {
-            // Desactive : jamais d'etat ON affiche (un bouton grise ne doit pas sembler actif) ;
-            // fond plein + filet pour que le libelle reste lisible sous l'alpha du composant.
-            if (! b.isEnabled())
+            if (! enabled)
             {
-                g.setColour (SYPal.surfaceAlt);
+                g.setColour (bg);
                 g.fillRoundedRectangle (r, 4.0f);
-                g.setColour (SYPal.panelBorder);
+                g.setColour (SYPal.panelBorder.withAlpha (0.5f));
                 g.drawRoundedRectangle (r, 4.0f, SyMetrics::stroke);
             }
             else if (on)
@@ -667,15 +676,25 @@ public:
 
     void drawButtonText (Graphics& g, TextButton& b, bool isOver, bool isDown) override
     {
+        const bool enabled = b.isEnabled();
+        isOver = isOver && enabled;  isDown = isDown && enabled;
         auto bg  = buttonFill (b, isOver, isDown);
         const bool ghost = (SYPal.buttonStyle == "flat" || SYPal.buttonStyle == "outline");
         const bool flat  = (SYPal.buttonStyle == "flat");
         Colour ink;
-        if (flat && ! b.isEnabled())     // flat desactive : texte plein (l'alpha du composant grise deja)
-            ink = SYPal.textPrimary;
+        if (! enabled)                   // desactive (tous styles) : texte attenue, lisible mais inerte
+            ink = SYPal.textMuted.withAlpha (0.45f);
         else if (flat && b.getToggleState())
+        {
+            // Fond reel du bouton ON : teinte 18 % de la couleur ON posee sur la surface.
+            const Colour eff = SYPal.surface.overlaidWith (onColour (b).withAlpha (0.18f));
+            auto readable = [&] (Colour c) { return std::abs (c.getPerceivedBrightness()
+                                                              - eff.getPerceivedBrightness()) >= 0.4f; };
             ink = b.getProperties().contains ("syOpIndex") ? onColour (b).brighter (0.25f)
                                                            : SYPal.knobFill;   // plus clair que l'accent
+            if (! readable (ink))   // meme garde-fou que les autres styles : repli accent puis texte
+                ink = readable (SYPal.accent) ? SYPal.accent : SYPal.textPrimary;
+        }
         else if (ghost)                  // flat/outline : fond (semi-)transparent -> encre choisie à la main.
             ink = b.getToggleState() ? onColour (b) : SYPal.textPrimary;
         else if (b.getToggleState())     // ON : texte sur le fond ACCENT -> contraste garanti.
@@ -688,7 +707,7 @@ public:
             if (std::abs (ink.getPerceivedBrightness() - bg.getPerceivedBrightness()) < 0.4f)
                 ink = bg.contrasting();
         }
-        g.setColour (b.isEnabled() || flat ? ink : ink.withAlpha (0.5f));
+        g.setColour (ink);
         g.setFont (getTextButtonFont (b, b.getHeight()));
         g.drawFittedText (b.getButtonText(), b.getLocalBounds().reduced (SyMetrics::pad, 0),
                           Justification::centred, 2);
@@ -722,15 +741,17 @@ public:
     {
         Rectangle<float> r (1.0f, 1.0f, (float) w - 2.0f, (float) h - 2.0f);
         const auto& style = SYPal.panelStyle;
+        const bool studio = syPanelStudio();
 
-        if (style == "flat")
+        if (syPanelFlat())
         {
             // Pas de contour de pourtour — séparateur horizontal sous le titre uniquement
             if (text.isNotEmpty())
             {
+                const float inset = studio ? 2.0f : 6.0f;
                 g.setColour (SYPal.panelBorder.withAlpha (0.6f));
-                g.drawLine (r.getX() + 2.0f, r.getY() + (float) SyMetrics::panelHeaderH,
-                            r.getRight() - 2.0f, r.getY() + (float) SyMetrics::panelHeaderH, 1.0f);
+                g.drawLine (r.getX() + inset, r.getY() + (float) SyMetrics::panelHeaderH,
+                            r.getRight() - inset, r.getY() + (float) SyMetrics::panelHeaderH, 1.0f);
             }
         }
         else if (style == "round")
@@ -762,7 +783,7 @@ public:
 
         if (text.isNotEmpty())
         {
-            if (style == "flat")
+            if (studio)
             {
                 // Titre de section en capitales espacees (transformees au dessin : les
                 // traductions restent intactes), gris clair, a gauche.
@@ -772,7 +793,7 @@ public:
             }
             else
             {
-                g.setColour (SYPal.textPrimary);
+                g.setColour (style == "flat" ? SYPal.textMuted : SYPal.textPrimary);
                 g.setFont (Font (FontOptions (13.0f)).boldened());
                 g.drawText (text, 12, 3, w - 24, SyMetrics::panelHeaderH, Justification::left, true);
             }
@@ -797,7 +818,7 @@ public:
             g.setColour (SYPal.accent);
             stripe (2.5f);
         }
-        if (SYPal.panelStyle == "flat")
+        if (syPanelStudio())
         {
             // Style "studio" : onglet actif teinte accent + soulignement, libelles en capitales.
             if (front)
@@ -807,19 +828,31 @@ public:
                 g.setColour (SYPal.accent);
                 stripe (2.0f);
             }
-            g.setColour (front ? SYPal.textPrimary : SYPal.textMuted.brighter (isOver ? 0.4f : 0.0f));
-            g.setFont (Font (FontOptions (12.5f)).boldened().withExtraKerningFactor (0.06f));
-            g.drawFittedText (button.getButtonText().trim().toUpperCase(), area.reduced (8, 0).toNearestInt(),
-                              Justification::centred, 1);
-            return;
+            // Survol : rapprochement vers le texte principal (marche en clair comme en sombre).
+            g.setColour (front ? SYPal.textPrimary
+                               : (isOver ? SYPal.textMuted.interpolatedWith (SYPal.textPrimary, 0.5f)
+                                         : SYPal.textMuted));
         }
-        g.setColour (front ? SYPal.textPrimary : SYPal.textMuted);
-        g.setFont (Font (FontOptions (14.0f)));
-        g.drawFittedText (button.getButtonText().trim(), area.reduced (8, 0).toNearestInt(),
+        else
+            g.setColour (front ? SYPal.textPrimary : SYPal.textMuted);
+        g.setFont (tabFont());
+        g.drawFittedText (tabLabel (button.getButtonText()), area.reduced (8, 0).toNearestInt(),
                           Justification::centred, 1);
     }
 
     void drawTabAreaBehindFrontButton (TabbedButtonBar&, Graphics&, int, int) override {}
+
+    // Police + libelle d'onglet, partages par drawTabButton et getTabButtonBestWidth (la largeur
+    // calculee doit correspondre exactement au texte dessine).
+    static Font tabFont()
+    {
+        return syPanelStudio() ? Font (FontOptions (12.5f)).boldened().withExtraKerningFactor (0.06f)
+                               : Font (FontOptions (14.0f));
+    }
+    static String tabLabel (const String& name)
+    {
+        return syPanelStudio() ? name.trim().toUpperCase() : name.trim();
+    }
 
     // Barre d'onglets PRINCIPALE (propriete "syEqualTabs") : onglets de largeur EGALE, calee sur
     // le libelle le plus long (meme police que drawTabButton), etiree jusqu'a 180 px si la place
@@ -831,12 +864,10 @@ public:
         if (! (bool) bar.getProperties().getWithDefault ("syEqualTabs", false))
             return LookAndFeel_V4::getTabButtonBestWidth (button, tabDepth);
 
-        const bool flat = SYPal.panelStyle == "flat";
-        const Font f = flat ? Font (FontOptions (12.5f)).boldened().withExtraKerningFactor (0.06f)
-                            : Font (FontOptions (14.0f));
+        const Font f = tabFont();
         float widest = 0.0f;
         for (auto& name : bar.getTabNames())
-            widest = jmax (widest, GlyphArrangement::getStringWidth (f, flat ? name.trim().toUpperCase() : name.trim()));
+            widest = jmax (widest, GlyphArrangement::getStringWidth (f, tabLabel (name)));
         const int textW = roundToInt (widest) + 32;   // 2 x 8 px de marge (drawTabButton) + respiration
         const int n     = jmax (1, bar.getNumTabs());
         const int fill  = jmin (180, bar.getWidth() / n);
@@ -882,8 +913,9 @@ private:
     // Fond effectif d'un bouton selon son état (toggle ON = accent ; sinon couleur de base + survol/appui).
     Colour buttonFill (Button& b, bool isOver, bool isDown) const
     {
-        if (b.getToggleState())  return onColour (b);
         auto base = b.findColour (TextButton::buttonColourId);
+        if (! b.isEnabled())     return base.withMultipliedAlpha (0.5f);   // desactive : fond attenue
+        if (b.getToggleState())  return onColour (b);
         if (isDown)  return base.darker   (SYPal.dark ? 0.25f : 0.12f);
         if (isOver)  return base.brighter (SYPal.dark ? 0.10f : 0.04f);
         return base;

@@ -338,7 +338,11 @@ public:
         if (value.refersToSameSourceAs (algoValue))
             updateFmWave();
         if (value.refersToSameSourceAs (waveNameValue))
+        {
             waveNameLabel.setText (awmWaveName ((int) waveNameValue.getValue(), SYModel == 3), dontSendNotification);
+            if (operatorMode == mode::AWM)   // (etait rafraichi a chaque paint)
+                elementFmWave.setAwm (true, (int) waveNameValue.getValue());
+        }
 /*        if(operatorID == 1)
             sliderVolume.setValue(intVolumeOP1);
   
@@ -495,9 +499,13 @@ public:
         sendOutSel();   // muté -> OUTSEL=0 (off) ; non muté -> valeur des bascules G1/G2
     }
     bool isElementMuted() const { return elementMuted; }
-    void setOpMode (int mode)
+    // Applique aussi l'habillage du bouton wave (AFM / AWM) ICI et non dans paint() : ces
+    // setters font setImages()/repaint(), qui depuis paint() relancaient un repaint sans fin.
+    void setOpMode (int newMode)
     {
-        operatorMode = mode;
+        operatorMode = newMode;
+        if (newMode == mode::AFMmono || newMode == mode::AFMPoly) setAfmMode();
+        else if (newMode == mode::AWM)                            setWaveMode();
     }
     int getOpMode ()
     {
@@ -630,21 +638,13 @@ public:
         g.setColour (SYColBackground.contrasting());
         g.addTransform(AffineTransform::rotation(fAngle));
         String str = "OP" + String(operatorID) + " ";
+        // (L'habillage AFM/AWM du bouton wave est applique par setOpMode, pas ici.)
         if(operatorMode == 1)
-        {
             str = str + "AFM Mono";
-            setAfmMode();
-        }
         if(operatorMode == 2)
-        {
-             str = str + "AFM Poly";
-            setAfmMode();
-        }
+            str = str + "AFM Poly";
         if(operatorMode == 3)
-        {
             str = str + "AWM";
-            setWaveMode();
-        }
         if(operatorMode == 4)
         {
             str = str + "DRUM Set";
@@ -751,7 +751,7 @@ public:
         Value elementValue;
 private:
     int operatorID;
-    int operatorMode;
+    int operatorMode = 0;   // 0 = pas encore defini (setOpMode)
     bool elementMuted = false;  // MUTE = OUTPUT SELECT off (OUTSEL=0) ; cf. setElementMuted
     
     Image imgAFM;

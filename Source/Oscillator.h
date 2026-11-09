@@ -116,7 +116,7 @@ public:
         // « Wave N » (N = 1..16, cohérent avec le display 1-indexé de setOscSliderStyle).
         addChildComponent(lblWave);
         lblWave.setJustificationType(Justification::centred);
-        setRoleLabelColour (lblWave, [this] { return syOpColour (selOp); });
+        registerThemeColour (lblWave, [this] { applyWaveLabelColour(); });   // theme -> meme voie que setSelOp
         lblWave.setFont(Font(FontOptions(12.0f)).boldened());
         // Suit la valeur PWAVE de chaque op : referTo (dans setElementNumber) change la source mais
         // garde la liste d'écouteurs du Value -> on s'abonne une fois ici (cf. Operator::sliderAlgo).
@@ -1032,10 +1032,13 @@ private:
         out[0] = lv[i]; out[1] = cr[i]; out[2] = dt[i]; out[3] = ph[i];
     }
 
+    // Seule voie de coloration du libelle de wave : changement de thème + changement d'operateur.
+    void applyWaveLabelColour() { lblWave.setColour (Label::textColourId, syOpColour (selOp)); }
+
     void setSelOp (int o)
     {
         selOp = jlimit (0, 5, o);
-        lblWave.setColour (Label::textColourId, syOpColour (selOp));
+        applyWaveLabelColour();
         resized();
         updateWaveLabel();
         repaint();

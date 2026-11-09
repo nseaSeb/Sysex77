@@ -783,7 +783,6 @@ public:
             if (auto* vp = dynamic_cast<VoicePage*> (tabs.getTabContentComponent (i)))
             {
                 nameEditor = &vp->editName;
-                vp->labelName.setVisible (false);
                 addAndMakeVisible (vp->editName);
                 vp->editName.setAlwaysOnTop (true);
                 vp->editName.setColour (TextEditor::backgroundColourId, Colours::transparentBlack);
@@ -1125,7 +1124,6 @@ public:
                               (Component*) &btVoicePrev, (Component*) &btVoiceNext, (Component*) &btNewVoice })
             c->toFront (false);
         if (nameEditor != nullptr) nameEditor->toFront (false);
-        repaint (0, 0, getWidth(), topH);
     }
 
     // Sélecteur de ports compact (bandeau bas) : PopupMenu à cases cochables (multi-sélection).
