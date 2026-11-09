@@ -169,7 +169,8 @@ int intTabIndex;
 #include "Controller.h"
 #include "Config.h"
 #include "Sequencer.h"
-#include "EditHistory.h"         // sysex-level undo/redo + A/B compare            // bottom-bar phrase player (Seq mode)
+#include "EditHistory.h"
+#include "Templates.h"           // "New voice" templates (INIT voices)         // sysex-level undo/redo + A/B compare            // bottom-bar phrase player (Seq mode)
 #include "BankSendProgress.h"      // fenêtre de progression de l'envoi de banque
 #include "BankReceiveProgress.h"   // fenêtre de progression de la réception de banque
 #include "Voice.h"
@@ -419,6 +420,8 @@ public:
             h.redo     = [this] { historyRedo(); };
             h.toggleAB = [this] { setShowingA (! showingA); };
             h.revert   = [this] { askRevert(); };
+            h.newVoice = [this] (int i) { askNewVoice (i); };
+            for (auto& t : VoiceTemplates::list()) h.templateNames.add (t.name);
         }
 
         // (Images de fond Sysex77/99.png supprimées : jamais dessinées — nettoyage des ressources.)
@@ -729,6 +732,7 @@ public:
         {
             auto& h = EditHist::Hooks::get();
             h.undo = h.redo = h.toggleAB = h.revert = nullptr;
+            h.newVoice = nullptr;
         }
         stopTimer();
         Updater::get().onUpdateAvailable = nullptr;
@@ -1418,7 +1422,7 @@ public:
         // donc OFF = rien ne sort, Thru compris (cohérence demandée).
         // Edit history: record user voice param-changes (message thread only; not our own
         // undo/redo/B sends, not while A is shown, not system setup group 0x0F).
-        if (! applyingHistory && ! showingA && msg.isSysEx() && msg.getRawDataSize() == 11
+        if (! applyingHistory && ! showingA && editHistory.isLoaded() && msg.isSysEx() && msg.getRawDataSize() == 11
             && MessageManager::existsAndIsCurrentThread())
         {
             const uint8* d = msg.getRawData();
@@ -1772,6 +1776,15 @@ public:
         NativeMessageBox::showOkCancelBox (MessageBoxIconType::QuestionIcon, TRANS ("Original"),
             TRANS ("Go back to the voice as loaded? Your edits stay in the history (Cmd+Z restores them)."),
             this, ModalCallbackFunction::create ([this] (int r) { if (r == 1) revertToOriginal(); }));
+    }
+
+    void askNewVoice (int i)
+    {
+        auto go = [this, i] { auto b = VoiceTemplates::make (i); if (b.getSize() > 1) openVoiceBlock (b); };
+        if (! editHistory.isLoaded() || editHistory.diffFromOriginal().empty()) { go(); return; }   // nothing to lose
+        NativeMessageBox::showOkCancelBox (MessageBoxIconType::QuestionIcon, TRANS ("New voice"),
+            TRANS ("Replace the voice being edited? Unsaved edits will be lost."),
+            this, ModalCallbackFunction::create ([go] (int r) { if (r == 1) go(); }));
     }
 
     void revertToOriginal()

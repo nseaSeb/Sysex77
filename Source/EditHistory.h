@@ -171,6 +171,8 @@ namespace EditHist
     {
         static Hooks& get() { static Hooks h; return h; }
         std::function<void()> undo, redo, toggleAB, revert;
+        std::function<void (int)> newVoice;                 // template index (VoiceTemplates)
+        juce::StringArray templateNames;
         bool canUndo = false, canRedo = false, loaded = false, showingA = false;
         juce::String status;   // short transient message (e.g. params that could not be restored)
     };
@@ -181,7 +183,7 @@ namespace EditHist
     public:
         HistoryBar()
         {
-            for (auto* b : { &btUndo, &btRedo, &btAB, &btOrig })
+            for (auto* b : { &btNew, &btUndo, &btRedo, &btAB, &btOrig })
                 addAndMakeVisible (*b);
             addAndMakeVisible (lab);
             lab.setFont (juce::Font (12.0f));
@@ -189,6 +191,15 @@ namespace EditHist
             btRedo.setTooltip (TRANS ("Redo (Cmd+Shift+Z)"));
             btAB  .setTooltip (TRANS ("Compare: A = voice as loaded, B = your edits"));
             btOrig.setTooltip (TRANS ("Back to the voice as loaded (can be undone)"));
+            btNew.setTooltip (TRANS ("New voice from a template (sent to the edit buffer)"));
+            btNew.onClick = [this]
+            {
+                juce::PopupMenu m;
+                auto& names = Hooks::get().templateNames;
+                for (int i = 0; i < names.size(); ++i) m.addItem (i + 1, TRANS (names[i]));
+                m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&btNew),
+                                 [] (int r) { if (r > 0) if (auto& f = Hooks::get().newVoice) f (r - 1); });
+            };
             btUndo.onClick = [] { if (auto& f = Hooks::get().undo) f(); };
             btRedo.onClick = [] { if (auto& f = Hooks::get().redo) f(); };
             btAB  .onClick = [] { if (auto& f = Hooks::get().toggleAB) f(); };
@@ -203,6 +214,7 @@ namespace EditHist
         void resized() override
         {
             auto r = getLocalBounds();
+            btNew.setBounds (r.removeFromLeft (64)); r.removeFromLeft (8);
             btUndo.setBounds (r.removeFromLeft (30)); r.removeFromLeft (2);
             btRedo.setBounds (r.removeFromLeft (30)); r.removeFromLeft (8);
             btAB  .setBounds (r.removeFromLeft (64)); r.removeFromLeft (4);
@@ -227,7 +239,8 @@ namespace EditHist
         juce::TextButton btUndo { juce::String::charToString ((juce::juce_wchar) 0x21B6) },   // undo arrow
                          btRedo { juce::String::charToString ((juce::juce_wchar) 0x21B7) },   // redo arrow
                          btAB   { "B" },
-                         btOrig { TRANS ("Original") };
+                         btOrig { TRANS ("Original") },
+                         btNew  { TRANS ("New...") };
         juce::Label lab;
     };
 }

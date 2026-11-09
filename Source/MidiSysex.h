@@ -173,60 +173,67 @@ void oscMessageReceived (const OSCMessage& message)
             }
             else if (block.getSize() > 1)
             {
-                // AUDITION : on redirige la voix vers l'EDIT BUFFER ($7F) au lieu de son slot
-                // mémoire d'origine -> le SY77 l'affiche/joue tout de suite, SANS écraser une
-                // voix stockée. getVoiceBlock renvoie une COPIE : currentBankData reste intact.
-                SyVoice::retargetVoiceToEditBuffer ((uint8*) block.getData(), (int) block.getSize());
-                sendRaw (block.getData(), (long) block.getSize());
-
-                // Ouvre aussi la voix dans l'éditeur : on décode ce qui est FIABLE
-                // (vérifié sur banques réelles) — type/mode (offset 32) et nom (offset 33,
-                // 10 car.). Les paramètres sonores détaillés nécessitent la carte d'offsets
-                // vérifiée (la structure du codec Elixir ne correspond PAS aux banques réelles).
-                const uint8* d = (const uint8*) block.getData();
-                const int sz = (int) block.getSize();
-                if (sz > 42)
-                {
-                    const int type = d[32];                          // 0..10 (cf. enum voice type)
-                    if (type >= 0 && type <= 9)
-                        valueTreeVoice.setProperty (IDs::VOICEMODE, type + 1, nullptr); // id comboMode
-                    String name;
-                    for (int i = 33; i < 43; ++i)
-                        name += String::charToString ((juce_wchar) d[i]);
-                    name = name.trimEnd();
-                    valueTreeVoice.setProperty (IDs::VOICENAME, name, nullptr);
-
-                    // Affiche la voix ouverte dans le titre de la fenêtre (visible sur tous les onglets).
-                    if (auto* tlw = getTopLevelComponent())
-                        tlw->setName ("Sysex77 v" + String (Sysex77::kVersion)
-                                      + (name.isNotEmpty() ? "  —  " + name : String()));
-
-                    // Charge aussi les paramètres sonores CONFIRMÉS hardware (opérateurs AFM,
-                    // élément 1) en les rejouant comme des messages param-change entrants :
-                    // chaque widget se met à jour via son propre chemin de réception (vérifié
-                    // Track A). Notification SYNCHRONE par param, sinon les Value JUCE coalescent
-                    // et seul le dernier paramètre serait appliqué.
-                    // ANTI-ÉCHO : on rejoue le contenu de la voix comme des RX, mais on NE veut
-                    // RIEN renvoyer au synthé (ce serait un flot de param-changes = re-écriture
-                    // non sollicitée + risque de boucle). Suppression d'envoi sur tout le replay.
-                    {
-                        const ScopedEchoSuppress noEcho;
-                        // SLP/HT sont decodes du dump (record op @12/@13) : plus de reset force.
-                        for (auto& vp : SyVoice::voiceBlobToParams (d, sz))
-                        {
-                            valueSysexIn = make_var_array (vp.group, vp.addrHi, vp.addrLo, vp.param, vp.v1, vp.value);
-                            valueSysexIn.getValueSource().sendChangeMessage (true);
-                        }
-                    }
-                    onVoiceLoaded (block);   // edit history + A/B original
-                }
-
-                // Bascule sur l'éditeur (onglet Voice = index 2) pour éditer la voix ouverte.
-                tabs.setCurrentTabIndex (2);
+                openVoiceBlock (block);
             }
         }
     }
     //        rotaryKnob.setValue (jlimit (0.0f, 10.0f, message[0].getFloat32())); // [6]
+}
+
+/** Sends a voice block to the EDIT BUFFER and opens it in the editor (library audition,
+    templates). The block is a copy: retargeted here, never written to a memory slot. */
+void openVoiceBlock (MemoryBlock block)
+{
+            // AUDITION : on redirige la voix vers l'EDIT BUFFER ($7F) au lieu de son slot
+            // mémoire d'origine -> le SY77 l'affiche/joue tout de suite, SANS écraser une
+            // voix stockée. getVoiceBlock renvoie une COPIE : currentBankData reste intact.
+            SyVoice::retargetVoiceToEditBuffer ((uint8*) block.getData(), (int) block.getSize());
+            sendRaw (block.getData(), (long) block.getSize());
+
+            // Ouvre aussi la voix dans l'éditeur : on décode ce qui est FIABLE
+            // (vérifié sur banques réelles) — type/mode (offset 32) et nom (offset 33,
+            // 10 car.). Les paramètres sonores détaillés nécessitent la carte d'offsets
+            // vérifiée (la structure du codec Elixir ne correspond PAS aux banques réelles).
+            const uint8* d = (const uint8*) block.getData();
+            const int sz = (int) block.getSize();
+            if (sz > 42)
+            {
+                const int type = d[32];                          // 0..10 (cf. enum voice type)
+                if (type >= 0 && type <= 9)
+                    valueTreeVoice.setProperty (IDs::VOICEMODE, type + 1, nullptr); // id comboMode
+                String name;
+                for (int i = 33; i < 43; ++i)
+                    name += String::charToString ((juce_wchar) d[i]);
+                name = name.trimEnd();
+                valueTreeVoice.setProperty (IDs::VOICENAME, name, nullptr);
+
+                // Affiche la voix ouverte dans le titre de la fenêtre (visible sur tous les onglets).
+                if (auto* tlw = getTopLevelComponent())
+                    tlw->setName ("Sysex77 v" + String (Sysex77::kVersion)
+                                  + (name.isNotEmpty() ? "  —  " + name : String()));
+
+                // Charge aussi les paramètres sonores CONFIRMÉS hardware (opérateurs AFM,
+                // élément 1) en les rejouant comme des messages param-change entrants :
+                // chaque widget se met à jour via son propre chemin de réception (vérifié
+                // Track A). Notification SYNCHRONE par param, sinon les Value JUCE coalescent
+                // et seul le dernier paramètre serait appliqué.
+                // ANTI-ÉCHO : on rejoue le contenu de la voix comme des RX, mais on NE veut
+                // RIEN renvoyer au synthé (ce serait un flot de param-changes = re-écriture
+                // non sollicitée + risque de boucle). Suppression d'envoi sur tout le replay.
+                {
+                    const ScopedEchoSuppress noEcho;
+                    // SLP/HT sont decodes du dump (record op @12/@13) : plus de reset force.
+                    for (auto& vp : SyVoice::voiceBlobToParams (d, sz))
+                    {
+                        valueSysexIn = make_var_array (vp.group, vp.addrHi, vp.addrLo, vp.param, vp.v1, vp.value);
+                        valueSysexIn.getValueSource().sendChangeMessage (true);
+                    }
+                }
+                onVoiceLoaded (block);   // edit history + A/B original
+            }
+
+            // Bascule sur l'éditeur (onglet Voice = index 2) pour éditer la voix ouverte.
+            tabs.setCurrentTabIndex (2);
 }
 void sendSysex(const OSCMessage& message, uint8 sysexdata[0])
 {

@@ -835,7 +835,7 @@ void setNombreElements (int nombre)
         op4.setBounds (10+72, 4,24,24);
         editName.setBounds(20 + 96, 4, 100, 24);
         labelName.setBounds(116,20,100,24);
-        historyBar.setBounds (226, 4, jmax (120, jmin (420, (int) wGrid - 226)), 24);
+        historyBar.setBounds (226, 4, jmax (120, jmin (500, (int) wGrid - 226)), 24);
         
         labelOpOn.setBounds(10, 20, 96, 24);
 
