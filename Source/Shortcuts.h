@@ -66,6 +66,14 @@ namespace Shortcuts
                 return juce::KeyPress ('0' + d, k.getModifiers(), k.getTextCharacter());
         // Rangee des chiffres d'un Mac AZERTY (sans Maj) : & e-aigu " ' ( paragraphe e-grave
         // ! c-cedille a-grave = 1 2 3 4 5 6 7 8 9 0. Codes Unicode (pas de litteral UTF-8 ici).
+        // Sous Windows les codes des fleches/navigation sont des codes VK qui valent des
+        // caracteres ASCII (VK_DOWN = '(' , VK_UP = '&', VK_RIGHT = '\'') : ne jamais les
+        // passer par la table AZERTY, sinon Ctrl+fleche == Ctrl+chiffre (CI Windows).
+        for (int nav : { juce::KeyPress::upKey, juce::KeyPress::downKey, juce::KeyPress::leftKey,
+                         juce::KeyPress::rightKey, juce::KeyPress::pageUpKey, juce::KeyPress::pageDownKey,
+                         juce::KeyPress::homeKey, juce::KeyPress::endKey, juce::KeyPress::insertKey,
+                         juce::KeyPress::deleteKey })
+            if (c == nav) return k;
         static const int azerty[10] = { 0xE0, '&', 0xE9, '"', '\'', '(', 0xA7, 0xE8, '!', 0xE7 };
         const int lc = (int) juce::CharacterFunctions::toLowerCase ((juce::juce_wchar) c);
         for (int d = 0; d <= 9; ++d)
