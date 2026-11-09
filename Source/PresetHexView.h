@@ -193,7 +193,13 @@ namespace PresetHex
             else if (o == 32)            what = SyVoice::voiceTypeLabel (v);
             else if (o == n - 2)         what = csOk ? "OK" : "INVALIDE";
             else if (o < 32 || o == n - 1) what = "";
-            else if (! notes[(size_t) o].isEmpty()) what = notes[(size_t) o].joinIntoString (" ; ");
+            else if (! notes[(size_t) o].isEmpty())
+            {
+                what = notes[(size_t) o].joinIntoString (" ; ");
+                // Valeur lisible des enums ambigus (le codage bulk differe de l'ordre imprime).
+                if (what.startsWith ("TYPE E") && what.contains ("[g09 N2 00]"))
+                    what << "  = " << (v == 0 ? "THRU" : v == 1 ? "LPF" : v == 2 ? "HPF" : "?");
+            }
             else                         what = "-- non decode";
 
             s << juce::String (o).paddedLeft (' ', 5) << "   " << hex2 (v) << "  "
