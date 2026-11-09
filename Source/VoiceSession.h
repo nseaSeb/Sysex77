@@ -5,14 +5,10 @@
     Session d'edition de la voix ouverte : historique (undo/redo), comparaison A/B,
     revert, et flux sysex du chargement d'une voix dans l'edit buffer.
 
-    Decoupage MidiDemo, ETAPE 1 : copie FIDELE de la logique de MidiDemo.h
-    (editHistory, originalVoiceBlock, applyingHistory, showingA, loadSettling,
-    bulkBusyUntilMs, historyGen, settleAfterLoad, sendOriginalBulk, noteBulkSent,
-    toKV, onVoiceLoaded, replayToUi, sendParams, applyKV, undo/redo, setShowingA,
-    revertToOriginal, unknownStatus, publishHistoryState, coeur d'openVoiceBlock,
-    bloc d'enregistrement de sendToOutputs, noteRx de handleAsyncUpdate).
-    ETAPES 2-4 : BRANCHEE dans MidiDemo (membre `session`, ports dans makeSessionPorts) ;
-    les copies de MidiDemo/MidiSysex sont supprimees. Caracterisee par Tests.h.
+    VoiceSession est le SEUL proprietaire de cette logique (historique, A/B, revert, settle
+    apres chargement, envoi B differe, enregistrement des edits sortants, noteRx) : MidiDemo
+    n'en garde qu'une coque UI (membre `session`, ports dans makeSessionPorts, props
+    VOICEMODE/VOICENAME/titre dans openVoiceBlock). Caracterisee par Tests.h.
 
     Toutes les dependances sont injectees (Ports) pour etre testable sans boucle de
     messages (en --test elle ne tourne pas) :
@@ -37,6 +33,23 @@
 #include "SysexUtils.h"
 #include "SysexBus.h"
 #include "EditHistory.h"
+
+/** Envoi d'un message MIDI brut (sysex en memoire), commun a MidiDemo::sendRaw et
+    VoiceSession : log de la taille, horodatage nowMs (ms) -> secondes, puis send.
+    Nom distinct de sendRaw : les membres sendRaw (MidiDemo, VoiceSession) le masqueraient. */
+inline void sendRawSysex (const void* data, long size, double nowMs,
+                          const std::function<void (const juce::MidiMessage&)>& send)
+{
+    if (size > 1)
+    {
+        juce::Logger::writeToLog (juce::String (size));
+        juce::MidiMessage m (data, (int) size);
+        m.setTimeStamp (nowMs * 0.001);
+        send (m);
+    }
+    else
+        juce::Logger::writeToLog ("Error Send RAW");
+}
 
 class VoiceSession
 {
@@ -80,13 +93,13 @@ public:
         le bloc garderait son type memoire d'origine et pourrait ecraser une voix interne ->
         aucun envoi, ni settle, ni changement d'historique.
         Discarded si sz <= 42 : le bulk est envoye (et settle pose) mais ni rejeu ni
-        historique ; l'historique et l'original precedents sont oublies (discardLoadedVoice).
-        typeOut = octet 32 brut (le shell ne pose VOICEMODE que pour 0..9), nameOut = 33..42. */
-    LoadResult loadBlock (juce::MemoryBlock block, int& typeOut, juce::String& nameOut,
+        historique ni beforeReplay ; l'historique et l'original precedents sont oublies
+        (discardLoadedVoice).
+        beforeReplay recoit type = octet 32 brut (le shell ne pose VOICEMODE que pour 0..9) et
+        name = octets 33..42 sans les espaces de fin (peut etre vide pour une vraie voix). */
+    LoadResult loadBlock (juce::MemoryBlock block,
                           std::function<void (int type, const juce::String& name)> beforeReplay = nullptr)
     {
-        typeOut = -1;
-        nameOut = {};
         if (! SyVoice::prepareEditBufferBulk ((juce::uint8*) block.getData(), (int) block.getSize(), ports.device()))
         {
             juce::Logger::writeToLog ("openVoiceBlock refuse : pas un bulk voix redirigeable vers l'edit buffer");
@@ -99,20 +112,19 @@ public:
         const int sz = (int) block.getSize();
         if (sz <= 42) { discardLoadedVoice(); return LoadResult::Discarded; }
 
-        typeOut = d[32];
         juce::String name;
         for (int i = 33; i < 43; ++i)
             name += juce::String::charToString ((juce::juce_wchar) d[i]);
-        nameOut = name.trimEnd();
-        if (beforeReplay != nullptr) beforeReplay (typeOut, nameOut);
+        if (beforeReplay != nullptr) beforeReplay (d[32], name.trimEnd());
 
+        const auto params = SyVoice::voiceBlobToParams (d, sz);   // decode UNE fois par chargement
         {
             // Rejeu VERBATIM (ordre et champs bruts de voiceBlobToParams, pas via toKV).
             const ScopedEchoSuppress noEcho;
-            for (auto& vp : SyVoice::voiceBlobToParams (d, sz))
+            for (auto& vp : params)
                 ports.replayParam (vp.group, vp.addrHi, vp.addrLo, vp.param, vp.v1, vp.value);
         }
-        onVoiceLoaded (block);
+        onVoiceLoaded (block, params);
         return LoadResult::Loaded;
     }
 
@@ -135,17 +147,21 @@ public:
     }
 
     /** noteRx de handleAsyncUpdate. d = { g, hi, lo, p, v1, v2 } (octets 3..8 du param recu,
-        deja filtre 43 1n 34 + device accepte). Ignore si aucune voix chargee : sinon l'etat se
-        repeuplerait depuis un original vide et un revert/undo renverrait ces valeurs. */
+        deja filtre 43 1n 34 + device accepte). Le cas « aucune voix chargee » est garde par
+        History::noteRx lui-meme. */
     void observeIncomingParam (const juce::uint8 d[6])
     {
-        if (d[0] != 0x0F && ! showingA && editHistory.isLoaded())
+        if (d[0] != 0x0F && ! showingA)
             editHistory.noteRx (EditHist::keyOf (d[0], d[1], d[2], d[3]), EditHist::valOf (d[4], d[5]));
     }
 
     void undo()
     {
         if (showingA) setShowingA (false);
+        // Un B differe en attente (programme par ce setShowingA(false) ou un B recent) est
+        // AVANCE ici, avant ++historyGen qui l'invaliderait : le synthe recoit le diff B puis
+        // les valeurs du undo -> il ne reste pas sur le bulk A alors que l'UI montre B.
+        flushPendingB();
         ++historyGen;
         int unknown = 0;
         applyKV (editHistory.undo (unknown));
@@ -155,6 +171,10 @@ public:
     void redo()
     {
         if (showingA) setShowingA (false);
+        // Un B differe en attente (programme par ce setShowingA(false) ou un B recent) est
+        // AVANCE ici, avant ++historyGen qui l'invaliderait : le synthe recoit le diff B puis
+        // les valeurs du redo -> il ne reste pas sur le bulk A alors que l'UI montre B.
+        flushPendingB();
         ++historyGen;
         int unknown = 0;
         applyKV (editHistory.redo (unknown));
@@ -211,7 +231,7 @@ public:
     }
 
     /** Condition des confirmations « edits non sauves » (askNewVoice, navigation). */
-    bool hasUnsavedEdits() const   { return editHistory.isLoaded() && ! editHistory.diffFromOriginal().empty(); }
+    bool hasUnsavedEdits() const   { return editHistory.isLoaded() && editHistory.hasDiff(); }
     bool isShowingA() const        { return showingA; }
     /** Condition d'askRevert. */
     bool canRevert() const         { return editHistory.isLoaded() && originalVoiceBlock.getSize() >= 2; }
@@ -246,7 +266,9 @@ private:
     double bulkBusyUntilMs = 0;             // SY77 still absorbing the last voice bulk (A / Original)
     int historyGen = 0;                     // bumped by every edit/undo/redo/load/revert/A
 
-    /** Cf. MidiDemo::settleAfterLoad. Le decrement de suppressSend a lieu MEME si la session
+    /** Pose la fenetre de stabilisation d'un chargement : suppressSend + loadSettling tenus
+        pendant deux sauts FIFO de post, le temps que les notifications asynchrones des widgets
+        (echos du rejeu) passent sans etre envoyees ni enregistrees. Le decrement de suppressSend a lieu MEME si la session
         est detruite entre-temps (sinon l'envoi resterait coupe a vie). post est copie dans
         la lambda : il ne faut pas toucher `ports` d'un objet mort. */
     void settleAfterLoad()
@@ -277,19 +299,7 @@ private:
         if (valid) sendParams (diff);
     }
 
-    /** Copie de MidiSysex.h::sendRaw. */
-    void sendRaw (const void* data, long size)
-    {
-        if (size > 1)
-        {
-            juce::Logger::writeToLog (juce::String (size));
-            juce::MidiMessage m (data, (int) size);
-            m.setTimeStamp (ports.nowMs() * 0.001);
-            ports.send (m);
-        }
-        else
-            juce::Logger::writeToLog ("Error Send RAW");
-    }
+    void sendRaw (const void* data, long size) { sendRawSysex (data, size, ports.nowMs(), ports.send); }
 
     /** Sends the original voice to the edit buffer, stamped with the CURRENT device number. */
     void sendOriginalBulk()
@@ -307,14 +317,13 @@ private:
         bulkBusyUntilMs = ports.nowMs() + (double) b.getSize() / 3.0 + 60.0;
     }
 
-    void onVoiceLoaded (const juce::MemoryBlock& editBufferBlock)
+    void onVoiceLoaded (const juce::MemoryBlock& editBufferBlock, const juce::Array<SyVoice::VoiceParam>& params)
     {
         if (showingA) { showingA = false; ports.lockEditing (false); }
         originalVoiceBlock = editBufferBlock;
         ++historyGen;
         noteBulkSent (editBufferBlock);
-        editHistory.load (toKV (SyVoice::voiceBlobToParams ((const juce::uint8*) editBufferBlock.getData(),
-                                                            (int) editBufferBlock.getSize())));
+        editHistory.load (toKV (params));
         publishHistoryState ({});
     }
 

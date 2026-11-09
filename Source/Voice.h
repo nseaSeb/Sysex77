@@ -233,13 +233,16 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         editName.setText("INIT");
         editName.setMultiLine(false);
         editName.setInputRestrictions(10);
-        editName.setTextToShowWhenEmpty (TRANS ("(unknown voice)"), Colours::grey);
+        editName.setTextToShowWhenEmpty (SyVoice::voiceNameFieldPlaceholder (false), Colours::grey);
         editName.setJustification(Justification::centred);
         //      editName.setColour(TextEditor::ColourIds::textColourId, SYColText);
         editName.addListener(this);
         // Nom de voix chargé depuis la librairie : suit VOICENAME -> met à jour le champ.
         voiceNameVal = valueTreeVoice.getPropertyAsValue (IDs::VOICENAME, &undoManager);
         voiceNameVal.addListener (this);
+        // Voix inconnue (bloc court) : seul ce drapeau affiche « (unknown voice) ».
+        voiceUnknownVal = valueTreeVoice.getPropertyAsValue (IDs::VOICEUNKNOWN, nullptr);
+        voiceUnknownVal.addListener (this);
         
     int sysexdata[9] = { 0x43, 0X10, 0x34, 0x0d, 0x00, 0x00, 0x32, 0x00, 0x7f };
         // Boutons « 1 2 3 4 » = on/off des 4 ÉLÉMENTS (MUTE éditeur via ELVL).
@@ -338,6 +341,7 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         element3.elementValue.removeListener(this);
         element4.elementValue.removeListener(this);
         voiceNameVal.removeListener(this);
+        voiceUnknownVal.removeListener (this);
     }
     
     /** A/B compare showing A: every control is disabled except the history bar. */
@@ -622,13 +626,17 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
     void valueChanged(Value & value) override
     {
         // Nom de voix chargé depuis la librairie -> reflète dans le champ d'édition.
-        if (value.refersToSameSourceAs (voiceNameVal))
+        if (value.refersToSameSourceAs (voiceNameVal) || value.refersToSameSourceAs (voiceUnknownVal))
         {
-            // Vide = voix inconnue (bloc court charge) : on vide le champ, le texte neutre
-            // « (unknown voice) » s'affiche. dontSendNotification : aucun VNAM n'est emis
-            // (seul Return dans le champ envoie le nom au synthe).
-            const auto n = voiceNameVal.getValue().toString();
-            editName.setText (n, dontSendNotification);
+            // Une seule mise a jour lisant LES DEUX proprietes (l'ordre des notifications est
+            // indifferent ; "" -> "" ne notifie pas VOICENAME, d'ou l'ecoute du drapeau).
+            // Nom vide d'une vraie voix : champ vide sans texte ; voix inconnue (bloc court) :
+            // « (unknown voice) ». dontSendNotification : aucun VNAM n'est emis (seul Return
+            // dans le champ envoie le nom au synthe).
+            editName.setTextToShowWhenEmpty (SyVoice::voiceNameFieldPlaceholder ((bool) voiceUnknownVal.getValue()),
+                                             Colours::grey);
+            editName.setText (voiceNameVal.getValue().toString(), dontSendNotification);
+            editName.repaint();
         }
 
         // Clic sur une carte d'element -> ouvre l'editeur correspondant (presentation seule :
@@ -992,6 +1000,7 @@ void setNombreElements (int nombre)
     ComboBox    comboMode;
     TextEditor  editName {TRANS("Edit Name")};
     Value       voiceNameVal; // -> VOICENAME (nom chargé depuis la librairie)
+    Value       voiceUnknownVal; // -> VOICEUNKNOWN (edit buffer sans voix connue)
     // Boutons « 1 2 3 4 » (libellé « Operateurs On-Off ») = on/off des 4 ÉLÉMENTS de la voix.
     // MUTE éditeur via ELVL (cf. Element::setElementMuted) ; pas de vrai param on/off élément.
     TextButton op1 {"1"};

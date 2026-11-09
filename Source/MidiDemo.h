@@ -1529,8 +1529,7 @@ private:
                     // portée du garde anti-écho. La notification ASYNC par défaut de Value
                     // s'exécuterait APRÈS destruction du garde -> un éventuel ré-envoi
                     // échapperait à la suppression (c'était le trou de la boucle d'écho).
-                    valueSysexIn = make_var_array(data[3], data[4],data[5],data[6],data[7],data[8]);
-                    valueSysexIn.getValueSource().sendChangeMessage (true);
+                    applyParamToUi (data[3], data[4], data[5], data[6], data[7], data[8]);
                     // Keep the edit history's state true (never creates an undo step).
                     // Ignored when no voice is loaded (else revert/undo would resend these).
                     session.observeIncomingParam (&data[3]);
@@ -1855,17 +1854,24 @@ public:
     // de chargement edit buffer. Thread message uniquement. Declaree APRES seqPlayer, outLock
     // et midiOutputs (detruite avant eux). Seuls send/replayParam/lockEditing/editHappened
     // capturent this ; post/schedule n'en capturent rien (le settle peut survivre a MidiDemo).
+    /** Applique un param-change (g hi lo p v1 v2) aux widgets : valueSysexIn + notification
+        SYNCHRONE (true), pour que les widgets s'appliquent DANS la portee du ScopedEchoSuppress
+        de l'appelant (param recu dans handleAsyncUpdate, rejeu de VoiceSession). */
+    void applyParamToUi (int g, int hi, int lo, int p, int v1, int v2)
+    {
+        valueSysexIn = make_var_array (g, hi, lo, p, v1, v2);
+        valueSysexIn.getValueSource().sendChangeMessage (true);
+    }
+
     VoiceSession::Ports makeSessionPorts()
     {
         VoiceSession::Ports p;
-        // sendToOutputs (pas sendRaw : VoiceSession::sendRaw logge deja la taille). Passe par
+        // sendToOutputs (pas sendRaw : sendRawSysex logge deja la taille). Passe par
         // observeOutgoing puis le gate Out, exactement comme les envois d'avant.
         p.send         = [this] (const MidiMessage& m) { sendToOutputs (m); };
         p.replayParam  = [this] (int g, int hi, int lo, int pp, int v1, int v2)
         {
-            // Appele sous ScopedEchoSuppress par VoiceSession. Notification SYNCHRONE par param.
-            valueSysexIn = make_var_array (g, hi, lo, pp, v1, v2);
-            valueSysexIn.getValueSource().sendChangeMessage (true);
+            applyParamToUi (g, hi, lo, pp, v1, v2);   // appele sous ScopedEchoSuppress par VoiceSession
         };
         p.lockEditing  = [this] (bool locked) { lockEditing (locked); };
         p.editHappened = [this] { seqPlayer.editHappened(); };

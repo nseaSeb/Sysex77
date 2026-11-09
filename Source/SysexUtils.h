@@ -901,4 +901,12 @@ namespace SyVoice
         setBulkDevice (block, size, deviceNumber);
         return retargetVoiceToEditBuffer (block, size);
     }
+
+    /** Texte neutre du champ nom de voix quand il est vide (Voice.h) : « (unknown voice) »
+        SEULEMENT si l'edit buffer ne contient plus de voix connue (bloc court, VOICEUNKNOWN),
+        rien pour une vraie voix au nom vide (10 espaces). */
+    inline juce::String voiceNameFieldPlaceholder (bool voiceUnknown)
+    {
+        return voiceUnknown ? TRANS ("(unknown voice)") : juce::String();
+    }
 }

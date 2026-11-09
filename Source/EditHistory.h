@@ -47,6 +47,7 @@ namespace EditHist
         void load (const std::vector<KV>& orig)
         {
             original.clear();
+            rxBase.clear();
             for (auto& kv : orig) original[kv.first] = kv.second;
             state = original;
             steps.clear();
@@ -61,6 +62,7 @@ namespace EditHist
         void unload()
         {
             original.clear();
+            rxBase.clear();
             state.clear();
             steps.clear();
             pos = 0;
@@ -93,8 +95,24 @@ namespace EditHist
 
         /** Value received FROM the synth: keeps the state true, never creates a step.
             Ignored when nothing is loaded: the state must not refill from an empty original
-            (a later revert/undo would otherwise resend those values). */
-        void noteRx (Key k, int v) { if (! loaded) return; state[k] = v; open = false; }
+            (a later revert/undo would otherwise resend those values).
+            Cle NON decodee (effets/LFO, absente de original) : la valeur recue n'est pas un
+            edit utilisateur -> elle devient la reference rxBase (aucun ecart, B ne la renvoie
+            pas), SAUF si l'utilisateur a deja edite cette cle (etat != reference) : l'edit
+            reste compte. original n'est pas touche (A/revert rejouent la voix decodee). */
+        void noteRx (Key k, int v)
+        {
+            if (! loaded) return;
+            if (original.find (k) == original.end())
+            {
+                const auto s = state.find (k);
+                const auto b = rxBase.find (k);
+                const bool untouched = s == state.end() || (b != rxBase.end() && b->second == s->second);
+                if (untouched) rxBase[k] = v;
+            }
+            state[k] = v;
+            open = false;
+        }
 
         bool canUndo() const { return pos > 0; }
         bool canRedo() const { return pos < (int) steps.size(); }
@@ -139,11 +157,17 @@ namespace EditHist
         {
             std::vector<KV> out;
             for (auto& kv : state)
-            {
-                const auto o = original.find (kv.first);
-                if (o == original.end() || o->second != kv.second) out.push_back (kv);
-            }
+                if (differsFromReference (kv)) out.push_back (kv);
             return out;
+        }
+
+        /** true des le premier ecart (meme predicat que diffFromOriginal, sans construire la
+            liste) : condition des confirmations « edits non sauves ». */
+        bool hasDiff() const
+        {
+            for (auto& kv : state)
+                if (differsFromReference (kv)) return true;
+            return false;
         }
 
         std::vector<KV> originalValues() const { return { original.begin(), original.end() }; }
@@ -173,7 +197,19 @@ namespace EditHist
         }
 
     private:
+        /** Une valeur de l'etat est un edit si elle differe de sa reference : l'original
+            decode, ou a defaut la valeur de base recue du synthe (rxBase), ou si aucune
+            reference n'existe (param non decode edite par l'utilisateur). */
+        bool differsFromReference (const KV& kv) const
+        {
+            const auto o = original.find (kv.first);
+            if (o != original.end()) return o->second != kv.second;
+            const auto b = rxBase.find (kv.first);
+            return b == rxBase.end() || b->second != kv.second;
+        }
+
         std::map<Key, int> state, original;
+        std::map<Key, int> rxBase;   // cles NON decodees : derniere valeur recue du synthe hors edit utilisateur
         std::vector<Step> steps;
         int pos = 0;
         bool open = false, loaded = false;

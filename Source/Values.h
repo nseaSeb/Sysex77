@@ -15,6 +15,7 @@ namespace IDs
     
     DECLARE_ID (VOICEMODE)
     DECLARE_ID (VOICENAME)
+    DECLARE_ID (VOICEUNKNOWN)   // true = edit buffer sans voix connue (bloc court) ; presentation seule
     DECLARE_ID (COMMONVOLUME)
     DECLARE_ID (COMMONFOOT)
     DECLARE_ID (COMMONMOD)

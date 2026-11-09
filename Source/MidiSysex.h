@@ -188,15 +188,14 @@ void oscMessageReceived (const OSCMessage& message)
     bulk, rejeu anti-echo, historique) est dans VoiceSession::loadBlock. */
 void openVoiceBlock (MemoryBlock block)
 {
-    int type = -1;
-    String name;
-    const auto r = session.loadBlock (std::move (block), type, name,
+    const auto r = session.loadBlock (std::move (block),
         [this] (int t, const String& n)
         {
             // Props AVANT le rejeu des params (meme ordre qu'avant le decoupage).
             if (t >= 0 && t <= 9)
                 valueTreeVoice.setProperty (IDs::VOICEMODE, t + 1, nullptr); // id comboMode
-            valueTreeVoice.setProperty (IDs::VOICENAME, n, nullptr);
+            valueTreeVoice.setProperty (IDs::VOICEUNKNOWN, false, nullptr);
+            valueTreeVoice.setProperty (IDs::VOICENAME, n, nullptr);   // peut etre vide (vraie voix)
             // Affiche la voix ouverte dans le titre de la fenetre (visible sur tous les onglets).
             if (auto* tlw = getTopLevelComponent())
                 tlw->setName (Sysex77::windowTitle (n));
@@ -208,8 +207,10 @@ void openVoiceBlock (MemoryBlock block)
     if (r == VoiceSession::LoadResult::Discarded)
     {
         // Presentation seulement : le nom affiche n'est plus celui de l'edit buffer.
-        // VOICENAME vide -> Voice.h vide le champ (dontSendNotification, aucun VNAM
-        // emis : seul Return dans le champ envoie le nom au synthe).
+        // VOICEUNKNOWN + VOICENAME vide -> Voice.h vide le champ et affiche « (unknown voice) »
+        // (dontSendNotification, aucun VNAM emis : seul Return dans le champ envoie le nom).
+        // Distinct d'une vraie voix au nom vide (VOICEUNKNOWN false : champ vide sans texte).
+        valueTreeVoice.setProperty (IDs::VOICEUNKNOWN, true, nullptr);
         valueTreeVoice.setProperty (IDs::VOICENAME, String(), nullptr);
         if (auto* tlw = getTopLevelComponent())
             tlw->setName (Sysex77::windowTitle ({}));
@@ -234,17 +235,7 @@ void sendSysex(const OSCMessage& message, uint8 sysexdata[0])
 }
 void sendRaw(const void* sysexData, const long dataSize)
 {
-    if (dataSize >1)
-    {
-        Logger::writeToLog(String(dataSize));
-        //    Logger::writeToLog(String(dataSize));
-        //Envoi midi brut depuis la mémoire
-        MidiMessage m = MidiMessage (sysexData, (int) dataSize);
-        m.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
-        sendToOutputs (m);
-    }
-    else
-    {
-        Logger::writeToLog("Error Send RAW");
-    }
+    // Helper commun avec VoiceSession (meme log, meme horodatage).
+    sendRawSysex (sysexData, dataSize, Time::getMillisecondCounterHiRes(),
+                  [this] (const MidiMessage& m) { sendToOutputs (m); });
 }
