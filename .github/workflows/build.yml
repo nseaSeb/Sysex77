@@ -62,6 +62,8 @@ jobs:
                              -ArgumentList "--test" -Wait -PassThru `
                              -RedirectStandardOutput test-out.txt
           Get-Content test-out.txt -Tail 40
+          # Detail des echecs (sinon hors des 40 dernieres lignes)
+          Select-String -Path test-out.txt -Pattern '!!! Test' -Context 6,0 | ForEach-Object { $_.Context.PreContext; $_.Line }
           Write-Host "Code de sortie des tests : $($p.ExitCode)"
           exit $p.ExitCode
 
