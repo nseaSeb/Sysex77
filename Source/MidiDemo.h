@@ -616,6 +616,12 @@ public:
                                          });
         };
         keyboardState.addListener (this);
+        // Bouton Play de la vue drum : joue la note via le clavier a l'ecran (canal de jeu, touche allumee).
+        drumAuditionHook() = [this] (int note, bool on)
+        {
+            if (on) keyboardState.noteOn (1, note, 0.8f);
+            else    keyboardState.noteOff (1, note, 0.0f);
+        };
         
         addAndMakeVisible (midiInputSelector .get());
         addAndMakeVisible (midiOutputSelector.get());
@@ -880,6 +886,7 @@ public:
             const ScopedLock sl (outLock);
             midiOutputs.clear();
         }
+        drumAuditionHook() = nullptr;
         keyboardState.removeListener (this);
         btBulk.removeListener(this);
       

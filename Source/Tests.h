@@ -965,6 +965,17 @@ struct SysexUtilsTests : public juce::UnitTest
                     expectEquals (SyDrum::outputs (r), juce::String ("1+2"));
                     expect (! kit.apply (0x04, 35, 0, 0x03, 0, 1));    // hors C1..C6
                     expect (! kit.apply (0x07, 38, 0, 0x03, 0, 1));    // autre groupe
+                    // Envoi (etape 2) : octet packe recompose, bits etrangers conserves.
+                    expectEquals (SyDrum::packOutAlt (0x43, true, false, false), 0x01);
+                    expectEquals (SyDrum::packOutAlt (0x01, true, true, true), 0x43);
+                    expectEquals (SyDrum::packOutAlt (0x0C | 0x02, false, true, false), 0x0E);
+                    // Un param-change drum est enregistrable par l'historique (undo/A-B).
+                    {
+                        auto m = SyVoice::paramMessage (1, 0x04, 38, 0x00, 0x03, 90);
+                        expect (SyVoice::isRecordableVoiceParamChange (m.getRawData(), m.getRawDataSize()));
+                        expect (kit.apply (0x04, 38, 0, 0x02, 1, 0x05));   // WAV MSB/LSB
+                        expectEquals (SyDrum::wave (kit.raw[2]), 133);
+                    }
                 }
                 // Filtres (Table 2) : FTYPE1 @403, FTYPE2 @432, FOS11 (MSB @424, low @425), FVSON @462.
                 expectEquals (val (0x09, 0, 0x00), (int) steel[403]);

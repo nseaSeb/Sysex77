@@ -1132,6 +1132,11 @@ namespace SyDrum
     inline int shift  (const juce::uint8* r) { return (int) r[6] - 64; }   // -48..+36
     inline int pan    (const juce::uint8* r) { return (int) r[7] - 31; }   // -31..+31
     inline bool alternate (const juce::uint8* r) { return (r[0] & 0x40) != 0; }
+    /** N2 = 0 recompose (octet PACKE ALTGRP b6 | OUT2 b1 | OUT1 b0) ; autres bits de cur conserves. */
+    inline int packOutAlt (int cur, bool out1, bool out2, bool alt)
+    {
+        return ((cur & ~0x43) | (alt ? 0x40 : 0) | (out2 ? 0x02 : 0) | (out1 ? 0x01 : 0)) & 0x7F;
+    }
     /** Sorties : "1", "2", "1+2" ou "-" (aucune). */
     inline juce::String outputs (const juce::uint8* r)
     {

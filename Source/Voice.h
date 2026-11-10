@@ -360,6 +360,7 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
             if (! historyBar.isLockExempt (c) && c != &editorHeader   // quitter l'editeur n'est pas une edition
                 && c != &drumView)                                      // lecture seule : defilement libre en A/B
                 c->setEnabled (! locked);
+        drumView.setEditLocked (locked);   // exempte du verrou global (defilement), detail verrouille
         // Unlock: re-derive the element rows from the CURRENT mode (inactive rows stay grey,
         // even if the mode changed while locked).
         if (! locked) setNombreElements (nombreElements);
