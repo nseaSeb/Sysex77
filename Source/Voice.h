@@ -10,6 +10,7 @@
 #include "Element.h"
 #include "Volume.h"
 #include "PanVue.h"
+#include "DrumView.h"
 #pragma once
 
 //==============================================================================
@@ -224,6 +225,11 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         comboMode.addItem("4 AWM POLY", 8);
         comboMode.addItem("1 AFM & 1 AWM POLY", 9);
         comboMode.addItem("2 AFM & 2 AWM POLY", 10);
+        // DRUM SET : pose seulement par le chargement d'une voix drum (etape 1, lecture seule).
+        // Non selectionnable a la main : choisir un mode envoie ELMODE (reinitialise la voix).
+        comboMode.addItem("DRUM SET", 11);
+        comboMode.setItemEnabled (11, false);
+        addChildComponent (drumView);
         comboMode.setSelectedId(1);
         
        
@@ -508,7 +514,7 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
 
         // Lignes éléments -> entrée du groupe (matrice, pilotée par les bascules G1/G2).
         Element* els[4] = { &element1, &element2, &element3, &element4 };
-        for (int i = 0; i < nombreElements && i < 4; ++i)
+        for (int i = 0; i < (drumMode ? 0 : nombreElements) && i < 4; ++i)
         {
             auto b = els[i]->getBounds().toFloat();
             const float ox = b.getRight() - 4.0f;            // sortie pan de l'élément
@@ -652,6 +658,7 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
                 continue;
             const int cmd = (int) els[i]->elementValue.getValue();
             const int n = i + 1;
+            if (drumMode) { if (cmd != 0) els[i]->elementValue = 0; continue; }   // cartes masquees
             if (cmd == Element::commande::WaveEdit)
                 openEditor (*wave[i], n, TRANS ("Wave"));
             else if (cmd == Element::commande::AfmEdit)
@@ -721,6 +728,9 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         Logger::writeToLog("Voice comboBox Changed");
         if(comboBoxThatHasChanged == &comboMode)
         {
+            setDrumMode (comboMode.getSelectedId() == 11);
+            if (drumMode)
+                return;   // voix drum chargee : aucun ELMODE emis, la vue drum remplace les elements
             if (! sender.send (adresseOpMode, (int) comboMode.getSelectedItemIndex())) // [5]
                 Logger::writeToLog ("OSC erreur voice opMode");;
  
@@ -795,6 +805,22 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         }
 
     }
+    /** Voix DRUM SET : la vue drum (61 notes) remplace les 4 rangees d'elements. Presentation
+        seule, rien n'est envoye. */
+    void setDrumMode (bool on)
+    {
+        if (on == drumMode) return;
+        drumMode = on;
+        if (on) closeOpenEditor();
+        drumView.setVisible (on);
+        for (auto* c : std::initializer_list<Component*> { &element1, &element2, &element3, &element4,
+                                                             &op1, &op2, &op3, &op4 })
+            c->setVisible (! on);
+        resized();
+        repaint();
+    }
+    bool drumMode = false;
+
 void setNombreElements (int nombre)
     {
         nombreElements = nombre;
@@ -809,7 +835,7 @@ void setNombreElements (int nombre)
         for (int i = 0; i < 4; ++i)
         {
             const bool active = (i < nombre);
-            els[i]->setVisible (true);
+            els[i]->setVisible (! drumMode);
             els[i]->setEnabled (active);
             els[i]->setAlpha (active ? 1.0f : 0.6f);   // replie mais lisible (0.35 = illisible)
 
@@ -876,6 +902,7 @@ void setNombreElements (int nombre)
             els[i]->setBounds (10, yEl, (int) wGrid, h);
             yEl += h;
         }
+        drumView.setBounds (10, topElem, (int) wGrid, jmax (80, getHeight() - topElem - 4));
 
         // Rangee du haut : [1][2][3][4] (on/off elements) puis historique. Le nom de voix a
         // ete deplace dans le bandeau superieur de la fenetre (MidiDemo) quand il y est.
@@ -971,6 +998,7 @@ void setNombreElements (int nombre)
     };
     
   
+    DrumView drumView;   // voix DRUM SET (remplace les elements)
     WaveVue editWave1;
     WaveVue editWave2;
     WaveVue editWave3;

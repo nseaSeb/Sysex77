@@ -946,6 +946,25 @@ struct SysexUtilsTests : public juce::UnitTest
                     bool found = false;
                     for (auto& x : dp) if (x.group == 0x04 && x.addrHi == 38 && x.param == 0x02) found = x.value == 0x15 && x.v1 == 1;
                     expect (found);
+                    // Vue drum : le rejeu remplit SyDrum::Kit (note 38 = ligne 2) ; offsets o/b.
+                    q[98 + 8 * 2 + 0] = 0x43; q[98 + 8 * 2 + 1] = 1; q[98 + 8 * 2 + 4] = 100;
+                    q[98 + 8 * 2 + 5] = 64;   q[98 + 8 * 2 + 6] = 16; q[98 + 8 * 2 + 7] = 31;
+                    SyDrum::Kit kit;
+                    expect (! kit.loaded);
+                    for (auto& x : SyVoice::voiceBlobToParams (q, 588))
+                        kit.apply (x.group, x.addrHi, x.addrLo, x.param, x.v1, x.value);
+                    expect (kit.loaded);
+                    const auto* r = kit.raw[2];
+                    expectEquals (SyDrum::wave (r), 0x95);
+                    expectEquals (SyDrum::source (r), 1);
+                    expectEquals (SyDrum::volume (r), 100);
+                    expectEquals (SyDrum::tune (r), 0);
+                    expectEquals (SyDrum::shift (r), -48);
+                    expectEquals (SyDrum::pan (r), 0);
+                    expect (SyDrum::alternate (r));
+                    expectEquals (SyDrum::outputs (r), juce::String ("1+2"));
+                    expect (! kit.apply (0x04, 35, 0, 0x03, 0, 1));    // hors C1..C6
+                    expect (! kit.apply (0x07, 38, 0, 0x03, 0, 1));    // autre groupe
                 }
                 // Filtres (Table 2) : FTYPE1 @403, FTYPE2 @432, FOS11 (MSB @424, low @425), FVSON @462.
                 expectEquals (val (0x09, 0, 0x00), (int) steel[403]);

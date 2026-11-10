@@ -95,7 +95,7 @@ public:
         Discarded si sz <= 42 : le bulk est envoye (et settle pose) mais ni rejeu ni
         historique ni beforeReplay ; l'historique et l'original precedents sont oublies
         (discardLoadedVoice).
-        beforeReplay recoit type = octet 32 brut (le shell ne pose VOICEMODE que pour 0..9) et
+        beforeReplay recoit type = octet 32 brut (le shell pose VOICEMODE pour 0..10, 10 = drum) et
         name = octets 33..42 sans les espaces de fin (peut etre vide pour une vraie voix). */
     LoadResult loadBlock (juce::MemoryBlock block,
                           std::function<void (int type, const juce::String& name)> beforeReplay = nullptr)

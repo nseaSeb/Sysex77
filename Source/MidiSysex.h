@@ -192,7 +192,7 @@ void openVoiceBlock (MemoryBlock block)
         [this] (int t, const String& n)
         {
             // Props AVANT le rejeu des params (meme ordre qu'avant le decoupage).
-            if (t >= 0 && t <= 9)
+            if (t >= 0 && t <= 10)   // 10 = DRUM SET -> id 11 (vue drum, aucun ELMODE emis)
                 valueTreeVoice.setProperty (IDs::VOICEMODE, t + 1, nullptr); // id comboMode
             valueTreeVoice.setProperty (IDs::VOICEUNKNOWN, false, nullptr);
             valueTreeVoice.setProperty (IDs::VOICENAME, n, nullptr);   // peut etre vide (vraie voix)
