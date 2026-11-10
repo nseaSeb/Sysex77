@@ -192,8 +192,13 @@ void openVoiceBlock (MemoryBlock block)
         [this] (int t, const String& n)
         {
             // Props AVANT le rejeu des params (meme ordre qu'avant le decoupage).
-            if (t >= 0 && t <= 10)   // 10 = DRUM SET -> id 11 (vue drum, aucun ELMODE emis)
+            if (t >= 0 && t <= 10)   // 10 = DRUM SET -> id 11 (vue drum)
+            {
+                for (int i = 0; i < tabs.getNumTabs(); ++i)   // le mode vient du bulk : pas d'ELMODE
+                    if (auto* vp = dynamic_cast<VoicePage*> (tabs.getTabContentComponent (i)))
+                        vp->prepareVoiceLoad (t + 1);
                 valueTreeVoice.setProperty (IDs::VOICEMODE, t + 1, nullptr); // id comboMode
+            }
             valueTreeVoice.setProperty (IDs::VOICEUNKNOWN, false, nullptr);
             valueTreeVoice.setProperty (IDs::VOICENAME, n, nullptr);   // peut etre vide (vraie voix)
             // Affiche la voix ouverte dans le titre de la fenetre (visible sur tous les onglets).

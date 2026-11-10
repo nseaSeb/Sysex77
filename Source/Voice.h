@@ -227,9 +227,12 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         comboMode.addItem("2 AFM & 2 AWM POLY", 10);
         // DRUM SET : pose seulement par le chargement d'une voix drum (etape 1, lecture seule).
         // Non selectionnable a la main : choisir un mode envoie ELMODE (reinitialise la voix).
-        comboMode.addItem("DRUM SET", 11);
-        comboMode.setItemEnabled (11, false);
+        comboMode.addItem("DRUM SET", voiceMode::DrumSet + 1);
+        comboMode.setItemEnabled (voiceMode::DrumSet + 1, false);
         addChildComponent (drumView);
+        // Vue drum pilotee par la PROPRIETE VOICEMODE (pas par comboBoxChanged, qui emet ELMODE).
+        voiceModeVal = valueTreeVoice.getPropertyAsValue (IDs::VOICEMODE, nullptr);
+        voiceModeVal.addListener (this);
         comboMode.setSelectedId(1);
         
        
@@ -354,7 +357,8 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
     void setEditLocked (bool locked)
     {
         for (auto* c : getChildren())
-            if (! historyBar.isLockExempt (c) && c != &editorHeader)   // quitter l'editeur n'est pas une edition
+            if (! historyBar.isLockExempt (c) && c != &editorHeader   // quitter l'editeur n'est pas une edition
+                && c != &drumView)                                      // lecture seule : defilement libre en A/B
                 c->setEnabled (! locked);
         // Unlock: re-derive the element rows from the CURRENT mode (inactive rows stay grey,
         // even if the mode changed while locked).
@@ -632,6 +636,11 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
     void valueChanged(Value & value) override
     {
         // Nom de voix chargé depuis la librairie -> reflète dans le champ d'édition.
+        if (value.refersToSameSourceAs (voiceModeVal))
+        {
+            setDrumMode ((int) voiceModeVal.getValue() == voiceMode::DrumSet + 1);
+            return;
+        }
         if (value.refersToSameSourceAs (voiceNameVal) || value.refersToSameSourceAs (voiceUnknownVal))
         {
             // Une seule mise a jour lisant LES DEUX proprietes (l'ordre des notifications est
@@ -728,9 +737,13 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         Logger::writeToLog("Voice comboBox Changed");
         if(comboBoxThatHasChanged == &comboMode)
         {
-            setDrumMode (comboMode.getSelectedId() == 11);
-            if (drumMode)
-                return;   // voix drum chargee : aucun ELMODE emis, la vue drum remplace les elements
+            // Mode pose par un CHARGEMENT de voix : le bulk a deja fixe le mode dans le synthe.
+            // Cette notification arrive apres la fenetre settle (2 sauts async + OSC) : sans ce
+            // garde, chaque chargement changeant de mode renvoyait ELMODE au SY77.
+            const bool fromLoad = comboMode.getSelectedId() == modeFromLoad;
+            modeFromLoad = 0;
+            if (fromLoad || comboMode.getSelectedId() == voiceMode::DrumSet + 1)
+                return;
             if (! sender.send (adresseOpMode, (int) comboMode.getSelectedItemIndex())) // [5]
                 Logger::writeToLog ("OSC erreur voice opMode");;
  
@@ -820,6 +833,17 @@ struct VoicePage   : public Component, public Slider::Listener, public ComboBox:
         repaint();
     }
     bool drumMode = false;
+    Value voiceModeVal;
+
+    /** Appele par openVoiceBlock AVANT de poser VOICEMODE : le changement de combo qui en
+        resulte ne doit pas emettre ELMODE. Vide aussi la table drum (pas de kit perime si le
+        bloc drum est tronque et ne rejoue rien). */
+    void prepareVoiceLoad (int comboId)
+    {
+        modeFromLoad = (comboId != comboMode.getSelectedId()) ? comboId : 0;
+        drumView.clearKit();
+    }
+    int modeFromLoad = 0;   // id de combo attendu d'un chargement (0 = aucun)
 
 void setNombreElements (int nombre)
     {

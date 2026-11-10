@@ -23,21 +23,21 @@ public:
         table.setColour (ListBox::backgroundColourId, Colours::transparentBlack);
         auto& h = table.getHeader();
         const int f = TableHeaderComponent::visible | TableHeaderComponent::resizable;
-        h.addColumn (TRANS ("Note"),   cNote,  56,  40, 90,  f);
-        h.addColumn (TRANS ("Wave"),   cWave,  210, 120, 400, f);
-        h.addColumn (TRANS ("Volume"), cVol,   130, 60, 260,  f);
-        h.addColumn (TRANS ("Tune"),   cTune,  110, 60, 220,  f);
-        h.addColumn (TRANS ("Shift"),  cShift, 110, 60, 220,  f);
-        h.addColumn (TRANS ("Pan"),    cPan,   110, 60, 220,  f);
-        h.addColumn (TRANS ("Out"),    cOut,   48,  36, 80,   f);
+        h.addColumn (TRANS ("Note"),   cNote,  56,  36, 90,  f);
+        h.addColumn (TRANS ("Wave"),   cWave,  210, 100, 400, f);
+        h.addColumn (TRANS ("Volume"), cVol,   130, 56, 260,  f);
+        h.addColumn (TRANS ("Tune"),   cTune,  110, 56, 220,  f);
+        h.addColumn (TRANS ("Shift"),  cShift, 110, 56, 220,  f);
+        h.addColumn (TRANS ("Pan"),    cPan,   110, 56, 220,  f);
+        h.addColumn (TRANS ("Out"),    cOut,   48,  34, 80,   f);
         h.addColumn (TRANS ("Alt"),    cAlt,   44,  32, 80,   f);
         h.setStretchToFitActive (true);
-        table.getViewport()->setScrollBarsShown (true, false);   // colonnes etirees : pas de defilement horizontal
         valueSysexIn.addListener (this);
     }
     ~DrumView() override { valueSysexIn.removeListener (this); }
 
     const SyDrum::Kit& kit() const { return drumKit; }
+    void clearKit() { drumKit = {}; refresh(); }
 
     void paint (Graphics& g) override
     {
@@ -50,10 +50,24 @@ public:
             g.drawText (TRANS ("Open a drum voice from the library to see its 61 keys."),
                         getLocalBounds().withTrimmedTop (titleH + 30), Justification::centredTop);
     }
-    void resized() override { table.setBounds (getLocalBounds().withTrimmedTop (titleH)); }
+    void resized() override
+    {
+        table.setBounds (getLocalBounds().withTrimmedTop (titleH));
+        // Colonnes etirees ; sous la somme des minimums (~460 px) on defile plutot que couper.
+        table.getViewport()->setScrollBarsShown (true, getWidth() < minTableW);
+    }
 
 private:
-    static constexpr int titleH = 24;
+    static constexpr int titleH = 24, minTableW = 36 + 100 + 4 * 56 + 34 + 32 + 20;
+
+    void refresh()
+    {
+        for (int k = 0; k < SyDrum::numNotes; ++k)   // noms mis en cache (pas de recherche par paint)
+            waveNames[k] = awmWaveName (SyDrum::wave (drumKit.raw[k]), SYModel == 3, SyDrum::source (drumKit.raw[k]));
+        table.updateContent();
+        table.repaint();
+        repaint();
+    }
 
     void valueChanged (Value& v) override
     {
@@ -66,9 +80,7 @@ private:
             // 427 params arrivent d'un bloc au chargement : un seul rafraichissement differe.
             pendingRepaint = true;
             SafePointer<DrumView> self (this);
-            MessageManager::callAsync ([self] { if (self) { self->pendingRepaint = false;
-                                                            self->table.updateContent();
-                                                            self->table.repaint(); self->repaint(); } });
+            MessageManager::callAsync ([self] { if (self) { self->pendingRepaint = false; self->refresh(); } });
         }
     }
 
@@ -97,7 +109,7 @@ private:
             case cWave:
             {
                 const int wv = SyDrum::wave (r), src = SyDrum::source (r);
-                auto name = awmWaveName (wv, SYModel == 3, src);
+                const auto& name = waveNames[row];
                 g.setColour (SYPal.textMuted);
                 g.drawText ((src == 0 ? "P" : "C") + String (wv).paddedLeft ('0', 3),
                             cell.reduced (6, 0), Justification::centredLeft);
@@ -144,6 +156,7 @@ private:
     }
 
     SyDrum::Kit drumKit;
+    String waveNames[SyDrum::numNotes];
     TableListBox table;
     bool pendingRepaint = false;
 
