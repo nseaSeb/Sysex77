@@ -30,6 +30,15 @@ public:
         requestBt.setTooltip (TRANS ("Ask the SY77 to send this stored multi (read only, nothing is written to the synth)."));
         requestBt.onClick = [this] { sender.send (adresseOscRequestMulti, slotCombo.getSelectedId() - 1); };
 
+        addChildComponent (nameEd);
+        nameEd.setInputRestrictions (20);
+        nameEd.setFont (Font (FontOptions (17.0f)).boldened());
+        nameEd.setTooltip (TRANS ("Multi name - press Return to send it to the SY77"));
+        nameEd.onReturnKey = [this] { sendName(); };
+        addChildComponent (sendBt);
+        sendBt.setTooltip (TRANS ("Send the whole multi to the SY77 edit buffer (no memory is written)"));
+        sendBt.onClick = [this] { confirmSendMulti(); };
+
         addAndMakeVisible (table);
         table.setModel (this);
         table.setRowHeight (24);
@@ -65,8 +74,9 @@ public:
         auto top = getLocalBounds().reduced (10, 0).removeFromTop (headerH);
         g.setColour (SYPal.textPrimary);
         g.setFont (Font (FontOptions (18.0f)).boldened());
-        g.drawText (multi.loaded ? (multi.name.isEmpty() ? String ("(no name)") : multi.name) : TRANS ("No multi loaded"),
-                    top.removeFromTop (30).withTrimmedRight (440), Justification::centredLeft);
+        if (! multi.loaded)
+            g.drawText (TRANS ("No multi loaded"), top.withHeight (30), Justification::centredLeft);
+        top.removeFromTop (30);
         g.setColour (SYPal.textMuted);
         g.setFont (Font (FontOptions (12.5f)));
         String info = TRANS ("Select a part to edit it - each change is sent to the SY77.");
@@ -86,6 +96,9 @@ public:
         slotCombo.setBounds (top.removeFromRight (100).reduced (2));
         top.removeFromRight (10);
         libraryBt.setBounds (top.removeFromRight (170).reduced (2));
+        top.removeFromRight (10);
+        sendBt.setBounds (top.removeFromRight (150).reduced (2));
+        nameEd.setBounds (top.removeFromLeft (jmin (260, top.getWidth())).reduced (0, 2));
         detail.setBounds (r.removeFromBottom (detailH));
         layoutDetail();
         table.setBounds (r.withTrimmedBottom (4));
@@ -95,10 +108,14 @@ public:
 private:
     static constexpr int headerH = 56, detailH = 100;
 
-    void setMulti (const SyMulti::Multi& m, const String& from)
+    void setMulti (const SyMulti::Multi& m, const String& from, const MemoryBlock& block)
     {
         multi = m;
         source = from;
+        baseBlock = block;
+        nameEd.setVisible (multi.loaded);
+        sendBt.setVisible (multi.loaded);
+        nameEd.setText (multi.name, dontSendNotification);
         detail.setVisible (multi.loaded);
         table.updateContent();   // AVANT selectRow (sinon la ligne n'existe pas encore)
         if (multi.loaded && table.getSelectedRow() < 0) table.selectRow (sel);
@@ -116,7 +133,7 @@ private:
                 if (auto* mb = a[1].getBinaryData())
                 {
                     auto m = SyMulti::parse ((const uint8*) mb->getData(), (int) mb->getSize());
-                    if (m.loaded) setMulti (m, a[0].toString());
+                    if (m.loaded) setMulti (m, a[0].toString(), *mb);
                 }
             return;
         }
@@ -128,7 +145,7 @@ private:
                 auto m = SyMulti::parse ((const uint8*) mb->getData(), (int) mb->getSize());
                 if (m.loaded)
                     setMulti (m, TRANS ("Received from the SY77") + " ("
-                                 + (m.memType == 0x7F ? String ("EDIT") : (m.memType == 0 ? "INT " : "PRE ") + String (m.memNumber + 1)) + ")");
+                                 + (m.memType == 0x7F ? String ("EDIT") : (m.memType == 0 ? "INT " : "PRE ") + String (m.memNumber + 1)) + ")", *mb);
             }
             return;
         }
@@ -140,6 +157,7 @@ private:
             {
                 table.repaint();
                 syncDetail();
+                if (! nameEd.hasKeyboardFocus (true)) nameEd.setText (multi.name, dontSendNotification);
                 repaint();
             }
         }
@@ -234,6 +252,36 @@ private:
         detail.repaint();
     }
 
+    /** Nom (Return) : 20 param-change groupe 0x00 / N2 0..19 (MNAM, Table 1-1), sur geste. */
+    void sendName()
+    {
+        if (! multi.loaded) return;
+        multi.name = nameEd.getText().substring (0, 20);
+        const auto nm = multi.name.paddedRight (' ', 20);
+        for (int k = 0; k < 20; ++k)
+        {
+            const uint8 b[9] = { 0x43, 0x10, 0x34, 0x00, 0x00, 0x00, (uint8) k, 0x00, (uint8) jlimit (32, 126, (int) nm[k]) };
+            sender.sendParam9 ("/SYSEX", b);
+        }
+        repaint();
+    }
+
+    /** Envoi du Multi complet vers l'EDIT BUFFER, apres confirmation (jamais automatique). */
+    void confirmSendMulti()
+    {
+        const auto blk = SyMulti::encodeForEditBuffer (multi, baseBlock);
+        if (blk.getSize() == 0) return;
+        SafePointer<MultiPage> self (this);
+        AlertWindow::showOkCancelBox (MessageBoxIconType::QuestionIcon, TRANS ("Send multi"),
+            TRANS ("Send this multi to the SY77 edit buffer? It replaces the multi being edited on the synth; no stored multi is overwritten. Bulk Protect must be off.")
+                + "\n" + TRANS ("(Not yet checked on hardware.)"),
+            TRANS ("Send"), TRANS ("Cancel"), nullptr,
+            ModalCallbackFunction::create ([self, blk] (int r)
+            {
+                if (r == 1 && self != nullptr) self->sender.send (adresseOscSendMulti, blk);
+            }));
+    }
+
     /** Partie selectionnee -> controles, SANS envoi. */
     void syncDetail()
     {
@@ -279,17 +327,31 @@ private:
     /** Multis de toutes les banques de la librairie (scan a la demande), groupes par banque. */
     void showLibraryMenu()
     {
-        libMultis.clear();
-        libLabels.clear();
         Array<File> files;
         appDirPath.findChildFiles (files, File::findFiles, true, "*.syx");
         files.sort();
-        PopupMenu m;
-        for (auto& f : files)
+        // Cache : on ne relit les fichiers que si la liste / tailles / dates ont change.
+        int64 key = files.size();
+        for (auto& f : files) key = key * 31 + f.getSize() + f.getLastModificationTime().toMilliseconds();
+        if (key != libKey)
         {
-            MemoryBlock mb;
-            if (! f.loadFileAsData (mb)) continue;
-            const auto blocks = SyMulti::multisIn ((const uint8*) mb.getData(), mb.getSize());
+            libKey = key;
+            libCache.clear();
+            for (auto& f : files)
+            {
+                MemoryBlock mb;
+                if (! f.loadFileAsData (mb)) continue;
+                auto blocks = SyMulti::multisIn ((const uint8*) mb.getData(), mb.getSize());
+                if (! blocks.isEmpty()) libCache.push_back ({ f.getFileNameWithoutExtension(), blocks });
+            }
+        }
+        libMultis.clear();
+        libLabels.clear();
+        PopupMenu m;
+        for (auto& entry : libCache)
+        {
+            const auto& blocks = entry.second;
+            const String fileName = entry.first;
             if (blocks.isEmpty()) continue;
             PopupMenu sub;
             for (auto& b : blocks)
@@ -297,15 +359,15 @@ private:
                 const auto mu = SyMulti::parse ((const uint8*) b.getData(), (int) b.getSize());
                 const int idx = libMultis.size();
                 libMultis.add (b);
-                libLabels.add (f.getFileNameWithoutExtension() + " / " + mu.name);
+                libLabels.add (fileName + " / " + mu.name);
                 sub.addItem ((mu.memType == 0 ? "INT " : "PRE ") + String (mu.memNumber + 1) + "  " + mu.name,
                              [this, idx]
                              {
                                  const auto& blk = libMultis.getReference (idx);
-                                 setMulti (SyMulti::parse ((const uint8*) blk.getData(), (int) blk.getSize()), libLabels[idx]);
+                                 setMulti (SyMulti::parse ((const uint8*) blk.getData(), (int) blk.getSize()), libLabels[idx], blk);
                              });
             }
-            m.addSubMenu (f.getFileNameWithoutExtension(), sub);
+            m.addSubMenu (fileName, sub);
         }
         if (m.getNumItems() == 0) m.addItem (TRANS ("No multi in the library"), false, false, [] {});
         m.showMenuAsync (PopupMenu::Options().withTargetComponent (&libraryBt));
@@ -364,6 +426,11 @@ private:
     }
 
     SyMulti::Multi multi;
+    MemoryBlock baseBlock;   // bloc d'origine (effets/reserve conserves a l'envoi)
+    TextEditor nameEd;
+    TextButton sendBt { TRANS ("Send to SY77") };
+    int64 libKey = -1;
+    std::vector<std::pair<String, Array<MemoryBlock>>> libCache;
     Detail detail;
     Label partLabel;
     ComboBox memCombo, numCombo;

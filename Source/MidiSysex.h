@@ -143,6 +143,21 @@ void oscMessageReceived (const OSCMessage& message)
         else
             Logger::writeToLog ("Send BANK : aucune banque chargee");
     }
+    if (address.matches (adresseOscSendMulti) && message.size() == 1 && message[0].isBlob())
+    {
+        // Onglet Multi, bouton + confirmation : bulk 8101MU vers l'EDIT BUFFER ($7F). Garde : seul
+        // un bloc Multi valide adresse a l'edit buffer part (jamais une memoire INT).
+        auto blob = message[0].getBlob();
+        auto* d = (uint8*) blob.getData();
+        const int n = (int) blob.getSize();
+        if (SyMulti::isMultiBlock (d, n) && d[30] == 0x7F)
+        {
+            SyVoice::setBulkDevice (d, n, sysexDeviceNumber);
+            auto m = MidiMessage::createSysExMessage (d + 1, n - 2);
+            m.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
+            sendToOutputs (m);
+        }
+    }
     if (address.matches (adresseOscRequestMulti) && message.size() == 1 && message[0].isInt32())
     {
         // Onglet Multi, clic utilisateur : demande au SY77 d'EMETTRE un Multi memorise (INT n).

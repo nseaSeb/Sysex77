@@ -1047,6 +1047,20 @@ struct SysexUtilsTests : public juce::UnitTest
             expect (m.apply (0x00, 0, 0, 0, 0, 'X'));
             expect (m.name.startsWith ("XY MULTI"));
             expect (! m.apply (0x03, 0, 0, 0, 0, 1));
+            // Encodage pour l'edit buffer : nom + parties courants, $7F, checksum valide, effets gardes.
+            {
+                d[202] ^= 1;   // (checksum re-valide pour servir de base)
+                const juce::MemoryBlock base (d, SyMulti::kSize);
+                auto e = SyMulti::encodeForEditBuffer (m, base);
+                const auto* ed = (const juce::uint8*) e.getData();
+                expectEquals ((int) e.getSize(), SyMulti::kSize);
+                expectEquals ((int) ed[30], 0x7F);
+                expectEquals ((int) ed[32], (int) 'X');
+                expectEquals ((int) ed[p5 + 3], 90);
+                expectEquals ((int) ed[52], 2);
+                expectEquals ((int) ed[202], (int) SyVoice::yamahaChecksum (ed + 6, SyMulti::kSize - 8));
+                expect (SyMulti::parse (ed, SyMulti::kSize).loaded);
+            }
             // Octet packe : bit 2 (non documente) conserve.
             expectEquals (SyMulti::packPart (0x44, true, false, true), 0x45);
             expectEquals (SyMulti::packPart (0x47, false, false, false), 0x04);

@@ -1410,6 +1410,23 @@ namespace SyMulti
              + juce::String::charToString ((juce::juce_wchar) ('A' + (n / 16) % 4)) + juce::String (n % 16 + 1);
     }
 
+    /** Bloc 8101MU a envoyer : base (bloc d'origine, effets/reserve conserves) + nom et parties
+        courants, memoire = EDIT BUFFER ($7F, n° 0), checksum recalcule. Vide si base invalide.
+        NB : reception d'un bulk Multi $7F par le SY77 NON verifiee hardware. */
+    inline juce::MemoryBlock encodeForEditBuffer (const Multi& m, const juce::MemoryBlock& base)
+    {
+        juce::MemoryBlock out (base);
+        auto* d = (juce::uint8*) out.getData();
+        if (! isMultiBlock (d, (int) out.getSize())) return {};
+        const auto nm = m.name.paddedRight (' ', 20);
+        for (int k = 0; k < 20; ++k) d[32 + k] = (juce::uint8) juce::jlimit (32, 126, (int) nm[k]);
+        for (int ch = 0; ch < kParts; ++ch)
+            std::memcpy (d + kPartBase + kStride * ch, m.part[ch].raw, kStride);
+        d[30] = 0x7F; d[31] = 0x00;
+        d[kSize - 2] = SyVoice::yamahaChecksum (d + 6, kSize - 8);
+        return out;
+    }
+
     /** Dump request d'un Multi memorise (memType 00 INT / 02 preset, n° 0..15). La spec interdit
         $7F en requete : le Multi en cours d'edition sur le synthe n'est pas lisible. */
     inline juce::MidiMessage dumpRequest (int deviceNumber, int memType, int memNumber)
