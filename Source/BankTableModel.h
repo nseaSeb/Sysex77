@@ -98,7 +98,6 @@ public:
             loadBank();
             repaint();
             requestSysex = false;
-            newMessage = false;
         }
         else if(doubleClickBank)
         {

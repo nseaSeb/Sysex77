@@ -74,15 +74,10 @@ static const String adresseOscRequestDump ="/77RequestDump";
 static const String adresseOscRequestMulti ="/77RequestMulti";
 static const String adresseOscSendMulti ="/77SendMulti";   // bulk Multi -> edit buffer (clic + confirmation)   // dump request d'un Multi INT (lecture)
 static const String adresseOscRepaint = "/77Repaint";
-static const String adresseOscParseVoices = "/77ParseVoices";
 static const String adresseOscSendVoice = "/77SendVoice";
 static const String oscTotalVoiceVolume = "/77TotalVoiceVolume";
 
 
-static const String oscVoicePan1 = "/77VoicePan1";
-static const String oscVoicePan2 = "/77VoicePan2";
-static const String oscVoicePan3 = "/77VoicePan3";
-static const String oscVoicePan4 = "/77VoicePan4";
 static const String oscVoiceGrp1 = "/77VoiceGroupe1";
 static const String oscVoiceGrp2 = "/77VoiceGroupe2";
 static const String oscVoiceGrp3 = "/77VoiceGroupe3";
@@ -113,17 +108,13 @@ static        Array<File> BankFiles; //les fichiers des banques
 Array<MidiMessage> messages;
 Array<MidiMessage> arraySysex;
 int SYModel =1;
-int CommonFoot;
-int CommonMod;
 
 // --- État de session (mutable, runtime : sélection courante, flags, tampons) ---
-static bool newMessage;
 static bool requestSysex;
 static bool doubleClickBank = false;
 static    bool bankDeleteKey = false;
 static int rowSelectedBank;
 static bool loadBankRequest = false;
-static     int timeOut;
 static String bankSelected;
 
 static Value valueSysexIn; //values from sysex midi in
@@ -131,7 +122,6 @@ static Value valueMultiOpen;   // [libelle, bloc 8101MU] : Multi ouvert depuis l
 static Value valueMultiBulk; // bloc bulk 8101MU recu (MemoryBlock) -> MultiPage
 static Value valueMultiIn; // param-change Multi (groupes 0x00/0x01) : PAS sur valueSysexIn (widgets de voix)
 
-static int sysexModel;
 // Device number sysex SY77 (canal) : un seul réglage global, piloté par ConfigPage.
 static int  sysexDeviceNumber = 1;     // 1..16 ; octet émis = 0x10 | (n-1)
 static bool sysexReceiveOmni  = false; // "ALL" : accepte les messages entrants de tout device
@@ -152,14 +142,9 @@ static bool devMode           = false; // Mode développeur : affiche le moniteu
 static bool midiListen        = true;  // ON par défaut
 static bool midiSend          = true;  // ON par défaut
 static juce::String lastMonitorKey;    // moniteur compact : dédup des param-changes par adresse
-static     float fAngle = -90 * (juce::MathConstants<float>::pi  / 180.0); //Radiant to draw at 90°
 File appDirPath = File::getSpecialLocation(File::userApplicationDataDirectory ).getChildFile("Application Support/Sysex77");
 
 static Path pathFilter1;
-static Path pathFilter2;
-static Path pathFilter3;
-static Path pathFilter4;
-int intTabIndex;
 // ValueTree for the Voice
 //==============================================================================
 
@@ -227,8 +212,6 @@ struct DemoTabbedComponent  : public TabbedComponent
     }
     void currentTabChanged (int newCurrentTabIndex, const String& newCurrentTabName)override
     {
-        if(newCurrentTabIndex<3)
-        intTabIndex = newCurrentTabIndex;
 
         // Mémorise l'onglet courant (seulement après restauration, pour ne pas écraser
         // la préférence avec les index intermédiaires émis pendant la construction).
@@ -426,8 +409,7 @@ private MidiKeyboardStateListener,
 private MidiInputCallback,
 private AsyncUpdater,
 private TextButton::Listener,
- public ComboBox::Listener,
- public Value::Listener
+ public ComboBox::Listener
 {
 public:
     /** Action de raccourci clavier (cf. Shortcuts.h). true si traitee. */
@@ -963,11 +945,6 @@ public:
     }
     
 
-    void valueChanged (Value& value) override
-    {
-        Logger::writeToLog("midi demo value change");
-    }
-    
     void buttonClicked (Button* button) override
     {
         if(button == &btBulk)
@@ -1237,50 +1214,6 @@ public:
         if (nameEditor != nullptr) nameEditor->toFront (false);
     }
 
-    // Sélecteur de ports compact (bandeau bas) : PopupMenu à cases cochables (multi-sélection).
-    // RÉUTILISE la gestion de ports existante -> SOURCE DE VÉRITÉ UNIQUE partagée avec l'onglet
-    // Midi Setting : mêmes listes (midiInputs/midiOutputs), mêmes openDevice/closeDevice, même
-    // persistance (saveEnabledDevices -> MidiInDevices/MidiOutDevices). Après bascule, on re-synchronise
-    // la ListBox de l'onglet (syncSelectedItemsWithDeviceList) -> les deux vues restent COHÉRENTES.
-    void showMidiPortMenu (bool isInput, Component& anchor)
-    {
-        auto& devices = isInput ? midiInputs : midiOutputs;
-
-        PopupMenu menu;
-        menu.addSectionHeader (isInput ? "Entrées MIDI" : "Sorties MIDI");
-        if (devices.isEmpty())
-            menu.addItem (-1, "(aucun périphérique)", false, false);
-
-        for (int i = 0; i < devices.size(); ++i)
-        {
-            const bool isOpen = isInput ? devices[i]->inDevice.get()  != nullptr
-                                        : devices[i]->outDevice.get() != nullptr;
-            // itemID = index+1 (0 = menu annulé) ; ticked = port ouvert ; toggle au clic.
-            menu.addItem (i + 1, devices[i]->deviceInfo.name, true, isOpen);
-        }
-
-        menu.showMenuAsync (PopupMenu::Options().withTargetComponent (&anchor),
-                            [this, isInput] (int result)
-        {
-            if (result <= 0) return;                       // menu annulé / item désactivé
-            const int index = result - 1;
-            auto& devs = isInput ? midiInputs : midiOutputs;
-            if (! isPositiveAndBelow (index, devs.size())) return;
-
-            const bool isOpen = isInput ? devs[index]->inDevice.get()  != nullptr
-                                        : devs[index]->outDevice.get() != nullptr;
-            if (isOpen) closeDevice (isInput, index);      // bascule : ouvre/ferme le port
-            else        openDevice  (isInput, index);
-
-            saveEnabledDevices (isInput);                  // persistance (même clé que l'onglet)
-
-            // Reflète l'état dans la ListBox de l'onglet Midi Setting -> vues cohérentes.
-            if (auto* sel = isInput ? midiInputSelector.get() : midiOutputSelector.get())
-                sel->syncSelectedItemsWithDeviceList (isInput ? midiInputs : midiOutputs);
-
-            refreshMidiPortButtons();   // met à jour le libellé/état des sélecteurs compacts
-        });
-    }
 
     void openDevice (bool isInput, int index)
     {
@@ -1463,7 +1396,6 @@ private:
                 {
                     Logger::writeToLog("Add sysex");
                     arraySysex.add(message);
-                    timeOut = 0;
                 }
                 else
                 {
@@ -1919,7 +1851,7 @@ public:
     }
     // Sélecteurs de ports MIDI TOUJOURS VISIBLES (bandeau bas, à gauche du toggle clavier).
     // Ouvrent un PopupMenu à cases cochables ; même source de vérité que l'onglet Midi Setting
-    // (midiInputs/midiOutputs + openDevice/closeDevice + saveEnabledDevices). Cf. showMidiPortMenu.
+    // (midiInputs/midiOutputs + openDevice/closeDevice + saveEnabledDevices).
     TextButton  btMidiIn  {"In"};
     TextButton  btMidiOut {"Out"};
     std::unique_ptr<MidiDeviceListBox> midiInputSelector, midiOutputSelector;

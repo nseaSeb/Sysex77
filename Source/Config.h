@@ -342,7 +342,6 @@ struct ConfigPage   : public Component, public ComboBox::Listener
             }
         }
 
-        sysexModel = comboModel.getSelectedItemIndex();
 
         if (comboBoxThatHasChanged == &comboTheme)
         {
