@@ -17,6 +17,7 @@
 #include "VoiceSession.h"   // decoupage MidiDemo : branchee dans MidiDemo (etape 2), caracterisee ici
 #include "TestBench.h"      // banc de test hardware : logique pure SyBench
 
+#include "tests/Fixtures.h"
 #include "tests/EchoLoopTests.h"
 #include "tests/SysexUtilsTests.h"
 #include "tests/SequencerTests.h"
@@ -29,3 +30,4 @@
 #include "tests/MidiMonitorTests.h"
 #include "tests/RxClassifierTests.h"
 #include "tests/SendPathTests.h"
+#include "tests/MixtureTests.h"
