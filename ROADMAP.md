@@ -113,6 +113,7 @@ Sortir de `MidiDemo` (2000+ lignes) la session d'édition de la voix ouverte (hi
 ---
 
 ## Journal
+- **2026-11-11 (Banc : resultats etape 0 sur le SY77)** — A : AUCUNE reponse au dump request voix $7F (INT oui) ; A2 : $7F Multi muet (conforme spec) ; B : le SY77 n'emet AUCUN param-change en edition facade (ou reglage a trouver) ; C : bulk Multi vers $7F ACCEPTE (ecran BENCH TEST) -> envoi Multi de l'onglet Multi VERIFIE HW. CAL impossible (depend de A). Consequence : relecture = STORE vers un slot INT + dump INT ; tester les params PAR LOTS (valeurs distinctes, un STORE par lot).
 - **2026-11-11 (v1.8.0 — release : éditeur de Multi, organisation des banques)** — Release minor.
   Depuis v1.7.0 : onglet Multi complet (lecture, édition des parties, nom, envoi au tampon
   d'édition avec confirmation, mode MULTI de la librairie), isolation des messages Multi de
