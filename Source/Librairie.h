@@ -116,11 +116,7 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
             showPresetMenu ([this, r] { openHit (r); showPresetHex (currentSlot); });
         };
         for (auto* col : { &voicesListA, &voicesListB, &voicesListC, &voicesListD })
-            col->onRowRightClicked = [this] (int glob)
-            {
-                if (! isDevMode()) return;
-                showPresetMenu ([this, glob] { showPresetHex (glob); });
-            };
+            col->onRowRightClicked = [this] (int glob) { showVoiceMenu (glob); };
 
         // Tri de la liste des banques.
         addAndMakeVisible (sortCombo);
@@ -621,12 +617,105 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         requestSendVoice (h.slot);
     }
 
-    // Copie le preset inspecté vers une banque utilisateur (ajout du bloc F0..F7).
-    void copyCurrentPresetToBank()
+    //==========================================================================
+    // Organisation de banque (clic droit sur une voix). Fichiers locaux seulement : RIEN n'est
+    // envoye au synthe. Regles et faits : SyBank (SysexUtils.h).
+    void showVoiceMenu (int glob)
     {
-        if (currentSlot < 0 || currentBankData.getSize() == 0) return;
+        if (currentBankRelPath.isEmpty() || glob < 0) return;
+        const auto bank = SyBank::Bank::parse (currentBankData.getData(), currentBankData.getSize());
+        const int n = bank.numVoices();
+        if (glob >= n) return;
+        auto label = [] (int slot) { return SyBank::slotName (slot) + "  " + arrayListVoices[slot].trim(); };
+
+        PopupMenu m, moveTo, swapWith;
+        m.addSectionHeader (label (glob));
+        for (int bk = 0; bk < 4; ++bk)
+        {
+            PopupMenu sm, ss;
+            for (int k = 0; k < 16; ++k)
+            {
+                const int slot = bk * 16 + k;
+                if (slot >= n || slot == glob) continue;
+                sm.addItem (label (slot), [this, glob, slot] { applyBankOp (TRANS ("Voice moved"), [glob, slot] (SyBank::Bank& b) { return SyBank::move (b, glob, slot); }); });
+                ss.addItem (label (slot), [this, glob, slot] { applyBankOp (TRANS ("Voices swapped"), [glob, slot] (SyBank::Bank& b) { return SyBank::swap (b, glob, slot); }); });
+            }
+            const String bn = String::charToString ((juce_wchar) ('A' + bk));
+            moveTo.addSubMenu (bn, sm, sm.getNumItems() > 0);
+            swapWith.addSubMenu (bn, ss, ss.getNumItems() > 0);
+        }
+        m.addItem (TRANS ("Duplicate"), n < SyBank::kMaxVoices,
+                   false, [this, glob] { applyBankOp (TRANS ("Voice duplicated"), [glob] (SyBank::Bank& b) { return SyBank::duplicate (b, glob); }); });
+        m.addSubMenu (TRANS ("Move to"), moveTo);
+        m.addSubMenu (TRANS ("Swap with"), swapWith);
+        m.addItem (TRANS ("Copy to bank..."), [this, glob] { copyPresetToBank (glob); });
+        m.addSeparator();
+        m.addItem (TRANS ("Replace with Init voice..."), [this, glob, label]
+        {
+            SafePointer<LibrairiePage> self (this);
+            AlertWindow::showOkCancelBox (MessageBoxIconType::WarningIcon, TRANS ("Replace with Init voice"),
+                label (glob) + "\n" + TRANS ("The voice is replaced by an Init voice; the other slots do not move. A backup of the bank is kept (.bak)."),
+                TRANS ("Replace"), TRANS ("Cancel"), nullptr,
+                ModalCallbackFunction::create ([self, glob] (int r)
+                {
+                    if (r == 1 && self != nullptr)
+                        self->applyBankOp (TRANS ("Voice replaced by Init"), [glob] (SyBank::Bank& b)
+                                           { return SyBank::replace (b, glob, VoiceTemplates::make (0)); });
+                }));
+        });
+        if (isDevMode())
+        {
+            m.addSeparator();
+            m.addItem (TRANS("Preset hex view") + "   " + Shortcuts::hint ("presethex").trim(), [this, glob] { showPresetHex (glob); });
+        }
+        m.showMenuAsync (PopupMenu::Options());
+    }
+
+    /** Ecriture SURE d'une banque : copie .bak de l'original, puis fichier temporaire remplace
+        atomiquement. false si l'ecriture echoue (original intact). */
+    static bool writeBankSafely (const File& f, const MemoryBlock& data)
+    {
+        if (f.existsAsFile()) f.copyFileTo (f.getSiblingFile (f.getFileName() + ".bak"));
+        TemporaryFile tf (f);
+        return tf.getFile().replaceWithData (data.getData(), data.getSize())
+            && tf.overwriteTargetFileWithTemporary();
+    }
+
+    void showBankError (const String& e)
+    {
+        labelInfoLine.setText (e, dontSendNotification);
+        labelInfoLine.setColour (Label::textColourId, Colours::red);
+        AlertWindow::showMessageBoxAsync (MessageBoxIconType::WarningIcon, TRANS ("Bank"), e);
+    }
+
+    /** Applique une operation SyBank a la banque courante, ecrit, deplace les metadonnees,
+        reindexe et recharge. Rien n'est ecrit si l'operation est refusee. */
+    void applyBankOp (const String& done, std::function<SyBank::Result (SyBank::Bank&)> op)
+    {
+        const String rel = currentBankRelPath;
+        const File f = appDirPath.getChildFile (rel);
+        MemoryBlock mb;
+        if (rel.isEmpty() || ! f.loadFileAsData (mb)) return;
+        auto bank = SyBank::Bank::parse (mb.getData(), mb.getSize());
+        const auto r = op (bank);
+        if (r.error.isNotEmpty()) { showBankError (r.error); return; }
+        if (! writeBankSafely (f, bank.serialize())) { showBankError (TRANS ("Could not write the bank file.")); return; }
+        LibraryIndex::get().remapBank (rel, r.newPosOfOld);
+        LibraryIndex::get().refreshBank (f);
+        bankList.loadBankByRelPath (rel);
+        labelInfoLine.removeColour (Label::textColourId);
+        labelInfoLine.setText (done + "  (" + f.getFileName() + ")", dontSendNotification);
+    }
+
+    // Copie le preset inspecté vers une banque utilisateur : ajouté EN FIN, renuméroté au slot
+    // qu'il occupe dans la banque cible (avant : gardait son ancien numéro -> l'envoi de la
+    // banque l'aurait écrit sur son slot d'origine).
+    void copyCurrentPresetToBank() { copyPresetToBank (currentSlot); }
+    void copyPresetToBank (int slot)
+    {
+        if (slot < 0 || currentBankData.getSize() == 0) return;
         auto block = SyVoice::getVoiceBlock ((const uint8*) currentBankData.getData(),
-                                             currentBankData.getSize(), currentSlot);
+                                             currentBankData.getSize(), slot);
         if (block.getSize() <= 1) return;
 
         AlertWindow w (TRANS("Copier le preset"), TRANS("Banque de destination :"),
@@ -641,18 +730,12 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         if (! name.endsWithIgnoreCase (".syx")) name += ".syx";
         File target = appDirPath.getChildFile (File::createLegalFileName (name));
 
-        {
-            FileOutputStream fos (target);   // se positionne en fin -> ajoute le bloc
-            if (fos.failedToOpen())
-            {
-                labelInfoLine.setText ("ERREUR : ecriture impossible", dontSendNotification);
-                labelInfoLine.setColour (Label::textColourId, Colours::red);
-                return;
-            }
-            fos.setPosition (target.getSize());
-            fos.write (block.getData(), block.getSize());
-            fos.flush();
-        }
+        MemoryBlock existing;
+        if (target.existsAsFile()) target.loadFileAsData (existing);
+        auto bank = SyBank::Bank::parse (existing.getData(), existing.getSize());
+        const auto r = SyBank::append (bank, block);
+        if (r.error.isNotEmpty()) { showBankError (r.error); return; }
+        if (! writeBankSafely (target, bank.serialize())) { showBankError (TRANS ("Could not write the bank file.")); return; }
         LibraryIndex::get().refreshBank (target);   // réindexe la banque cible
         bankList.loadBank();
         labelInfoLine.removeColour (Label::textColourId);

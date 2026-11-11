@@ -250,6 +250,29 @@ public:
         save();
     }
 
+    /** Organisation de banque : deplace tags/notes/favoris de relPath#old vers relPath#map[old]
+        (-1 = abandonnes). A appeler AVANT refreshBank (le nom de voix est relu ensuite). */
+    void remapBank (const juce::String& relPath, const std::vector<int>& newPosOfOld)
+    {
+        {
+            const juce::ScopedLock sl (lock);
+            const juce::String pre = relPath + "#";
+            std::map<juce::String, PresetMeta> moved;
+            for (auto it = presets.begin(); it != presets.end(); )
+            {
+                if (! it->first.startsWith (pre)) { ++it; continue; }
+                const int oldSlot = it->first.substring (pre.length()).getIntValue();
+                if (oldSlot >= 0 && oldSlot < (int) newPosOfOld.size() && newPosOfOld[(size_t) oldSlot] >= 0)
+                    moved[keyFor (relPath, newPosOfOld[(size_t) oldSlot])] = it->second;
+                else if (oldSlot >= (int) newPosOfOld.size())
+                    moved[it->first] = it->second;   // hors carte : inchange
+                it = presets.erase (it);
+            }
+            for (auto& kv : moved) presets[kv.first] = kv.second;
+        }
+        save();
+    }
+
     // Réindexe UNE banque (après copie d'un preset / modification). Ciblé, pas de full scan.
     void refreshBank (const juce::File& f)
     {

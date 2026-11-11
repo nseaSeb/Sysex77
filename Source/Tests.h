@@ -996,6 +996,87 @@ struct SysexUtilsTests : public juce::UnitTest
             expect (SyVoice::voiceBlobToParams (nullptr, 466).isEmpty());
         }
 
+        beginTest ("SyBank: renumber + checksum, bank D rule for 4-element voices, metadata map");
+        {
+            auto voice = [] (int type, int slot)
+            {
+                auto m = VoiceTemplates::make (0);
+                auto* d = (juce::uint8*) m.getData();
+                d[32] = (juce::uint8) type; d[30] = 0; d[31] = (juce::uint8) slot;
+                d[m.getSize() - 2] = SyVoice::yamahaChecksum (d + 6, (int) m.getSize() - 8);
+                return m;
+            };
+            auto makeFile = [&] (int n, int fourElemFrom)
+            {
+                juce::MemoryBlock f;
+                const juce::uint8 sys[] = { 0xF0, 0x43, 0x00, 0x7A, 0x00, 0x02, 0x11, 0x22, 0x00, 0xF7 };   // non-voix
+                f.append (sys, sizeof (sys));
+                for (int i = 0; i < n; ++i) { auto v = voice (i >= fourElemFrom ? 0x09 : 0x03, i); f.append (v.getData(), v.getSize()); }
+                return f;
+            };
+            auto slotsOk = [this] (const SyBank::Bank& b)
+            {
+                const auto out = b.serialize();
+                const auto re = SyBank::Bank::parse (out.getData(), out.getSize());
+                int nonVoice = 0;
+                for (auto& m : b.blocks) nonVoice += SyBank::isVoiceBlock (m) ? 0 : 1;
+                expectEquals (re.blocks.size() - re.voices.size(), nonVoice);          // non-voix conserves
+                if (nonVoice > 0) expect (! SyBank::isVoiceBlock (re.blocks[0]));
+                for (int i = 0; i < re.voices.size(); ++i)
+                {
+                    auto* d = (const juce::uint8*) re.voices.getReference (i).getData();
+                    expectEquals ((int) d[31], i);
+                    const int n = (int) re.voices.getReference (i).getSize();   // (fausses voix 4 elem : taille 1AFM)
+                    expectEquals ((int) d[n - 2], (int) SyVoice::yamahaChecksum (d + 6, n - 8));
+                }
+            };
+
+            auto f64 = makeFile (64, 48);
+            auto b = SyBank::Bank::parse (f64.getData(), f64.getSize());
+            expectEquals (b.numVoices(), 64);
+            expect (b.problem().isEmpty());
+            // 4 elements hors banque D : refuse, banque intacte.
+            auto r = SyBank::move (b, 50, 2);
+            expect (r.error.isNotEmpty());
+            expectEquals (SyBank::typeOf (b.voices[50]), 0x09);
+            expect (SyBank::swap (b, 50, 10).error.isNotEmpty());
+            expect (SyBank::duplicate (b, 3).error.isNotEmpty());              // pleine
+            // Echange dans D et deplacement hors D : ok, carte des metadonnees.
+            r = SyBank::swap (b, 49, 60);
+            expect (r.error.isEmpty());
+            expectEquals (r.newPosOfOld[49], 60);
+            r = SyBank::move (b, 0, 5);
+            expect (r.error.isEmpty());
+            expectEquals (r.newPosOfOld[0], 5);
+            expectEquals (r.newPosOfOld[3], 2);
+            expectEquals (r.newPosOfOld[6], 6);
+            slotsOk (b);
+            // Supprimer = Init a la meme place : 64 voix, metadonnees de la voix abandonnees.
+            r = SyBank::replace (b, 7, voice (0x00, 0));
+            expect (r.error.isEmpty());
+            expectEquals (b.numVoices(), 64);
+            expectEquals (r.newPosOfOld[7], -1);
+            expect (SyBank::replace (b, 50, voice (0x00, 0)).error.isEmpty());
+
+            auto f10 = makeFile (10, 99);
+            auto c = SyBank::Bank::parse (f10.getData(), f10.getSize());
+            r = SyBank::duplicate (c, 2);
+            expect (r.error.isEmpty());
+            expectEquals (c.numVoices(), 11);
+            expectEquals (r.newPosOfOld[3], 4);
+            expect (SyBank::append (c, voice (0x07, 0)).error.isNotEmpty());   // 4AWM -> slot 11 (A12) refuse
+            expectEquals (c.numVoices(), 11);
+            r = SyBank::append (c, voice (0x03, 40));
+            expect (r.error.isEmpty());
+            slotsOk (c);                                                          // la copie prend le slot 11, pas 40
+            expectEquals (SyBank::slotName (0), juce::String ("A1"));
+            expectEquals (SyBank::slotName (63), juce::String ("D16"));
+            // Banque vide (nouveau fichier) : append ok.
+            SyBank::Bank e;
+            expect (SyBank::append (e, voice (0x03, 5)).error.isEmpty());
+            slotsOk (e);
+        }
+
         beginTest ("voiceBlobToParams decodes AWM waveform (TARKUSCYMB, 1 AWM)");
         {
             // Dump réel « TARKUSCYMB » (1 AWM, type @32 == 0x05), 221 octets.
