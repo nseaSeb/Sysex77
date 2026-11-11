@@ -1059,6 +1059,29 @@ namespace SyVoice
     inline bool isVoiceGroup (int g) { return g != 0x00 && g != 0x01 && g != 0x0F; }
     inline bool isMultiGroup (int g) { return g == 0x00 || g == 0x01; }
 
+    /** "Suivre le synthe" : onglet a afficher pour un param-change recu (g = groupe, p = N2),
+        -1 = aucun. 2 Voice, 3 Effets, 4 Controleurs, 5 Multi (index d'onglets de MidiDemo). */
+    inline int followSynthTarget (int g, int p)
+    {
+        if (g == 0x08)                                   return 3; // Effets
+        if (g == 0x02 && p >= 0x28 && p <= 0x3D)         return 4; // Controleurs
+        if (g == 0x02 || g == 0x03 || g == 0x05 || g == 0x07
+            || g == 0x09 || g == 0x0A || (g & 0x0F) == 0x06) return 2; // Voice
+        if (isMultiGroup (g))                            return 5; // Multi
+        return -1;
+    }
+
+    /** Reponse au test de connexion (sysex SANS F0/F7). */
+    enum class ConnReply { none, yamaha, identity, identityYamaha };
+    inline ConnReply classifyConnReply (const juce::uint8* id, int n)
+    {
+        const bool yamaha   = (n >= 1 && id[0] == 0x43);
+        const bool identity = (n >= 5 && id[0] == 0x7E && id[2] == 0x06 && id[3] == 0x02);
+        if (yamaha)   return ConnReply::yamaha;
+        if (identity) return id[4] == 0x43 ? ConnReply::identityYamaha : ConnReply::identity;
+        return ConnReply::none;
+    }
+
     /** Message brut sortant (F0 inclus, getRawData()) = param-change VOIX a enregistrer dans
         l'historique : 11 octets, F0 43 1n 34, groupe != 0F (system setup exclu).
         Le test d0 == F0 equivaut au MidiMessage::isSysEx() de l'ancien code.

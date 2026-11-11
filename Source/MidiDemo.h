@@ -1157,14 +1157,11 @@ private:
 
             if (awaitingConnReply && message.isSysEx())
             {
-                const uint8* id = message.getSysExData();
-                const int    n  = message.getSysExDataSize();
-                const bool yamaha   = (n >= 1 && id[0] == 0x43);
-                const bool identity = (n >= 5 && id[0] == 0x7E && id[2] == 0x06 && id[3] == 0x02);
-                if (yamaha || identity)
+                const auto reply = SyVoice::classifyConnReply (message.getSysExData(), message.getSysExDataSize());
+                if (reply != SyVoice::ConnReply::none)
                 {
                     awaitingConnReply = false;
-                    const bool isYam = yamaha || (identity && id[4] == 0x43);
+                    const bool isYam = reply != SyVoice::ConnReply::identity;
                     if (configPage != nullptr)
                         configPage->setConnStatus (isYam ? TRANS("Connected - Yamaha synth detected")
                                                          : TRANS("Connected - device responded"), true);
@@ -1197,14 +1194,7 @@ private:
                     // (suspendu pendant une sonde du banc : ne pas arracher l'utilisateur a l'onglet)
                     if (followSynth && ! (midiSettingsPage != nullptr && midiSettingsPage->bench.isBusy()))
                     {
-                        const int g = data[3];
-                        int target = -1;
-                        if (g == 0x08)                                   target = 3; // Effets
-                        else if (g == 0x02 && data[6] >= 0x28 && data[6] <= 0x3D) target = 4; // Controleurs
-                        else if (g == 0x02 || g == 0x03 || g == 0x05 || g == 0x07
-                                 || g == 0x09 || g == 0x0A
-                                 || (g & 0x0F) == 0x06)                  target = 2; // Voice
-                        else if (SyVoice::isMultiGroup (g))              target = 5; // Multi
+                        const int target = SyVoice::followSynthTarget (data[3], data[6]);
                         if (target >= 0 && tabs.getCurrentTabIndex() != target)
                             tabs.setCurrentTabIndex (target);
                     }
