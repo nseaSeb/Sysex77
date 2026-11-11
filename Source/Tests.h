@@ -28,3 +28,4 @@
 #include "tests/TestBenchTests.h"
 #include "tests/MidiMonitorTests.h"
 #include "tests/RxClassifierTests.h"
+#include "tests/SendPathTests.h"

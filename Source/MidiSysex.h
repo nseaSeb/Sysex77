@@ -113,32 +113,21 @@ void oscMessageReceived (const OSCMessage& message)
         // GARDE SY77 : on n'envoie une banque qu'au SY77 (seule cible câblée). Une banque
         // d'un autre synthé est stockée/cherchable mais pas envoyée (éviterait de pousser des
         // octets étrangers au SY77). Envoi cross-synthé = chantier futur ([[hardware-safety]]).
-        if (currentBankData.getSize() > 1
-            && SyVoice::detectSynthKind ((const uint8*) currentBankData.getData(),
-                                         currentBankData.getSize()) != SyVoice::SynthKind::SY77)
-        {
+        auto plan = SyBank::prepareForSend (currentBankData, sysexDeviceNumber);
+        using K = SyBank::SendPlan::Kind;
+        if (plan.kind == K::notSY77)
             Logger::writeToLog ("Send BANK ignore : banque non-SY77");
-        }
-        else if (currentBankData.getSize() > 1)
+        else if (plan.kind == K::raw)
+            // Pas de cadrage F0…F7 reconnu -> envoi brut (comportement d'avant).
+            sendRaw (currentBankData.getData(), (long) currentBankData.getSize());
+        else if (plan.kind == K::blocks)
         {
-            auto blocks = SyVoice::splitSysexMessages ((const uint8*) currentBankData.getData(),
-                                                       currentBankData.getSize());
-            if (blocks.isEmpty())
-            {
-                // Pas de cadrage F0…F7 reconnu -> envoi brut (comportement d'avant).
-                sendRaw (currentBankData.getData(), (long) currentBankData.getSize());
-            }
-            else
-            {
-                // Fenêtre de progression modale (barre + Annuler), envoi throttlé sur un thread
-                // d'arrière-plan -> plus d'« envoi en aveugle » ni de gel de l'UI. Se ferme à la fin.
-                Logger::writeToLog ("Send BANK : " + String (blocks.size()) + " messages");
-                for (auto& b : blocks)   // device number of the app, not the one stored in the file
-                    SyVoice::setBulkDevice ((uint8*) b.getData(), (int) b.getSize(), sysexDeviceNumber);
-                BankSendProgressWindow w (std::move (blocks),
-                                          [this] (const MidiMessage& m) { sendToOutputs (m); });
-                w.runThread();
-            }
+            // Fenêtre de progression modale (barre + Annuler), envoi throttlé sur un thread
+            // d'arrière-plan -> plus d'« envoi en aveugle » ni de gel de l'UI. Se ferme à la fin.
+            Logger::writeToLog ("Send BANK : " + String (plan.blocks.size()) + " messages");
+            BankSendProgressWindow w (std::move (plan.blocks),
+                                      [this] (const MidiMessage& m) { sendToOutputs (m); });
+            w.runThread();
         }
         else
             Logger::writeToLog ("Send BANK : aucune banque chargee");

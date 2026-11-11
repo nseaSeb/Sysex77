@@ -710,16 +710,12 @@ public:
         connDeadlineMs    = Time::getMillisecondCounter() + 1500;
         configPage->setConnStatus (TRANS("Testing connection..."), false);
 
-        // Identity Request universel (matériel générique) — inoffensif si ignoré.
-        const uint8 inquiry[] = { 0x7E, 0x7F, 0x06, 0x01 };   // sans F0/F7 (ajoutés par JUCE)
-        MidiMessage idReq = MidiMessage::createSysExMessage (inquiry, (int) sizeof (inquiry));
-        idReq.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
-        sendToOutputs (idReq);
-
-        // Demande de dump de voix (interne, slot 0) — le SY77 y répond par un bulk Yamaha.
-        MidiMessage dumpReq = SyVoice::voiceDumpRequest (sysexDeviceNumber, 0x00, 0x00);
-        dumpReq.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
-        sendToOutputs (dumpReq);
+        // Identity Request universel puis demande de dump voix INT A1 (cf. SyVoice::connectionTestMessages).
+        for (auto m : SyVoice::connectionTestMessages (sysexDeviceNumber))
+        {
+            m.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
+            sendToOutputs (m);
+        }
     }
 
     //==============================================================================

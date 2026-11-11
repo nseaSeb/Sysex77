@@ -174,4 +174,24 @@ namespace SyBank
         b.voices.add (voice);
         return checked (b, before, identity (before.numVoices()));
     }
+
+    /** Preparation de l'envoi d'une banque (logique extraite de MidiSysex, adresseOscSendBank).
+        empty = rien de charge ; notSY77 = banque d'un autre synthe (JAMAIS envoyee) ;
+        raw = pas de cadrage F0..F7 reconnu -> envoi brut ; blocks = messages, device restampe. */
+    struct SendPlan { enum class Kind { empty, notSY77, raw, blocks } kind = Kind::empty;
+                      juce::Array<juce::MemoryBlock> blocks; };
+
+    inline SendPlan prepareForSend (const juce::MemoryBlock& bank, int deviceNumber)
+    {
+        SendPlan p;
+        if (bank.getSize() <= 1) return p;
+        if (SyVoice::detectSynthKind ((const juce::uint8*) bank.getData(), bank.getSize()) != SyVoice::SynthKind::SY77)
+        { p.kind = SendPlan::Kind::notSY77; return p; }
+        p.blocks = SyVoice::splitSysexMessages ((const juce::uint8*) bank.getData(), bank.getSize());
+        if (p.blocks.isEmpty()) { p.kind = SendPlan::Kind::raw; return p; }
+        for (auto& b : p.blocks)   // device number of the app, not the one stored in the file
+            SyVoice::setBulkDevice ((juce::uint8*) b.getData(), (int) b.getSize(), deviceNumber);
+        p.kind = SendPlan::Kind::blocks;
+        return p;
+    }
 }

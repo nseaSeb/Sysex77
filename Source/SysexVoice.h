@@ -1071,6 +1071,16 @@ namespace SyVoice
         return -1;
     }
 
+    /** Messages du test de connexion, dans l'ordre d'envoi : Identity Request universel
+        (materiel generique, inoffensif si ignore) puis dump request voix INT A1 (le SY77 ignore
+        l'Identity Request mais repond a celui-ci par un bulk Yamaha). */
+    inline juce::Array<juce::MidiMessage> connectionTestMessages (int deviceNumber)
+    {
+        const juce::uint8 inquiry[] = { 0x7E, 0x7F, 0x06, 0x01 };   // sans F0/F7 (ajoutes par JUCE)
+        return { juce::MidiMessage::createSysExMessage (inquiry, (int) sizeof (inquiry)),
+                 voiceDumpRequest (deviceNumber, 0x00, 0x00) };
+    }
+
     /** Reponse au test de connexion (sysex SANS F0/F7). */
     enum class ConnReply { none, yamaha, identity, identityYamaha };
     inline ConnReply classifyConnReply (const juce::uint8* id, int n)
