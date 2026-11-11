@@ -113,6 +113,11 @@ Sortir de `MidiDemo` (2000+ lignes) la session d'édition de la voix ouverte (hi
 ---
 
 ## Journal
+- **2026-11-11 (v1.7.0 — release : éditeur de voix Drum, Bulk Protect mémorisé)** — Release minor.
+  Depuis v1.6.0 : vue Drum (61 touches, lecture + panneau d'édition de la touche sélectionnée,
+  bouton Play, undo/A-B ; numéros d'ondes 1-indexés confirmés sur le SY77), plus d'écho ELMODE au
+  chargement d'une voix (le mode posé par un bulk n'est plus renvoyé), Bulk Protect mémorisé et
+  renvoyé OFF au démarrage si l'utilisateur l'a levé, flèches sous Windows corrigées.
 - **2026-11-09 (v1.6.0 — release : décodage des dumps, librairie, outils dev)** — Release minor.
   Depuis v1.5.0 : vue hexa dev des presets (interprétation par octet), décodage effets/LFO/commun
   d'élément/RS/octets packés, filtres AFM+AWM (codage THRU/LPF/HPF confirmé sur le synthé),

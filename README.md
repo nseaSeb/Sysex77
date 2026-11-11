@@ -55,6 +55,9 @@ Inspiré, côté fonctionnalités, de l'éditeur *SynthWorks SY77*.
   ou checksum incohérents). Les banques mixtes (multis, tables de pan, système) n'affichent que les voix.
 - **Chargement des dumps plus complet** : effets, LFO, filtres AFM/AWM (type, cutoff, EG,
   scaling), rate scaling des opérateurs, commun d'élément, source d'onde AWM ; **voix Drum** décodées.
+- **Éditeur de voix Drum** : tableau des 61 touches (C1..C6) avec onde, volume, accord,
+  transposition, pan, sorties et groupe alterné en barres comparables, et panneau d'édition de la
+  touche sélectionnée (bouton *Play* pour l'écouter ; annuler/rétablir et A/B inclus).
 - **Cartes d'ondes AWM** : noms d'ondes des cartouches (W77xx pré-remplies) éditables dans
   *Setting > Wave cards...*.
 - **Mode développeur** : vue hexa d'un preset de la librairie avec l'interprétation de chaque octet
@@ -129,7 +132,8 @@ build.bat  --test     # Windows
 
 À l'ouverture (après l'image d'accueil) : sélectionnez votre interface MIDI, puis le **device
 number (canal)** dans *Setting*. Vous pouvez y activer/désactiver le *bulk protect* (ou le faire
-sur le synthé) pour autoriser les échanges de banques.
+sur le synthé) pour autoriser les échanges de banques ; le choix est mémorisé et, s'il est
+désactivé, renvoyé au synthé à chaque démarrage.
 
 - **SY99** : choisissez *SY 99* dans les paramètres, fermez et rouvrez l'application (la liste des
   waves correspondra à votre synthé).
@@ -211,7 +215,10 @@ custom colours. **Modern library**: bank send/receive with progress, delete, sea
 tag filter** across all banks, per-synth filter, and copy-a-preset-to-a-user-bank (send/edit
 stay SY77-only); voice-type badges (1AFM/2AWM/DRUM...), broken presets flagged red, mixed banks
 show voices only. Fuller dump loading (effects, LFO, AFM/AWM filters, operator rate scaling,
-element common, AWM wave source, Drum voices), editable AWM wave-card name tables, and a
+element common, AWM wave source, Drum voices), a **Drum voice editor** (61-key table with wave,
+volume, tune, shift, pan, outputs and alternate group, plus an edit panel for the selected key with
+a Play button; undo and A/B included), Bulk Protect remembered and re-sent at startup when off,
+editable AWM wave-card name tables, and a
 developer-mode preset hex view (right-click / Cmd+Shift+H). **Built-in updater**: checks GitHub Releases on launch and can download + install
 the new version automatically (macOS; opt-out in *Setting*; opens the release page on Windows/Linux). Some editor edits are state-only for
 now (full sysex send is being firmed up).
