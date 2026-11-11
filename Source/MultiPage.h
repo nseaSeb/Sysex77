@@ -105,7 +105,7 @@ private:
                 auto m = SyMulti::parse ((const uint8*) mb->getData(), (int) mb->getSize());
                 if (m.loaded)
                     setMulti (m, TRANS ("Received from the SY77") + " ("
-                                 + (m.memType == 0 ? "INT " : "PRE ") + String (m.memNumber + 1) + ")");
+                                 + (m.memType == 0x7F ? String ("EDIT") : (m.memType == 0 ? "INT " : "PRE ") + String (m.memNumber + 1)) + ")");
             }
             return;
         }
@@ -187,12 +187,7 @@ private:
                 }
                 else bar (g, cell, SyMulti::pan (p), -31, 31, true);
                 break;
-            case cOut:
-            {
-                const bool o1 = SyMulti::out1 (p), o2 = SyMulti::out2 (p);
-                g.drawText (o1 && o2 ? "1+2" : o1 ? "1" : o2 ? "2" : "-", cell, Justification::centred);
-                break;
-            }
+            case cOut: g.drawText (SyDrum::outputs (p.raw), cell, Justification::centred); break;   // meme codage b0/b1
             case cSw: g.drawText (SyMulti::ofvcsw (p) ? "1" : "0", cell, Justification::centred); break;
             default: break;
         }

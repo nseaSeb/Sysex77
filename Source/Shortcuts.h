@@ -26,7 +26,7 @@ namespace Shortcuts
             { "tab2",  "Voice tab",         "command + 3" },
             { "tab3",  "Effects tab",       "command + 4" },
             { "tab4",  "Controllers tab",   "command + 5" },
-            { "tab5",  "Midi Setting tab",  "command + 6" },
+            { "tab5",  "Multi tab",         "command + 6" },
             { "close", "Close editor",      "escape" },
             { "seqplay", "Sequencer play/stop", "command + p" },
             { "undo",    "Undo",                "command + Z" },

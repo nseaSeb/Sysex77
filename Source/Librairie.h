@@ -625,7 +625,11 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         if (currentBankRelPath.isEmpty() || glob < 0) return;
         const auto bank = SyBank::Bank::parse (currentBankData.getData(), currentBankData.getSize());
         const int n = bank.numVoices();
-        if (glob >= n) return;
+        if (glob >= n)   // banque non-SY77 / bloc non organisable : seul l'outil dev reste
+        {
+            if (isDevMode()) showPresetMenu ([this, glob] { showPresetHex (glob); });
+            return;
+        }
         auto label = [] (int slot) { return SyBank::slotName (slot) + "  " + arrayListVoices[slot].trim(); };
 
         PopupMenu m, moveTo, swapWith;
@@ -654,7 +658,7 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         {
             SafePointer<LibrairiePage> self (this);
             AlertWindow::showOkCancelBox (MessageBoxIconType::WarningIcon, TRANS ("Replace with Init voice"),
-                label (glob) + "\n" + TRANS ("The voice is replaced by an Init voice; the other slots do not move. A backup of the bank is kept (.bak)."),
+                label (glob) + "\n" + TRANS ("The voice is replaced by an Init voice; the other slots do not move. The bank as it was before its first change is kept (.bak)."),
                 TRANS ("Replace"), TRANS ("Cancel"), nullptr,
                 ModalCallbackFunction::create ([self, glob] (int r)
                 {
@@ -675,7 +679,10 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         atomiquement. false si l'ecriture echoue (original intact). */
     static bool writeBankSafely (const File& f, const MemoryBlock& data)
     {
-        if (f.existsAsFile()) f.copyFileTo (f.getSiblingFile (f.getFileName() + ".bak"));
+        // .bak = la banque AVANT sa premiere modification (pas ecrase ensuite). Echec de la
+        // sauvegarde -> aucune ecriture.
+        const File bak = f.getSiblingFile (f.getFileName() + ".bak");
+        if (f.existsAsFile() && ! bak.existsAsFile() && ! f.copyFileTo (bak)) return false;
         TemporaryFile tf (f);
         return tf.getFile().replaceWithData (data.getData(), data.getSize())
             && tf.overwriteTargetFileWithTemporary();
@@ -702,9 +709,14 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         if (! writeBankSafely (f, bank.serialize())) { showBankError (TRANS ("Could not write the bank file.")); return; }
         LibraryIndex::get().remapBank (rel, r.newPosOfOld);
         LibraryIndex::get().refreshBank (f);
+        clearInspector();   // le slot inspecte ne designe plus la meme voix (tags/notes)
         bankList.loadBankByRelPath (rel);
-        labelInfoLine.removeColour (Label::textColourId);
-        labelInfoLine.setText (done + "  (" + f.getFileName() + ")", dontSendNotification);
+        // Apres le rafraichissement asynchrone (qui reecrit la ligne d'info « banque - N voix »).
+        SafePointer<LibrairiePage> self (this);
+        const String msg = done + "  (" + f.getFileName() + ")";
+        MessageManager::callAsync ([self, msg] { if (self == nullptr) return;
+                                                 self->labelInfoLine.removeColour (Label::textColourId);
+                                                 self->labelInfoLine.setText (msg, dontSendNotification); });
     }
 
     // Copie le preset inspecté vers une banque utilisateur : ajouté EN FIN, renuméroté au slot
@@ -733,9 +745,19 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         MemoryBlock existing;
         if (target.existsAsFile()) target.loadFileAsData (existing);
         auto bank = SyBank::Bank::parse (existing.getData(), existing.getSize());
-        const auto r = SyBank::append (bank, block);
-        if (r.error.isNotEmpty()) { showBankError (r.error); return; }
-        if (! writeBankSafely (target, bank.serialize())) { showBankError (TRANS ("Could not write the bank file.")); return; }
+        MemoryBlock out;
+        if (SyBank::isVoiceBlock (block))
+        {
+            const auto r = SyBank::append (bank, block);
+            if (r.error.isNotEmpty()) { showBankError (r.error); return; }
+            out = bank.serialize();
+        }
+        else   // preset d'un autre synthe : ajout brut (comportement d'avant, rien a renumeroter)
+        {
+            out = existing;
+            out.append (block.getData(), block.getSize());
+        }
+        if (! writeBankSafely (target, out)) { showBankError (TRANS ("Could not write the bank file.")); return; }
         LibraryIndex::get().refreshBank (target);   // réindexe la banque cible
         bankList.loadBank();
         labelInfoLine.removeColour (Label::textColourId);

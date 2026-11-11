@@ -158,7 +158,7 @@ countries: FR
 "Copy to bank..." = "Copier vers une banque..."
 "Replace with Init voice..." = "Remplacer par une voix Init..."
 "Replace with Init voice" = "Remplacer par une voix Init"
-"The voice is replaced by an Init voice; the other slots do not move. A backup of the bank is kept (.bak)." = "La voix est remplacée par une voix Init ; les autres emplacements ne bougent pas. Une sauvegarde de la banque est conservée (.bak)."
+"The voice is replaced by an Init voice; the other slots do not move. The bank as it was before its first change is kept (.bak)." = "La voix est remplacée par une voix Init ; les autres emplacements ne bougent pas. La banque telle qu'elle était avant sa première modification est conservée (.bak)."
 "Replace" = "Remplacer"
 "Voice replaced by Init" = "Voix remplacée par Init"
 "Bank" = "Banque"

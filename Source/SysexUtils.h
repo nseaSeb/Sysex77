@@ -1166,9 +1166,10 @@ namespace SyBank
 
     inline bool isVoiceBlock (const juce::MemoryBlock& b)
     {
+        // MEME classifieur que l'UI (extractVoiceNames/getVoiceBlock) : sinon les numeros de slot
+        // de l'UI et de SyBank divergeraient sur un bloc court/non termine.
         auto* d = (const juce::uint8*) b.getData();
-        return b.getSize() >= 44 && d[0] == 0xF0 && d[b.getSize() - 1] == 0xF7
-            && std::memcmp (d + 6, "LM  8101VC", 10) == 0;
+        return b.getSize() > 0 && d[0] == 0xF0 && SyVoice::isVoiceMessageAt (d, b.getSize(), 0);
     }
     inline int  typeOf (const juce::MemoryBlock& b) { return b.getSize() > 32 ? ((const juce::uint8*) b.getData())[32] : -1; }
     inline bool needsBankD (int type) { return type == 0x02 || type == 0x07 || type == 0x09; }
@@ -1209,9 +1210,13 @@ namespace SyBank
             {
                 auto* d = (juce::uint8*) m.getData();
                 const int n = (int) m.getSize();
-                d[30] = 0x00;
-                d[31] = (juce::uint8) v++;
-                d[n - 2] = SyVoice::yamahaChecksum (d + 6, n - 8);
+                if (n >= 34 && d[n - 1] == 0xF7)   // bloc mal forme : garde tel quel (slot compte)
+                {
+                    d[30] = 0x00;
+                    d[31] = (juce::uint8) v;
+                    d[n - 2] = SyVoice::yamahaChecksum (d + 6, n - 8);
+                }
+                ++v;
                 out.append (m.getData(), m.getSize());
             };
             for (auto& m : blocks)
@@ -1228,10 +1233,31 @@ namespace SyBank
         (pour deplacer tags/notes/favoris ; -1 = metadonnees abandonnees). */
     struct Result { juce::String error; std::vector<int> newPosOfOld; };
 
+    /** Les Multi (8101MU, 204 o.) de la MEME banque designent leurs voix internes par VNUM
+        (slot) : on suit les voix deplacees (parties VMEM 0 = interne, seule valeur non ambigue),
+        checksum recalcule. Une voix remplacee (-1) garde son slot -> VNUM inchange. */
+    inline void remapMultis (Bank& b, const std::vector<int>& map)
+    {
+        for (auto& m : b.blocks)
+        {
+            auto* d = (juce::uint8*) m.getData();
+            if (m.getSize() != 204 || d[0] != 0xF0 || std::memcmp (d + 6, "LM  8101MU", 10) != 0) continue;
+            for (int ch = 0; ch < 16; ++ch)
+            {
+                const int base = 90 + 7 * ch;
+                const int vn = d[base + 2];
+                if (d[base + 1] == 0 && vn < (int) map.size() && map[(size_t) vn] >= 0)
+                    d[base + 2] = (juce::uint8) map[(size_t) vn];
+            }
+            d[202] = SyVoice::yamahaChecksum (d + 6, 204 - 8);
+        }
+    }
+
     inline Result checked (Bank& b, const Bank& before, std::vector<int> map)
     {
         const auto e = b.problem();
         if (e.isNotEmpty()) { b = before; return { e, {} }; }
+        remapMultis (b, map);
         return { {}, std::move (map) };
     }
     inline std::vector<int> identity (int n) { std::vector<int> m ((size_t) n); for (int i = 0; i < n; ++i) m[(size_t) i] = i; return m; }
@@ -1331,8 +1357,8 @@ namespace SyMulti
             }
             if (g == 0x01 && lo == 0 && hi >= 0 && hi < kParts && p >= 0 && p < kStride)
             {
+                if (! loaded) return false;   // pas de Multi affiche : ne pas inventer 16 parties
                 part[hi].raw[p] = (juce::uint8) (v2 & 0x7F);
-                loaded = true;
                 return true;
             }
             return false;

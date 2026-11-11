@@ -1130,6 +1130,25 @@ struct SysexUtilsTests : public juce::UnitTest
             slotsOk (c);                                                          // la copie prend le slot 11, pas 40
             expectEquals (SyBank::slotName (0), juce::String ("A1"));
             expectEquals (SyBank::slotName (63), juce::String ("D16"));
+            // Les Multi de la banque suivent les voix deplacees (VMEM 0 = interne).
+            {
+                juce::uint8 mu[204] = {};
+                const char* id = "LM  8101MU";
+                mu[0] = 0xF0; mu[1] = 0x43; mu[3] = 0x7A; mu[4] = 0x01; mu[5] = 0x44; mu[203] = 0xF7;
+                for (int k = 0; k < 10; ++k) mu[6 + k] = (juce::uint8) id[k];
+                mu[90 + 1] = 0; mu[90 + 2] = 2;          // partie 1 -> voix interne slot 2
+                mu[97 + 1] = 1; mu[97 + 2] = 2;          // partie 2 -> autre memoire, slot 2 : intact
+                auto f = makeFile (10, 99);
+                f.append (mu, sizeof (mu));
+                auto mb = SyBank::Bank::parse (f.getData(), f.getSize());
+                expect (SyBank::swap (mb, 2, 5).error.isEmpty());
+                const auto out = mb.serialize();
+                const auto* od = (const juce::uint8*) out.getData();
+                const int mo = (int) out.getSize() - 204;
+                expectEquals ((int) od[mo + 92], 5);
+                expectEquals ((int) od[mo + 99], 2);
+                expectEquals ((int) od[mo + 202], (int) SyVoice::yamahaChecksum (od + mo + 6, 196));
+            }
             // Banque vide (nouveau fichier) : append ok.
             SyBank::Bank e;
             expect (SyBank::append (e, voice (0x03, 5)).error.isEmpty());
