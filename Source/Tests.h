@@ -15,6 +15,7 @@
 #include "Version.h"
 #include "PresetHexView.h"   // outil dev : sondage offsets -> params
 #include "VoiceSession.h"   // decoupage MidiDemo : branchee dans MidiDemo (etape 2), caracterisee ici
+#include "TestBench.h"      // banc de test hardware : logique pure SyBench
 
 //==============================================================================
 /** Boucle d'écho éditeur<->synthé : le garde anti-écho doit empêcher TOUT envoi
@@ -2168,3 +2169,56 @@ public:
 };
 
 static VoiceSessionTests voiceSessionTests;
+
+//==============================================================================
+// Banc de test hardware (TestBench.h) : verdicts de la boucle fermee dump -> envoi -> dump.
+class TestBenchTests : public juce::UnitTest
+{
+public:
+    TestBenchTests() : juce::UnitTest ("TestBench", "Sysex77") {}
+
+    static juce::MemoryBlock fakeVoice (int size)
+    {
+        juce::MemoryBlock b ((size_t) size, true);
+        auto* d = (juce::uint8*) b.getData();
+        d[0] = 0xF0; d[1] = 0x43; d[2] = 0x00; d[3] = 0x7A;
+        std::memcpy (d + 6, "LM  8101VC", 10);
+        d[30] = 0x7F; d[98] = 100;
+        d[size - 2] = SyVoice::yamahaChecksum (d + 6, size - 8);
+        d[size - 1] = 0xF7;
+        return b;
+    }
+    static juce::MemoryBlock with (juce::MemoryBlock b, int off, int v)
+    {
+        auto* d = (juce::uint8*) b.getData();
+        d[off] = (juce::uint8) v;
+        d[b.getSize() - 2] = SyVoice::yamahaChecksum (d + 6, (int) b.getSize() - 8);
+        return b;
+    }
+
+    void runTest() override
+    {
+        using namespace SyBench;
+        const auto a = fakeVoice (469);
+
+        beginTest ("isVoiceBulk recognises a framed 8101VC block only");
+        expect (isVoiceBulk ((const juce::uint8*) a.getData(), (int) a.getSize()));
+        auto bad = a; ((juce::uint8*) bad.getData())[14] = 'M';
+        expect (! isVoiceBulk ((const juce::uint8*) bad.getData(), (int) bad.getSize()));
+
+        beginTest ("diffOffsets ignores the checksum byte, flags size mismatch");
+        expect (diffOffsets (a, a).isEmpty());
+        expect (diffOffsets (a, with (a, 98, 7)) == juce::Array<int> { 98 });
+        expect (diffOffsets (a, fakeVoice (341)).contains (-1));
+
+        beginTest ("classify verdicts");
+        expect (classify (a, with (a, 98, 37), 98, 37).verdict == Verdict::Ok);
+        expect (classify (a, with (with (a, 98, 37), 120, 1), 98, 37).verdict == Verdict::OkWithSideEffects);
+        expect (classify (a, a, 98, 37).verdict == Verdict::NoChange);
+        expect (classify (a, with (a, 99, 37), 98, 37).verdict == Verdict::WrongOffset);
+        expect (classify (a, with (a, 98, 36), 98, 37).verdict == Verdict::WrongValue);
+        expect (classify (a, fakeVoice (341), 98, 37).verdict == Verdict::SizeMismatch);
+    }
+};
+
+static TestBenchTests testBenchTests;

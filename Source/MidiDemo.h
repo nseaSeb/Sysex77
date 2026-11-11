@@ -186,6 +186,7 @@ int intTabIndex;
 #include "ControllersPage.h"
 #include "MultiPage.h"
 #include "DumpDiffView.h"   // outil RE : comparer 2 dumps .syx
+#include "TestBench.h"      // banc de test hardware (mode developpeur)
 #include "MidiObjects.h"
 
 //==============================================================================
@@ -311,6 +312,7 @@ struct MidiSettingsPage : public Component
     {
         setOpaque (false);
         addAndMakeVisible (pairBtn);
+        addAndMakeVisible (bench);   // banc de test hardware (cable par MidiDemo)
         addAndMakeVisible (monLab);
         addAndMakeVisible (monitorRef);
 
@@ -382,7 +384,9 @@ struct MidiSettingsPage : public Component
         reBtn  .setBounds (row2.removeFromRight (half));
         r.removeFromTop (8);
         reReadBtn.setBounds (r.removeFromTop (24));
-        r.removeFromTop (8);
+        r.removeFromTop (10);
+        bench.setBounds (r.removeFromTop (juce::jmax (200, r.getHeight() / 2)));
+        r.removeFromTop (10);
 
         // En-tête du moniteur : libellé + toggle Raw à gauche, Copier/Clear à droite.
         auto head = r.removeFromTop (24);
@@ -412,6 +416,7 @@ struct MidiSettingsPage : public Component
     TextButton   reReadBtn { "RE lire valeurs -> CSV" };
     TextButton   copyBtn   { "Copier" };
     TextButton   clearBtn  { "Clear" };
+    TestBenchPanel bench;
 };
 
 //==============================================================================
@@ -805,6 +810,23 @@ public:
         // Bouton Clear : vide aussi l'historique borné (sinon un re-render le ferait réapparaître).
         midiSettingsPage->onClearHistory = [this] { monitorHistory.clearQuick(); };
 
+        // Banc de test : envois HORS historique d'edition (benchSending), memes gates In/Out
+        // que le test de connexion.
+        midiSettingsPage->bench.ports.send = [this] (const MidiMessage& m)
+        {
+            const ScopedValueSetter<bool> svs (benchSending, true);
+            MidiMessage msg (m);
+            msg.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
+            sendToOutputs (msg);
+        };
+        midiSettingsPage->bench.ports.device    = [] { return sysexDeviceNumber; };
+        midiSettingsPage->bench.ports.preflight = [this]() -> String
+        {
+            if (! midiSend)   return "sortie MIDI coupee (activer Out)";
+            if (! midiListen) return "entree MIDI coupee (activer In)";
+            return {};
+        };
+
         // Barre de navigation visible dès le démarrage (on n'atterrit plus sur une vue
         // sans menu). On ouvre "Setting" en premier : moyeu de configuration.
         tabs.setVisible(true);
@@ -949,6 +971,7 @@ public:
             tabs.addTab (TRANS("Midi Setting"), SYColBackground, midiSettingsPage.get(), false);
         else if (! on && found >= 0)
         {
+            midiSettingsPage->bench.abort ("mode developpeur desactive");
             if (tabs.getCurrentTabIndex() == found)
                 tabs.setCurrentTabIndex (0);   // on quitte l'onglet avant de le retirer
             tabs.removeTab (found);
@@ -1531,6 +1554,10 @@ private:
             // demande de dump = preuve que le SY77 parle), SOIT un Identity Reply universel
             // (F0 7E <dev> 06 02 <fab> ...) pour du matériel générique.
             // Bulk Multi recu (reponse a une demande de l'onglet Multi, ou envoi depuis le synthe).
+            // Banc de test : voit TOUT sysex entrant, avant le filtre device.
+            if (midiSettingsPage != nullptr)
+                midiSettingsPage->bench.handleIncoming (message);
+
             if (message.isSysEx() && SyMulti::isMultiBlock (message.getRawData(), message.getRawDataSize()))
             {
                 valueMultiBulk = var (message.getRawData(), (size_t) message.getRawDataSize());
@@ -1576,7 +1603,8 @@ private:
 
                     // "Suivre le synthé" : ouvre la vue correspondant au groupe reçu, pour que
                     // le paramètre modifié sur le SY77 soit visible (sa valeur s'y met à jour).
-                    if (followSynth)
+                    // (suspendu pendant une sonde du banc : ne pas arracher l'utilisateur a l'onglet)
+                    if (followSynth && ! (midiSettingsPage != nullptr && midiSettingsPage->bench.isBusy()))
                     {
                         const int g = data[3];
                         int target = -1;
@@ -1610,7 +1638,7 @@ public:
         // Edit history: record user voice param-changes (message thread only; not our own
         // undo/redo/B sends, not while A is shown, not system setup group 0x0F). AVANT le gate
         // Out (fidele) : un B differe en attente est avance ici, avant que l'edit ne sorte.
-        if (MessageManager::existsAndIsCurrentThread())
+        if (MessageManager::existsAndIsCurrentThread() && ! benchSending)
             session.observeOutgoing (msg.getRawData(), msg.getRawDataSize(),
                                      ModifierKeys::currentModifiers.isAnyMouseButtonDown());
         // Note-offs still pass when Out is OFF: otherwise a note started before the switch
@@ -1995,6 +2023,7 @@ public:
     // Test de connexion (carte MIDI de Settings) : envoi d'une requête + attente de la réponse.
     ConfigPage* configPage      = nullptr;  // page "Setting" (pour publier le statut de connexion)
     bool        awaitingConnReply = false;
+    bool        benchSending      = false;   // envoi du banc de test : hors historique voix
     uint32      connDeadlineMs   = 0;
 
     uint8 data[12];
