@@ -820,6 +820,8 @@ public:
             sendToOutputs (msg);
         };
         midiSettingsPage->bench.ports.device    = [] { return sysexDeviceNumber; };
+        // Rapport ecrit aussi sur disque (lu directement pour l'analyse, sans copier-coller).
+        midiSettingsPage->bench.ports.logFile   = getAppSettings()->getFile().getSiblingFile ("testbench.log");
         midiSettingsPage->bench.ports.preflight = [this]() -> String
         {
             if (! midiSend)   return "sortie MIDI coupee (activer Out)";

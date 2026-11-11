@@ -92,6 +92,7 @@ struct TestBenchPanel : public juce::Component, private juce::Timer
         std::function<void (const juce::MidiMessage&)> send;   // hors historique d'edition
         std::function<int()>                            device;
         std::function<juce::String()>                   preflight;  // "" = OK, sinon raison
+        juce::File                                      logFile;    // copie du rapport (append), vide = aucune
     };
     Ports ports;
 
@@ -212,6 +213,8 @@ private:
     {
         log.moveCaretToEnd();
         log.insertTextAtCaret (s + "\n");
+        if (ports.logFile != juce::File())
+            ports.logFile.appendText (s + "\n", false, false, "\n");
     }
 
     void refreshButtons()
