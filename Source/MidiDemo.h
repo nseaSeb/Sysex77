@@ -426,6 +426,54 @@ public:
         // addOscListener() installe le callback du bus au lieu de binder un port.
         addOscListener();
 
+        initMidiSettingsTab();   // onglet dev + Config MIDI + outils RE + banc (ordre inchange)
+
+        // Barre de navigation visible dès le démarrage (on n'atterrit plus sur une vue
+        // sans menu). On ouvre "Setting" en premier : moyeu de configuration.
+        tabs.setVisible(true);
+        tabs.setAlwaysOnTop(true);
+
+        initTopBar();   // < nom de voix >, New...
+
+        setSize (1280, 820);
+        // Onglet de démarrage (préférence "StartupTab", réglée dans Settings) :
+        //   1 = "Dernier utilisé" -> restaure CurrentTab mémorisé ; 2.. = onglet fixe d'index 0..
+        const int startPref = getAppSettings()->getIntValue ("StartupTab", 1);
+        const int target    = (startPref <= 1) ? getAppSettings()->getIntValue ("CurrentTab", 0)
+                                               : startPref - 2;
+        tabs.setCurrentTabIndex (jlimit (0, tabs.getNumTabs() - 1, target));
+        tabs.allowTabSave = true;
+        startTimer (500);
+    }
+    
+    // Dialogue « mise à jour disponible » (sur le thread message). Récursif via « Notes ».
+    void showUpdateDialog (Updater::Info info)
+    {
+        juce::AlertWindow w (TRANS("Mise a jour disponible"),
+            "Sysex77 " + info.tag + TRANS(" est disponible (vous avez v") + Sysex77::kVersion + ").\n\n"
+                + info.notes.substring (0, 500),
+            juce::MessageBoxIconType::InfoIcon);
+       #if JUCE_MAC
+        w.addButton (TRANS("Installer"),               1, juce::KeyPress (juce::KeyPress::returnKey));
+       #else
+        // No auto-install outside macOS: "Download" opens the release page (Windows zip / Linux tar.gz).
+        w.addButton (TRANS("Telecharger"),             5, juce::KeyPress (juce::KeyPress::returnKey));
+       #endif
+        w.addButton (TRANS("Notes"),                   2);
+        w.addButton (TRANS("Plus tard"),               3, juce::KeyPress (juce::KeyPress::escapeKey));
+        w.addButton (TRANS("Ignorer cette version"),   4);
+
+        const int r = w.runModalLoop();
+        if (r == 1)      Updater::get().downloadAndInstall (info);
+        else if (r == 2) { juce::URL (info.htmlUrl).launchInDefaultBrowser(); showUpdateDialog (info); }
+        else if (r == 4) Updater::get().skipVersion (info.tag);
+        else if (r == 5) juce::URL (info.htmlUrl).launchInDefaultBrowser();
+    }
+
+    //==============================================================================
+    // Sections du constructeur (deplacees VERBATIM, appelees au meme endroit, meme ordre).
+    void initMidiSettingsTab()
+    {
         // Onglet "Midi Setting" : moniteur MIDI + outils RE (Bluetooth, Bulk). Réutilise les
         // composants de MidiDemo (re-parentés dans la page). Toujours construit (re-parente le
         // moniteur), mais AJOUTÉ À LA BARRE seulement en mode développeur (devMode).
@@ -498,12 +546,10 @@ public:
             if (! midiListen) return "entree MIDI coupee (activer In)";
             return {};
         };
+    }
 
-        // Barre de navigation visible dès le démarrage (on n'atterrit plus sur une vue
-        // sans menu). On ouvre "Setting" en premier : moyeu de configuration.
-        tabs.setVisible(true);
-        tabs.setAlwaysOnTop(true);
-
+    void initTopBar()
+    {
         // Bandeau superieur : < nom de voix > au centre. Les fleches font EXACTEMENT les
         // raccourcis voix precedente/suivante (handleShortcut : meme confirmation si edits
         // non sauves, meme stepVoice de la librairie). Le champ nom est DEPLACE depuis la
@@ -536,40 +582,6 @@ public:
                 vp->editName.setTooltip (TRANS ("Voice name (click to rename, Return sends it to the synth)"));
                 vp->resized();
             }
-
-        setSize (1280, 820);
-        // Onglet de démarrage (préférence "StartupTab", réglée dans Settings) :
-        //   1 = "Dernier utilisé" -> restaure CurrentTab mémorisé ; 2.. = onglet fixe d'index 0..
-        const int startPref = getAppSettings()->getIntValue ("StartupTab", 1);
-        const int target    = (startPref <= 1) ? getAppSettings()->getIntValue ("CurrentTab", 0)
-                                               : startPref - 2;
-        tabs.setCurrentTabIndex (jlimit (0, tabs.getNumTabs() - 1, target));
-        tabs.allowTabSave = true;
-        startTimer (500);
-    }
-    
-    // Dialogue « mise à jour disponible » (sur le thread message). Récursif via « Notes ».
-    void showUpdateDialog (Updater::Info info)
-    {
-        juce::AlertWindow w (TRANS("Mise a jour disponible"),
-            "Sysex77 " + info.tag + TRANS(" est disponible (vous avez v") + Sysex77::kVersion + ").\n\n"
-                + info.notes.substring (0, 500),
-            juce::MessageBoxIconType::InfoIcon);
-       #if JUCE_MAC
-        w.addButton (TRANS("Installer"),               1, juce::KeyPress (juce::KeyPress::returnKey));
-       #else
-        // No auto-install outside macOS: "Download" opens the release page (Windows zip / Linux tar.gz).
-        w.addButton (TRANS("Telecharger"),             5, juce::KeyPress (juce::KeyPress::returnKey));
-       #endif
-        w.addButton (TRANS("Notes"),                   2);
-        w.addButton (TRANS("Plus tard"),               3, juce::KeyPress (juce::KeyPress::escapeKey));
-        w.addButton (TRANS("Ignorer cette version"),   4);
-
-        const int r = w.runModalLoop();
-        if (r == 1)      Updater::get().downloadAndInstall (info);
-        else if (r == 2) { juce::URL (info.htmlUrl).launchInDefaultBrowser(); showUpdateDialog (info); }
-        else if (r == 4) Updater::get().skipVersion (info.tag);
-        else if (r == 5) juce::URL (info.htmlUrl).launchInDefaultBrowser();
     }
 
     ~MidiDemo()
