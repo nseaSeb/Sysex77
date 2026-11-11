@@ -535,6 +535,10 @@ public:
         
         addAndMakeVisible(btBulk);
         btBulk.setClickingTogglesState(true);
+        // Etat memorise (defaut ON = etat du SY77 a l'allumage). Choix OFF de l'utilisateur
+        // -> renvoye a la reouverture de la sortie MIDI (cf. restoreEnabledDevices).
+        btBulk.setToggleState (getAppSettings()->getBoolValue ("BulkProtect", true), dontSendNotification);
+        btBulk.setTooltip (TRANS ("Bulk data memory protect of the SY77. When off, it is sent again at startup."));
         btBulk.addListener(this);
 
         // Bottom bar mode selector [None | Keys | Seq] (replaces the old keyboard toggle).
@@ -909,15 +913,22 @@ public:
     {
         if(button == &btBulk)
         {
-            Logger::writeToLog("Bulk Protect");
-            // Bulk Protect ON/OFF : param-change standard 0x34, group 0x0F (System Setup),
-            // param 0x34. Construit par le builder unique (octets identiques à l'ancien inline).
-            auto sysexdata = SyVoice::paramBytes (sysexDeviceNumber, 0x0f, 0x00, 0x00, 0x34,
-                                                  (uint8) btBulk.getToggleState());
-            MidiMessage m = MidiMessage::createSysExMessage (sysexdata.data(), 9);
-            m.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
-            sendToOutputs (m);
+            getAppSettings()->setValue ("BulkProtect", btBulk.getToggleState());
+            getAppSettings()->saveIfNeeded();
+            sendBulkProtect();
         }
+    }
+
+    /** Bulk Protect ON/OFF : param-change standard 0x34, group 0x0F (System Setup), param 0x34
+        (BLUKMPRT off/on, OCR l.820). Construit par le builder unique. */
+    void sendBulkProtect()
+    {
+        Logger::writeToLog ("Bulk Protect " + String (btBulk.getToggleState() ? "ON" : "OFF"));
+        auto sysexdata = SyVoice::paramBytes (sysexDeviceNumber, 0x0f, 0x00, 0x00, 0x34,
+                                              (uint8) btBulk.getToggleState());
+        MidiMessage m = MidiMessage::createSysExMessage (sysexdata.data(), 9);
+        m.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
+        sendToOutputs (m);
     }
     // Mode développeur : ajoute/retire l'onglet "Midi Setting" (moniteur + outils RE) à chaud.
     // L'onglet est toujours le dernier ; midiSettingsPage reste vivant (non possédé par tabs).
@@ -1680,12 +1691,24 @@ public:
         saved.removeEmptyStrings();
         if (saved.isEmpty()) return;
         auto& devices = isInput ? midiInputs : midiOutputs;
+        bool reopened = false;
         for (int i = 0; i < devices.size(); ++i)
         {
             const bool isOpen = isInput ? devices[i]->inDevice.get() != nullptr
                                         : devices[i]->outDevice.get() != nullptr;
             if (! isOpen && saved.contains (devices[i]->deviceInfo.identifier))
+            {
                 openDevice (isInput, i);
+                reopened = true;
+            }
+        }
+        // Sortie memorisee rouverte (demarrage, interface rebranchee) et Bulk Protect leve
+        // par l'utilisateur : on le releve dans le synthe (choix explicite, persiste). Leger
+        // delai : laisser le port s'ouvrir. Rien n'est envoye si le choix est ON (defaut).
+        if (! isInput && reopened && ! btBulk.getToggleState())
+        {
+            SafePointer<MidiDemo> self (this);
+            Timer::callAfterDelay (400, [self] { if (self && ! self->btBulk.getToggleState()) self->sendBulkProtect(); });
         }
     }
 

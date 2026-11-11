@@ -143,3 +143,4 @@ countries: FR
 "Output 1" = "Sortie 1"
 "Output 2" = "Sortie 2"
 "Alternate group: keys of the group cut each other" = "Groupe alterné : les touches du groupe se coupent entre elles"
+"Bulk data memory protect of the SY77. When off, it is sent again at startup." = "Protection mémoire du SY77 contre les bulk. Si vous la désactivez, l’app la désactive de nouveau à chaque démarrage."
