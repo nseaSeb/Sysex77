@@ -208,7 +208,7 @@ private:
             const auto n = awmWaveName (i, sy99, src);
             if (src == 0 && n.isEmpty()) break;   // fin de la liste interne
             if (src != 0 && i >= 128) break;
-            waveCombo.addItem ((src == 0 ? "P" : "C") + String (i).paddedLeft ('0', 3) + "  " + n, i + 1);
+            waveCombo.addItem ((src == 0 ? "P" : "C") + String (i + 1).paddedLeft ('0', 3) + "  " + n, i + 1);   // affichage 1-indexe (ecran SY77), fil 0-indexe
         }
     }
 
@@ -222,7 +222,7 @@ private:
         fillWaveCombo();
         const int w = SyDrum::wave (r);
         if (waveCombo.indexOfItemId (w + 1) < 0)
-            waveCombo.addItem ("#" + String (w), w + 1);   // hors liste connue : affiche le brut
+            waveCombo.addItem ("#" + String (w + 1), w + 1);   // hors liste connue : affiche le brut
         waveCombo.setSelectedId (w + 1, dontSendNotification);
         volS.setValue   (SyDrum::volume (r), dontSendNotification);
         tuneS.setValue  (SyDrum::tune (r),   dontSendNotification);
@@ -304,7 +304,7 @@ private:
                 const int wv = SyDrum::wave (r), src = SyDrum::source (r);
                 const auto& name = waveNames[row];
                 g.setColour (SYPal.textMuted);
-                g.drawText ((src == 0 ? "P" : "C") + String (wv).paddedLeft ('0', 3),
+                g.drawText ((src == 0 ? "P" : "C") + String (wv + 1).paddedLeft ('0', 3),   // SY77 : 1-indexe
                             cell.reduced (6, 0), Justification::centredLeft);
                 g.setColour (SYPal.textPrimary);
                 g.drawText (name.isEmpty() ? String ("?") : name,
