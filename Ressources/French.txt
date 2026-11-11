@@ -189,3 +189,7 @@ countries: FR
 "(Not yet checked on hardware.)" = "(Pas encore vérifié sur le synthé.)"
 "Send" = "Envoyer"
 "Send to SY77" = "Envoyer au SY77"
+"Incoming MIDI: ON = processed, OFF = ignored (diagnostics)" = "Écoute MIDI entrant : ON = traité, OFF = ignoré (diagnostic)"
+"Outgoing MIDI: ON = sent, OFF = nothing goes out (Thru included)" = "Envoi MIDI sortant : ON = émis, OFF = rien ne sort (coupe aussi le Thru)"
+"Turn operator on/off:" = "Active/désactive l'opérateur"
+"(mute via level)" = "(mute via niveau)"

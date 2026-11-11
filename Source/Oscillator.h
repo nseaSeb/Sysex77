@@ -211,7 +211,7 @@ public:
             sw.setClickingTogglesState (true);
             sw.setToggleState (true, dontSendNotification);   // défaut : tous ON
             // (Le texte ON/OFF est rendu par ModernLookAndFeel::drawButtonText depuis la palette.)
-            sw.setTooltip ("Active/désactive l'opérateur " + String (i + 1) + " (mute via niveau)");
+            sw.setTooltip (TRANS ("Turn operator on/off:") + " " + String (i + 1) + " " + TRANS ("(mute via level)"));
             sw.onClick = [this, i] { toggleOpActive (i); };
         }
 

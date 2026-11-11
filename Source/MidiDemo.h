@@ -326,8 +326,8 @@ public:
         midiSend   = getAppSettings()->getBoolValue ("MidiSend",   true);
         btMidiIn .setToggleState (midiListen, dontSendNotification);
         btMidiOut.setToggleState (midiSend,   dontSendNotification);
-        btMidiIn .setTooltip ("Écoute MIDI entrant : ON = traité, OFF = ignoré (diagnostic)");
-        btMidiOut.setTooltip ("Envoi MIDI sortant : ON = émis, OFF = rien ne sort (coupe aussi le Thru)");
+        btMidiIn .setTooltip (TRANS ("Incoming MIDI: ON = processed, OFF = ignored (diagnostics)"));
+        btMidiOut.setTooltip (TRANS ("Outgoing MIDI: ON = sent, OFF = nothing goes out (Thru included)"));
         btMidiIn .onClick = [this]
         {
             midiListen = btMidiIn.getToggleState();
