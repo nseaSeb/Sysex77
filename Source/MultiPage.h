@@ -49,12 +49,14 @@ public:
 
         valueMultiIn.addListener (this);
         valueMultiBulk.addListener (this);
+        valueMultiOpen.addListener (this);
         buildDetail();
     }
     ~MultiPage() override
     {
         valueMultiIn.removeListener (this);
         valueMultiBulk.removeListener (this);
+        valueMultiOpen.removeListener (this);
     }
 
     void paint (Graphics& g) override
@@ -107,6 +109,17 @@ private:
 
     void valueChanged (Value& v) override
     {
+        if (v.refersToSameSourceAs (valueMultiOpen))
+        {
+            const var a = valueMultiOpen.getValue();
+            if (a.isArray() && a.size() == 2)
+                if (auto* mb = a[1].getBinaryData())
+                {
+                    auto m = SyMulti::parse ((const uint8*) mb->getData(), (int) mb->getSize());
+                    if (m.loaded) setMulti (m, a[0].toString());
+                }
+            return;
+        }
         if (v.refersToSameSourceAs (valueMultiBulk))
         {
             const var data = valueMultiBulk.getValue();   // garder le var : getBinaryData() pointe DEDANS

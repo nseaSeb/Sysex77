@@ -40,7 +40,14 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         setWantsKeyboardFocus(true);
         addBtAndMakeStyle(btVoice);
         addBtAndMakeStyle(btMulti);
-        btMulti.setEnabled(false);
+        btVoice.onClick = [this] { setMultiMode (false); };
+        btMulti.onClick = [this] { setMultiMode (true); };
+        btMulti.setTooltip (TRANS ("Show the multis of the selected bank (click one to open it in the Multi tab)"));
+        addChildComponent (multiList);
+        multiList.setModel (&multiModel);
+        multiList.setRowHeight (24);
+        multiList.setColour (ListBox::backgroundColourId, Colours::transparentBlack);
+        multiModel.onOpen = [this] (int r) { openMulti (r); };
         addBtAndMakeStyle(btSeq);
         btSeq.setEnabled(false);
         addAndMakeVisible(labelInfoLine);
@@ -300,6 +307,7 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         voicesListB.loadBank();
         voicesListC.loadBank();
         voicesListD.loadBank();
+        refreshMultiList();
 
         // Garde SY77 : SEND/audition réservés au SY77 (seule cible câblée). Pour une banque
         // d'un autre synthé : bouton SEND grisé + note (elle reste stockée/cherchable).
@@ -350,6 +358,7 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         voicesListC.setBounds(tableWidth + 36 + tableWidth+ tableWidth, voiceTop, tableWidth, voiceH);
         voicesListD.setBounds(tableWidth + 46 + tableWidth+ tableWidth + tableWidth, voiceTop, tableWidth, voiceH);
         resultsList.setBounds(ix, voiceTop, iw, voiceH);      // occupe toute la zone presets
+        multiList.setBounds (ix, voiceTop, iw, voiceH);
 
         // Panneau d'inspection du preset (tags / notes / favori / copier), sous la zone.
         int iy = voiceTop + voiceH + 4;
@@ -575,10 +584,81 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
 
     void setResultsMode (bool on)
     {
-        resultsList.setVisible (on);
-        for (auto* c : { &voicesListA, &voicesListB, &voicesListC, &voicesListD })
-            c->setVisible (! on);
+        resultsMode = on;
+        updatePresetArea();
     }
+    bool resultsMode = false, multiMode = false;
+
+    /** Zone presets : resultats de recherche > liste des Multi > colonnes de voix. */
+    void updatePresetArea()
+    {
+        resultsList.setVisible (resultsMode);
+        multiList.setVisible (! resultsMode && multiMode);
+        for (auto* c : { &voicesListA, &voicesListB, &voicesListC, &voicesListD })
+            c->setVisible (! resultsMode && ! multiMode);
+    }
+
+    //==========================================================================
+    // Mode MULTI : Multi (8101MU) de la banque selectionnee ; clic = ouverture dans l'onglet Multi.
+    // Lecture seule ici : rien n'est envoye au synthe.
+    void setMultiMode (bool on)
+    {
+        multiMode = on;
+        refreshMultiList();
+        updatePresetArea();
+    }
+
+    void refreshMultiList()
+    {
+        multiModel.blocks = SyMulti::multisIn ((const uint8*) currentBankData.getData(), currentBankData.getSize());
+        multiModel.labels.clear();
+        for (auto& b : multiModel.blocks)
+        {
+            const auto m = SyMulti::parse ((const uint8*) b.getData(), (int) b.getSize());
+            int used = 0;
+            for (auto& p : m.part) used += SyMulti::volume (p) > 0 ? 1 : 0;
+            multiModel.labels.add ((m.memType == 0 ? "INT " : "PRE ") + String (m.memNumber + 1).paddedLeft ('0', 2)
+                                   + "   " + (m.name.isEmpty() ? String ("(no name)") : m.name)
+                                   + "   (" + String (used) + " " + TRANS ("parts") + ")");
+        }
+        multiList.updateContent();
+        multiList.repaint();
+    }
+
+    void openMulti (int row)
+    {
+        if (row < 0 || row >= multiModel.blocks.size()) return;
+        const auto& b = multiModel.blocks.getReference (row);
+        const String bank = currentBankRelPath.fromLastOccurrenceOf ("/", false, false).upToLastOccurrenceOf (".", false, false);
+        valueMultiOpen = Array<var> { var (bank + " / " + multiModel.labels[row].upToFirstOccurrenceOf ("   (", false, false)),
+                                      var (b.getData(), b.getSize()) };
+        valueMultiOpen.getValueSource().sendChangeMessage (false);   // re-clic sur le meme Multi
+        if (auto* tabs = findParentComponentOfClass<TabbedComponent>())
+        {
+            const auto names = tabs->getTabNames();
+            for (int i = 0; i < names.size(); ++i)
+                if (names[i] == TRANS ("Multi")) { tabs->setCurrentTabIndex (i); break; }
+        }
+    }
+
+    struct MultiListModel : public ListBoxModel
+    {
+        Array<MemoryBlock> blocks;
+        StringArray labels;
+        std::function<void (int)> onOpen;
+        int getNumRows() override { return jmax (1, labels.size()); }
+        void paintListBoxItem (int row, Graphics& g, int w, int h, bool selected) override
+        {
+            if (selected && labels.size() > 0) g.fillAll (SYPal.accent.withAlpha (0.18f));
+            g.setFont (Font (FontOptions (13.0f)));
+            g.setColour (labels.isEmpty() ? SYPal.textMuted : SYPal.textPrimary);
+            g.drawText (labels.isEmpty() ? TRANS ("No multi in this bank") : labels[row],
+                        8, 0, w - 16, h, Justification::centredLeft, true);
+        }
+        void listBoxItemClicked (int row, const MouseEvent&) override { if (labels.size() > 0 && onOpen) onOpen (row); }
+    };
+    MultiListModel multiModel;
+    ListBox multiList;
 
     void refreshResults()
     {

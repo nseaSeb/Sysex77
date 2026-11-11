@@ -126,6 +126,7 @@ static     int timeOut;
 static String bankSelected;
 
 static Value valueSysexIn; //values from sysex midi in
+static Value valueMultiOpen;   // [libelle, bloc 8101MU] : Multi ouvert depuis la librairie -> MultiPage
 static Value valueMultiBulk; // bloc bulk 8101MU recu (MemoryBlock) -> MultiPage
 static Value valueMultiIn; // param-change Multi (groupes 0x00/0x01) : PAS sur valueSysexIn (widgets de voix)
 

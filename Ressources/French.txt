@@ -179,3 +179,6 @@ countries: FR
 "Voice memory code (bank meaning not confirmed yet)" = "Code mémoire de la voix (signification de la banque pas encore confirmée)"
 "Use the voice's own pan" = "Utiliser le pan propre à la voix"
 "Part switch (bit 6, meaning not confirmed: set on the parts in use)" = "Interrupteur de partie (bit 6, sens non confirmé : actif sur les parties utilisées)"
+"Show the multis of the selected bank (click one to open it in the Multi tab)" = "Affiche les multis de la banque sélectionnée (un clic en ouvre un dans l'onglet Multi)"
+"parts" = "parties"
+"No multi in this bank" = "Aucun multi dans cette banque"
