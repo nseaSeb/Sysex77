@@ -1,5 +1,9 @@
 /*
-  MultiPage.h — onglet MULTI, ETAPE 1 : LECTURE SEULE.
+  MultiPage.h — onglet MULTI. Etape 1 : affichage ; ETAPE 2 : edition de la partie
+  selectionnee (panneau sous le tableau) -> param-change groupe 0x01 / T2 = partie (Table 1-2),
+  envoye UNIQUEMENT sur geste utilisateur via le bus /SYSEX (jamais dans l'historique voix :
+  groupes 0x00/0x01 exclus, cf. SyVoice::isVoiceGroup). Octet packe N2=0 recompose en gardant
+  les bits non edites (bit 2 non documente). Ancien en-tete :
 
   Affiche un Multi SY77 (bloc bulk « LM  8101MU ») : nom, effect mode, 16 parties (voix,
   volume, tune, shift, pan, sorties, switch). Sources : un Multi d'une banque de la librairie
@@ -45,6 +49,7 @@ public:
 
         valueMultiIn.addListener (this);
         valueMultiBulk.addListener (this);
+        buildDetail();
     }
     ~MultiPage() override
     {
@@ -62,7 +67,7 @@ public:
                     top.removeFromTop (30).withTrimmedRight (440), Justification::centredLeft);
         g.setColour (SYPal.textMuted);
         g.setFont (Font (FontOptions (12.5f)));
-        String info = TRANS ("Read only - nothing is sent to the synth (editing comes next).");
+        String info = TRANS ("Select a part to edit it - each change is sent to the SY77.");
         if (multi.loaded)
             info = source + "   |   " + TRANS ("Effect mode") + " " + String ((int) multi.fx[0]) + "   |   " + info;
         g.drawText (info, top, Justification::centredLeft);
@@ -79,18 +84,23 @@ public:
         slotCombo.setBounds (top.removeFromRight (100).reduced (2));
         top.removeFromRight (10);
         libraryBt.setBounds (top.removeFromRight (170).reduced (2));
-        table.setBounds (r);
+        detail.setBounds (r.removeFromBottom (detailH));
+        layoutDetail();
+        table.setBounds (r.withTrimmedBottom (4));
         table.getViewport()->setScrollBarsShown (true, getWidth() < 520);
     }
 
 private:
-    static constexpr int headerH = 56;
+    static constexpr int headerH = 56, detailH = 100;
 
     void setMulti (const SyMulti::Multi& m, const String& from)
     {
         multi = m;
         source = from;
-        table.updateContent();
+        detail.setVisible (multi.loaded);
+        table.updateContent();   // AVANT selectRow (sinon la ligne n'existe pas encore)
+        if (multi.loaded && table.getSelectedRow() < 0) table.selectRow (sel);
+        syncDetail();
         table.repaint();
         repaint();
     }
@@ -116,9 +126,141 @@ private:
                 && multi.apply ((int) a[0], (int) a[1], (int) a[2], (int) a[3], (int) a[4], (int) a[5]))
             {
                 table.repaint();
+                syncDetail();
                 repaint();
             }
         }
+    }
+
+    //==========================================================================
+    // Panneau d'edition de la partie selectionnee
+    struct Detail : Component
+    {
+        void paint (Graphics& g) override
+        {
+            g.setColour (SYPal.surface.withAlpha (0.6f));
+            g.fillRoundedRectangle (getLocalBounds().toFloat(), 6.0f);
+            g.setColour (SYPal.panelBorder);
+            g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (0.5f), 6.0f, 1.0f);
+            g.setColour (SYPal.textMuted);
+            g.setFont (Font (FontOptions (11.0f)));
+            for (auto& t : tags) g.drawText (t.first, t.second, Justification::centredLeft);
+        }
+        Array<std::pair<String, Rectangle<int>>> tags;
+    };
+
+    void buildDetail()
+    {
+        addChildComponent (detail);
+        partLabel.setFont (Font (FontOptions (18.0f)).boldened());
+        partLabel.setColour (Label::textColourId, SYPal.accent);
+        for (auto* c : std::initializer_list<Component*> { &partLabel, &memCombo, &numCombo, &volS, &tuneS, &shiftS,
+                                                           &panS, &panVoiceBt, &out1Bt, &out2Bt, &swBt })
+            detail.addAndMakeVisible (c);
+        for (int i = 0; i < 4; ++i) memCombo.addItem ("M" + String (i), i + 1);   // libelle de banque non confirme
+        memCombo.setTooltip (TRANS ("Voice memory code (bank meaning not confirmed yet)"));
+        memCombo.onChange = [this] { send (0x01, memCombo.getSelectedId() - 1); };
+        for (int n = 0; n < 64; ++n) numCombo.addItem (SyBank::slotName (n), n + 1);
+        numCombo.onChange = [this] { send (0x02, numCombo.getSelectedId() - 1); };
+        auto bar = [this] (Slider& sl, int lo, int hi, int n2, int off, bool sign)
+        {
+            sl.setSliderStyle (Slider::LinearBar);
+            sl.setRange (lo, hi, 1);
+            if (sign) sl.textFromValueFunction = [] (double v) { return v > 0 ? "+" + String ((int) v) : String ((int) v); };
+            sl.setDoubleClickReturnValue (true, sign ? 0.0 : 100.0);
+            sl.onValueChange = [this, &sl, n2, off] { send (n2, jlimit (0, 127, (int) sl.getValue() + off)); };
+        };
+        bar (volS, 0, 127, 0x03, 0, false);
+        bar (tuneS, -64, 63, 0x04, 64, true);
+        bar (shiftS, -64, 63, 0x05, 64, true);
+        bar (panS, -31, 31, 0x06, 32, true);
+        panVoiceBt.setClickingTogglesState (true);
+        panVoiceBt.setTooltip (TRANS ("Use the voice's own pan"));
+        panVoiceBt.onClick = [this]
+        {
+            send (0x06, panVoiceBt.getToggleState() ? 0 : jlimit (1, 63, (int) panS.getValue() + 32));
+            panS.setEnabled (! panVoiceBt.getToggleState());
+        };
+        for (auto* b : { &out1Bt, &out2Bt, &swBt })
+        {
+            b->setClickingTogglesState (true);
+            b->onClick = [this] { sendPacked(); };
+        }
+        out1Bt.setTooltip (TRANS ("Output 1"));
+        out2Bt.setTooltip (TRANS ("Output 2"));
+        swBt.setTooltip (TRANS ("Part switch (bit 6, meaning not confirmed: set on the parts in use)"));
+    }
+
+    void layoutDetail()
+    {
+        auto r = detail.getLocalBounds().reduced (8, 6);
+        detail.tags.clear();
+        auto row1 = r.removeFromTop (28);
+        partLabel.setBounds (row1.removeFromLeft (90));
+        memCombo.setBounds (row1.removeFromLeft (80).reduced (2));
+        numCombo.setBounds (row1.removeFromLeft (90).reduced (2));
+        row1.removeFromLeft (10);
+        const int bw = jmax (28, row1.getWidth() / 3);
+        out1Bt.setBounds (row1.removeFromLeft (jmin (44, bw)).reduced (2));
+        out2Bt.setBounds (row1.removeFromLeft (jmin (44, bw)).reduced (2));
+        swBt.setBounds (row1.removeFromLeft (jmin (56, bw)).reduced (2));
+        r.removeFromTop (4);
+        Slider* bars[4] = { &volS, &tuneS, &shiftS, &panS };
+        const char* names[4] = { "Volume", "Tune", "Note shift", "Pan" };
+        auto row2 = r;
+        auto voiceArea = row2.removeFromRight (70);
+        const int w = row2.getWidth() / 4;
+        for (int i = 0; i < 4; ++i)
+        {
+            auto c = row2.removeFromLeft (w).reduced (3, 0);
+            detail.tags.add ({ TRANS (names[i]), c.removeFromTop (16) });
+            bars[i]->setBounds (c.withSizeKeepingCentre (c.getWidth(), jmin (26, c.getHeight())));
+        }
+        voiceArea.removeFromTop (16);
+        panVoiceBt.setBounds (voiceArea.withSizeKeepingCentre (voiceArea.getWidth() - 4, jmin (26, voiceArea.getHeight())));
+        detail.repaint();
+    }
+
+    /** Partie selectionnee -> controles, SANS envoi. */
+    void syncDetail()
+    {
+        if (! multi.loaded) return;
+        const auto& p = multi.part[sel];
+        partLabel.setText (TRANS ("Part") + " " + String (sel + 1), dontSendNotification);
+        memCombo.setSelectedId (jlimit (0, 3, SyMulti::voiceMem (p)) + 1, dontSendNotification);
+        numCombo.setSelectedId (jlimit (0, 63, SyMulti::voiceNum (p)) + 1, dontSendNotification);
+        volS.setValue   (SyMulti::volume (p), dontSendNotification);
+        tuneS.setValue  (SyMulti::tune (p),   dontSendNotification);
+        shiftS.setValue (SyMulti::shift (p),  dontSendNotification);
+        panVoiceBt.setToggleState (SyMulti::panFromVoice (p), dontSendNotification);
+        panS.setEnabled (! SyMulti::panFromVoice (p));
+        if (! SyMulti::panFromVoice (p)) panS.setValue (SyMulti::pan (p), dontSendNotification);
+        out1Bt.setToggleState (SyMulti::out1 (p), dontSendNotification);
+        out2Bt.setToggleState (SyMulti::out2 (p), dontSendNotification);
+        swBt.setToggleState (SyMulti::ofvcsw (p), dontSendNotification);
+    }
+
+    /** Param-change d'une partie (geste utilisateur) : bus /SYSEX + etat local. */
+    void send (int n2, int v)
+    {
+        if (! multi.loaded) return;
+        const uint8 b[9] = { 0x43, 0x10, 0x34, 0x01, (uint8) sel, 0x00, (uint8) n2, 0x00, (uint8) (v & 0x7F) };
+        sender.sendParam9 ("/SYSEX", b);   // device reecrit au choke-point (MidiSysex.h)
+        multi.part[sel].raw[n2] = (uint8) (v & 0x7F);
+        table.repaintRow (sel);
+    }
+
+    void sendPacked()
+    {
+        send (0x00, SyMulti::packPart (multi.part[sel].raw[0], out1Bt.getToggleState(),
+                                       out2Bt.getToggleState(), swBt.getToggleState()));
+    }
+
+    void selectedRowsChanged (int row) override
+    {
+        if (row < 0 || row >= SyMulti::kParts) return;
+        sel = row;
+        syncDetail();
     }
 
     /** Multis de toutes les banques de la librairie (scan a la demande), groupes par banque. */
@@ -209,6 +351,12 @@ private:
     }
 
     SyMulti::Multi multi;
+    Detail detail;
+    Label partLabel;
+    ComboBox memCombo, numCombo;
+    Slider volS, tuneS, shiftS, panS;
+    TextButton panVoiceBt { TRANS ("voice") }, out1Bt { "1" }, out2Bt { "2" }, swBt { "Sw" };
+    int sel = 0;
     String source;
     TableListBox table;
     TextButton libraryBt { TRANS ("Library multis...") }, requestBt { TRANS ("Request from SY77") };

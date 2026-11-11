@@ -1047,6 +1047,9 @@ struct SysexUtilsTests : public juce::UnitTest
             expect (m.apply (0x00, 0, 0, 0, 0, 'X'));
             expect (m.name.startsWith ("XY MULTI"));
             expect (! m.apply (0x03, 0, 0, 0, 0, 1));
+            // Octet packe : bit 2 (non documente) conserve.
+            expectEquals (SyMulti::packPart (0x44, true, false, true), 0x45);
+            expectEquals (SyMulti::packPart (0x47, false, false, false), 0x04);
             // Dump request : 31 octets, « MU », memoire 00 / n° 4.
             auto rq = SyMulti::dumpRequest (1, 0x00, 4);
             expectEquals (rq.getRawDataSize(), 31);

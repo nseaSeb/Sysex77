@@ -1397,6 +1397,11 @@ namespace SyMulti
     inline bool out1    (const Part& p) { return (p.raw[0] & 0x01) != 0; }
     inline bool out2    (const Part& p) { return (p.raw[0] & 0x02) != 0; }
     inline bool ofvcsw  (const Part& p) { return (p.raw[0] & 0x40) != 0; }   // polarite NON confirmee
+    /** N2 = 0 recompose : OUT1 b0, OUT2 b1, switch b6 ; AUTRES bits gardes (bit 2 non documente). */
+    inline int packPart (int cur, bool o1, bool o2, bool sw)
+    {
+        return ((cur & ~0x43) | (sw ? 0x40 : 0) | (o2 ? 0x02 : 0) | (o1 ? 0x01 : 0)) & 0x7F;
+    }
     /** Code memoire brut + slot A1..D16 (libelle de banque non confirme -> code affiche). */
     inline juce::String voiceLabel (const Part& p)
     {

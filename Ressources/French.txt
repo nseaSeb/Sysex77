@@ -175,3 +175,7 @@ countries: FR
 "voice" = "voix"
 "Library multis..." = "Multis de la bibliothèque..."
 "Request from SY77" = "Demander au SY77"
+"Select a part to edit it - each change is sent to the SY77." = "Sélectionnez une partie pour l'éditer - chaque réglage est envoyé au SY77."
+"Voice memory code (bank meaning not confirmed yet)" = "Code mémoire de la voix (signification de la banque pas encore confirmée)"
+"Use the voice's own pan" = "Utiliser le pan propre à la voix"
+"Part switch (bit 6, meaning not confirmed: set on the parts in use)" = "Interrupteur de partie (bit 6, sens non confirmé : actif sur les parties utilisées)"
