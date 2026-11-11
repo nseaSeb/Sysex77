@@ -822,6 +822,34 @@ public:
         midiSettingsPage->bench.ports.device    = [] { return sysexDeviceNumber; };
         // Rapport ecrit aussi sur disque (lu directement pour l'analyse, sans copier-coller).
         midiSettingsPage->bench.ports.logFile   = getAppSettings()->getFile().getSiblingFile ("testbench.log");
+        midiSettingsPage->bench.ports.libraryDir = appDirPath;
+        // Croisement widgets/decodeur : meme parcours que onReadValues, AUCUN envoi.
+        midiSettingsPage->bench.ports.widgetAddresses = [this]
+        {
+            std::vector<std::array<int, 4>> out;
+            std::function<void(juce::Component*)> walk = [&] (juce::Component* c)
+            {
+                if (auto* tc = dynamic_cast<juce::TabbedComponent*> (c))
+                {
+                    for (int t = 0; t < tc->getNumTabs(); ++t)
+                        if (auto* cc = tc->getTabContentComponent (t)) walk (cc);
+                    return;
+                }
+                for (auto* k : c->getChildren())
+                {
+                    int a[9]; int val = 0; bool ok = false;
+                    if      (auto* s  = dynamic_cast<MidiSlider*>(k)) ok = s->reRead  (a, val);
+                    else if (auto* b  = dynamic_cast<MidiButton*>(k)) ok = b->reRead  (a, val);
+                    else if (auto* cb = dynamic_cast<MidiCombo*> (k)) ok = cb->reRead (a, val);
+                    else if (auto* r  = dynamic_cast<MidiRadio*> (k)) ok = r->reRead  (a, val);
+                    if (ok) out.push_back ({ a[3], a[4], a[5], a[6] });
+                    walk (k);
+                }
+            };
+            for (int i = 0; i < tabs.getNumTabs(); ++i)
+                if (auto* content = tabs.getTabContentComponent (i)) walk (content);
+            return out;
+        };
         midiSettingsPage->bench.ports.preflight = [this]() -> String
         {
             if (! midiSend)   return "sortie MIDI coupee (activer Out)";

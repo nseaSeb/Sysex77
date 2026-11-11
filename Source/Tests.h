@@ -2218,6 +2218,37 @@ public:
         expect (classify (a, with (a, 99, 37), 98, 37).verdict == Verdict::WrongOffset);
         expect (classify (a, with (a, 98, 36), 98, 37).verdict == Verdict::WrongValue);
         expect (classify (a, fakeVoice (341), 98, 37).verdict == Verdict::SizeMismatch);
+
+        beginTest ("lot transplant: plan, then OK / ignored / other value / side effect");
+        {
+            auto sv = with (fakeVoice (466), 32, 0x03);               // 1 AFM poly : decodable
+            auto t  = with (with (with (sv, 98, 50), 99, 3), 100, 70); // ELVL, ELDT, ELNS different
+            const auto plan = planLot (sv, t);
+            expect (plan.compatible);
+            expectEquals (plan.toSend.size(), 3);
+            expect (plan.uncovered > 0);
+            expect (! planLot (sv, with (t, 32, 0x05)).compatible);   // autre type -> refuse
+            // Relu : ELVL exact, ELDT ignore (reste a 0), ELNS autre valeur, + effet de bord @101.
+            auto after = with (with (with (sv, 98, 50), 100, 71), 101, 9);
+            const auto r = checkLot (sv, plan, after);
+            expectEquals (r.ok, 1);
+            expectEquals (r.ignored, 1);
+            expectEquals (r.other, 1);
+            expectEquals (r.sideEffects.size(), 1);
+        }
+
+        beginTest ("multiPicks covers each VMEM code and switch state once");
+        {
+            juce::Array<SyMulti::Multi> ms;
+            SyMulti::Multi m; m.loaded = true;
+            for (int p = 0; p < SyMulti::kParts; ++p) { m.part[p].raw[0] = 0x40; m.part[p].raw[1] = 0; }
+            m.part[3].raw[1] = 1; m.part[7].raw[0] = 0x04;
+            ms.add (m);
+            const auto picks = multiPicks (ms);
+            expectEquals (picks.size(), 3);                          // part 1 (VMEM0,bit6=1,bit2=0), 4 (VMEM1), 8 (bit6=0,bit2=1)
+            expectEquals (picks[1].part, 3);
+            expectEquals (picks[2].part, 7);
+        }
     }
 };
 
