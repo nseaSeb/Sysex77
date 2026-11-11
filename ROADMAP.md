@@ -113,6 +113,11 @@ Sortir de `MidiDemo` (2000+ lignes) la session d'édition de la voix ouverte (hi
 ---
 
 ## Journal
+- **2026-11-11 (v1.8.0 — release : éditeur de Multi, organisation des banques)** — Release minor.
+  Depuis v1.7.0 : onglet Multi complet (lecture, édition des parties, nom, envoi au tampon
+  d'édition avec confirmation, mode MULTI de la librairie), isolation des messages Multi de
+  l'historique voix, organisation des banques (renumérotation + checksum, Multi suivis, règle
+  banque D, .bak), correction de la copie de preset (ancien numéro de slot).
 - **2026-11-11 (Multi terminé côté app)** — Étape 2 : édition de la partie sélectionnée (voix code/slot, volume, tune, shift, pan/pan voix, sorties, switch ; G 0x01, octet packé `SyMulti::packPart`), nom éditable (G 0x00 MNAM, Entrée), bouton « Envoyer au SY77 » (bulk 8101MU vers l'edit buffer $7F, confirmation, `SyMulti::encodeForEditBuffer`), mode MULTI de la librairie, cache du menu. Effets du Multi en lecture seule (réception non documentée). Tout 🟡 : à vérifier sur le SY77 (ordre VMEM, réception $7F, polarité switch).
 - **2026-11-11 (Multi, étape 1 : lecture seule)** — Phase 0 : groupes 0x00/0x01 exclus de l'historique voix, canal RX dédié `valueMultiIn`, suivi du synthé vers l'onglet Multi. `SyMulti` (SysexUtils.h) décode les blocs 8101MU (layout vérifié sur 346 dumps). Onglet **Multi** (index 5, `MultiPage.h`) : 16 parties en tableau, ouverture depuis la librairie ou dump request INT 1-16 (clic). Aucun envoi de param/bulk. RESTE : étape 2 édition ; ordre VMEM, polarité OFVCSW (bit 6 = 1 sur les parties utilisées dans les dumps), $7F edit buffer, effets via G 0x08 — à vérifier sur le SY77.
 - **2026-11-11 (v1.7.0 — release : éditeur de voix Drum, Bulk Protect mémorisé)** — Release minor.

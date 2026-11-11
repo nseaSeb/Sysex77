@@ -58,6 +58,14 @@ Inspiré, côté fonctionnalités, de l'éditeur *SynthWorks SY77*.
 - **Éditeur de voix Drum** : tableau des 61 touches (C1..C6) avec onde, volume, accord,
   transposition, pan, sorties et groupe alterné en barres comparables, et panneau d'édition de la
   touche sélectionnée (bouton *Play* pour l'écouter ; annuler/rétablir et A/B inclus).
+- **Éditeur de Multi** (onglet Multi) : 16 parties en tableau (voix, volume, accord,
+  transposition, pan, sorties) et édition de la partie sélectionnée, nom éditable, ouverture depuis
+  la bibliothèque (bouton MULTI) ou demande au SY77, envoi du Multi complet au tampon d'édition
+  (avec confirmation). Les réglages Multi ne passent jamais par l'annulation des voix.
+- **Organisation des banques** (clic droit sur une voix) : dupliquer, déplacer, échanger,
+  remplacer par une voix Init, copier vers une banque — numéros d'emplacement et checksums
+  recalculés, Multi de la banque mis à jour, voix à 4 éléments limitées à la banque D,
+  tags/notes conservés, sauvegarde `.bak`.
 - **Cartes d'ondes AWM** : noms d'ondes des cartouches (W77xx pré-remplies) éditables dans
   *Setting > Wave cards...*.
 - **Mode développeur** : vue hexa d'un preset de la librairie avec l'interprétation de chaque octet
@@ -217,7 +225,11 @@ stay SY77-only); voice-type badges (1AFM/2AWM/DRUM...), broken presets flagged r
 show voices only. Fuller dump loading (effects, LFO, AFM/AWM filters, operator rate scaling,
 element common, AWM wave source, Drum voices), a **Drum voice editor** (61-key table with wave,
 volume, tune, shift, pan, outputs and alternate group, plus an edit panel for the selected key with
-a Play button; undo and A/B included), Bulk Protect remembered and re-sent at startup when off,
+a Play button; undo and A/B included), a **Multi editor** (16-part table, edit the selected part,
+editable name, open from the library MULTI view or request from the SY77, confirmed full send to
+the edit buffer), **bank organisation** (right-click: duplicate, move, swap, replace with Init,
+copy to bank; slots and checksums rewritten, the bank's multis follow, 4-element voices kept in
+bank D, tags preserved, .bak backup), Bulk Protect remembered and re-sent at startup when off,
 editable AWM wave-card name tables, and a
 developer-mode preset hex view (right-click / Cmd+Shift+H). **Built-in updater**: checks GitHub Releases on launch and can download + install
 the new version automatically (macOS; opt-out in *Setting*; opens the release page on Windows/Linux). Some editor edits are state-only for
