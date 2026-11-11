@@ -26,3 +26,4 @@
 #include "tests/VoiceSessionHelpersTests.h"
 #include "tests/VoiceSessionTests.h"
 #include "tests/TestBenchTests.h"
+#include "tests/MidiMonitorTests.h"

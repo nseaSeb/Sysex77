@@ -154,6 +154,7 @@ struct VoiceNavArrow : public Button
     const bool left;
 };
 
+#include "MidiMonitor.h"        // rendu texte du moniteur MIDI
 #include "MidiSettingsPage.h"   // onglet Midi Setting (mode developpeur)
 
 //==============================================================================
@@ -1092,58 +1093,10 @@ private:
     {
         return Array<var>(values...);
     }
-    // Octets bruts d'un message MIDI en hex ("F0 43 10 …"). Sysex inclut F0/F7.
-    static String midiBytesToHex (const MidiMessage& m)
-    {
-        const uint8* d = m.getRawData();
-        const int n = m.getRawDataSize();
-        String s;
-        for (int i = 0; i < n; ++i)
-            s << String::toHexString (d[i]).paddedLeft ('0', 2).toUpperCase() << (i + 1 < n ? " " : "");
-        return s;
-    }
-
-    // Rend UNE ligne de moniteur pour un message, selon le mode courant (brut/décodé).
-    // Retourne false si le message doit être OMIS (bruit filtré, ou dédup en mode décodé).
-    // `dedup` porte l'état de dédup entre appels (en mode décodé : une ligne par adresse).
+    // Une ligne de moniteur (logique pure dans MidiMonitor.h), avec l'etat courant.
     bool formatMonitorLine (const MidiMessage& message, String& out, String& dedup)
     {
-        // --- Mode BRUT : chaque message en hex, AUCUNE déduplication (on veut tout voir).
-        if (monitorRaw)
-        {
-            out << midiBytesToHex (message) << "\n";
-            return true;
-        }
-
-        // --- Mode DÉCODÉ : param-change SY77 9 octets -> G/AH/AL/P/val, dédup par adresse.
-        if (message.getSysExDataSize() == 9)
-        {
-            const uint8* d = message.getSysExData();
-            if (d[0] == 0x43 && d[2] == 0x34
-                && SyVoice::acceptsDevice (d[1], sysexDeviceNumber, sysexReceiveOmni))
-            {
-                const String key = String (d[3]) + "." + String (d[4]) + "."
-                                 + String (d[5]) + "." + String (d[6]);
-                if (key == dedup) return false;          // même adresse que la précédente -> omise
-                dedup = key;
-                auto hx = [] (int v) { return String::toHexString (v).paddedLeft ('0', 2); };
-                out << ">> SY77  G=" << hx (d[3])
-                    << "  AH=" << hx (d[4]) << "  AL=" << hx (d[5])
-                    << "  P="  << hx (d[6])
-                    << "   val=" << (int) d[8] << " (0x" << hx (d[8]) << ")\n";
-                return true;
-            }
-            return false; // sysex 9 octets non-SY77 : pas de description brute en mode décodé
-        }
-
-        // Bruit filtré pour la RE : CC data-entry, program change, horloge, active-sense, transport.
-        if (message.isController() || message.isProgramChange() || message.isMidiClock()
-            || message.isActiveSense() || message.isMidiStart() || message.isMidiContinue()
-            || message.isMidiStop() || message.isSongPositionPointer())
-            return false;
-
-        out << message.getDescription() << "\n";
-        return true;
+        return SyMonitor::formatLine (message, monitorRaw, sysexDeviceNumber, sysexReceiveOmni, out, dedup);
     }
 
     // Re-rend tout le moniteur depuis l'historique borné (ex. au changement Raw/Interprété).
