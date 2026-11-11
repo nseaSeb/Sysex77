@@ -34,12 +34,11 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
     {
         // Quadratic Mixture STORE : meme ecriture sure (.bak + fichier temporaire) que les outils
         // de banque, puis reindexation et rafraichissement de la liste.
-        MixtureView::bankWriter() = [safe = Component::SafePointer<LibrairiePage> (this)] (const File& f, const MemoryBlock& d)
+        MixtureView::bankAppender() = [safe = Component::SafePointer<LibrairiePage> (this)]
+            (const File& f, const MemoryBlock& v, bool padBankD)
         {
-            if (! writeBankSafely (f, d)) return false;
-            LibraryIndex::get().refreshBank (f);
-            if (safe != nullptr) safe->bankList.loadBank();
-            return true;
+            if (safe == nullptr) return MixtureView::AppendResult { TRANS ("Library not available") };
+            return safe->appendVoiceToBank (f, v, padBankD);
         };
 
         setOpaque(false);
@@ -842,26 +841,52 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         if (! name.endsWithIgnoreCase (".syx")) name += ".syx";
         File target = appDirPath.getChildFile (File::createLegalFileName (name));
 
+        const auto r = appendVoiceToBank (target, block, false);
+        if (r.error.isNotEmpty()) { showBankError (r.error); return; }
+        labelInfoLine.removeColour (Label::textColourId);
+        labelInfoLine.setText (TRANS("Preset copie vers ") + target.getFileName(), dontSendNotification);
+    }
+
+    /** Ajoute une voix en fin de banque (cree le fichier si besoin), ecriture sure, reindexe,
+        rafraichit. padBankD : complete A1..C16 avec INIT pour une voix 4 elements (accord
+        demande par l'appelant). Partage par "Copier vers une banque" et Quadratic Mixture. */
+    MixtureView::AppendResult appendVoiceToBank (const File& target, const MemoryBlock& block, bool padBankD)
+    {
+        MixtureView::AppendResult res;
         MemoryBlock existing;
         if (target.existsAsFile()) target.loadFileAsData (existing);
         auto bank = SyBank::Bank::parse (existing.getData(), existing.getSize());
         MemoryBlock out;
         if (SyBank::isVoiceBlock (block))
         {
+            if (padBankD && SyBank::needsBankD (SyBank::typeOf (block)))
+                while (bank.numVoices() < SyBank::kFirstD)
+                {
+                    const auto init = VoiceTemplates::make (0);
+                    if (init.getSize() == 0 || SyBank::append (bank, init).error.isNotEmpty()) break;
+                    ++res.padded;
+                }
             const auto r = SyBank::append (bank, block);
-            if (r.error.isNotEmpty()) { showBankError (r.error); return; }
+            if (r.error.isNotEmpty()) { res.error = r.error; return res; }
+            res.pos = bank.numVoices() - 1;
             out = bank.serialize();
         }
-        else   // preset d'un autre synthe : ajout brut (comportement d'avant, rien a renumeroter)
+        else   // preset d'un autre synthe : ajout brut (rien a renumeroter)
         {
             out = existing;
             out.append (block.getData(), block.getSize());
         }
-        if (! writeBankSafely (target, out)) { showBankError (TRANS ("Could not write the bank file.")); return; }
-        LibraryIndex::get().refreshBank (target);   // réindexe la banque cible
-        bankList.loadBank();
-        labelInfoLine.removeColour (Label::textColourId);
-        labelInfoLine.setText (TRANS("Preset copie vers ") + target.getFileName(), dontSendNotification);
+        if (! writeBankSafely (target, out)) { res.error = TRANS ("Could not write the bank file."); return res; }
+        LibraryIndex::get().refreshBank (target);
+        const String rel = LibraryIndex::get().relPathOf (target);
+        if (rel.isNotEmpty() && rel == currentBankRelPath)
+        {
+            clearInspector();
+            bankList.loadBankByRelPath (rel);   // banque affichee : contenu + liste rechargees
+        }
+        else
+            bankList.loadBank();
+        return res;
     }
 
     void buttonClicked (Button* button) override

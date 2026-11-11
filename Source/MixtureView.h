@@ -6,6 +6,7 @@
 #pragma once
 #include "SysexMix.h"
 #include "Templates.h"
+#include <map>
 
 class MixturePad : public juce::Component
 {
@@ -68,6 +69,13 @@ public:
         if (auto* top = inst->getTopLevelComponent()) top->toFront (true);
     }
 
+    /** Ferme la fenetre (fin de l'application : evite fuite + reference au LookAndFeel). */
+    static void closeAll()
+    {
+        if (auto* v = instance().getComponent())
+            if (auto* w = v->findParentComponentOfClass<Window>()) delete w;
+    }
+
     void setCorner (int i, const juce::MemoryBlock& voice, const juce::String& label)
     {
         if (i < 0 || i > 3) return;
@@ -120,7 +128,9 @@ private:
         status.setJustificationType (juce::Justification::centred);
         addAndMakeVisible (status);
         nameEd.setText ("Mixture", false);
-        nameEd.setInputRestrictions (10);
+        juce::String printable;   // nom de voix SY77 = ASCII 32..126 (pas d'accents)
+        for (char c = 32; c < 127; ++c) printable += juce::String::charToString ((juce::juce_wchar) c);
+        nameEd.setInputRestrictions (10, printable);
         nameEd.setTooltip (TRANS ("Name of the mixed voice"));
         addAndMakeVisible (nameEd);
         testBt.setTooltip (TRANS ("Open the mixed voice in the editor and the SY77 edit buffer (like a library audition)"));
@@ -155,10 +165,11 @@ private:
     };
 
 public:
-    /** Ecriture d'une banque de la librairie (fournie par LibrairiePage : ecriture sure +
-        reindexation + rafraichissement). false = echec, rien d'ecrit. */
-    static std::function<bool (const juce::File&, const juce::MemoryBlock&)>& bankWriter()
-    { static std::function<bool (const juce::File&, const juce::MemoryBlock&)> f; return f; }
+    /** Ajout d'une voix a une banque de la librairie : fourni par LibrairiePage (meme code que
+        "Copier vers une banque" : ecriture sure, reindexation, rafraichissement). */
+    struct AppendResult { juce::String error; int pos = -1; int padded = 0; };
+    using Appender = std::function<AppendResult (const juce::File&, const juce::MemoryBlock&, bool padBankD)>;
+    static Appender& bankAppender() { static Appender f; return f; }
 private:
 
     void chooseCorner (int i)
@@ -186,7 +197,17 @@ private:
         const bool ok = why.isEmpty();
         testBt.setEnabled (ok); storeBt.setEnabled (ok);
         if (! ok) { status.setText (TRANS (why), juce::dontSendNotification); result = {}; return; }
-        if (! mapValid) { map = SyMix::buildOffsetMap (corners[0]); decoded = SyMix::decodeAll (corners); mapValid = true; }
+        if (! mapValid)
+        {
+            // La carte ne depend que de la disposition (type + taille) : calculee une fois par session.
+            static std::map<std::pair<int, size_t>, SyMix::OffsetMap> cache;
+            const auto key = std::make_pair (SyBank::typeOf (corners[0]), corners[0].getSize());
+            auto it = cache.find (key);
+            if (it == cache.end()) it = cache.emplace (key, SyMix::buildOffsetMap (corners[0])).first;
+            map = it->second;
+            decoded = SyMix::decodeAll (corners);
+            mapValid = true;
+        }
         result = SyMix::mix (corners, decoded, pad.pos.x, pad.pos.y, map, nameEd.getText());
         const auto w = SyMix::weights (pad.pos.x, pad.pos.y);
         status.setText (TRANS ("Base") + ": " + cornerBt[result.base].getButtonText() + "   |   "
@@ -206,36 +227,41 @@ private:
     void store()
     {
         refresh();
-        if (result.block.getSize() == 0) return;
-        auto f = appDirPath.getChildFile ("Mixtures.syx");
-        juce::MemoryBlock data;
-        if (f.existsAsFile()) f.loadFileAsData (data);
-        auto bank = SyBank::Bank::parse (data.getData(), data.getSize());
-        // Voix 4 elements : seulement en banque D (D1..D16). Banque trop courte -> on complete
-        // A1..C16 avec la voix INIT (modele 0), signale dans le statut.
-        int padded = 0;
+        if (result.block.getSize() == 0 || ! bankAppender()) return;
+        const auto f = appDirPath.getChildFile ("Mixtures.syx");
+        // Voix 4 elements : seulement en banque D. Si Mixtures.syx a moins de 48 voix, il faut
+        // completer A1..C16 avec des voix INIT : jamais sans accord (un envoi de cette banque au
+        // synthe ecraserait ces slots).
+        int missing = 0;
         if (SyBank::needsBankD (SyBank::typeOf (result.block)))
-            while (bank.numVoices() < SyBank::kFirstD)
+        {
+            juce::MemoryBlock data;
+            if (f.existsAsFile()) f.loadFileAsData (data);
+            missing = juce::jmax (0, SyBank::kFirstD - SyBank::Bank::parse (data.getData(), data.getSize()).numVoices());
+        }
+        if (missing == 0) { doStore (f, result.block, false); return; }
+        auto block = result.block;
+        juce::AlertWindow::showOkCancelBox (juce::MessageBoxIconType::QuestionIcon, TRANS ("Store"),
+            TRANS ("4-element voices can only go to bank D (D1-D16).") + "\n"
+              + juce::String (missing) + " " + TRANS ("INIT voices will be added to Mixtures.syx first (up to C16).") + "\n"
+              + TRANS ("Sending this bank to the synth would overwrite those slots with INIT."),
+            TRANS ("Add"), TRANS ("Cancel"), nullptr,
+            juce::ModalCallbackFunction::create ([self = juce::Component::SafePointer<MixtureView> (this), f, block] (int r)
             {
-                const auto init = VoiceTemplates::make (0);
-                if (init.getSize() == 0 || SyBank::append (bank, init).error.isNotEmpty()) break;
-                ++padded;
-            }
-        const auto r = SyBank::append (bank, result.block);
+                if (r == 1 && self != nullptr) self->doStore (f, block, true);
+            }));
+    }
+
+    void doStore (const juce::File& f, const juce::MemoryBlock& block, bool padBankD)
+    {
+        const auto r = bankAppender() (f, block, padBankD);
         if (r.error.isNotEmpty())
         {
             juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon, TRANS ("Store"), r.error);
             return;
         }
-        const auto out = bank.serialize();
-        const bool written = bankWriter() ? bankWriter() (f, out) : f.replaceWithData (out.getData(), out.getSize());
-        if (! written)
-        {
-            juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon, TRANS ("Store"), TRANS ("Cannot write") + " " + f.getFullPathName());
-            return;
-        }
-        status.setText (TRANS ("Stored in") + " Mixtures.syx (" + SyBank::slotName (bank.numVoices() - 1) + ")"
-                        + (padded > 0 ? "  -  " + TRANS ("A1-C16 filled with INIT (4-element voices go to bank D)") : juce::String()),
+        status.setText (TRANS ("Stored in") + " Mixtures.syx (" + SyBank::slotName (r.pos) + ")"
+                        + (r.padded > 0 ? "  -  " + juce::String (r.padded) + " INIT" : juce::String()),
                         juce::dontSendNotification);
     }
 

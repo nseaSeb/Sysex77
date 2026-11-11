@@ -195,6 +195,7 @@ public:
     }
     void shutdown() override
     {
+        MixtureView::closeAll();   // fenetre non modale : detruite avant la fenetre principale
         mainWindow = nullptr;
         // Save + delete the PropertiesFile (it owns a Timer) while JUCE is still alive:
         // left to static destruction it touches the dead TimerThread (crash 0xC0000005 on Windows).

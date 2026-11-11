@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <deque>
 #include "SysexMix.h"
 #include <map>
@@ -308,7 +309,16 @@ struct TestBenchPanel : public juce::Component, private juce::Timer
         steps.clear();
         stopTimer();
         running = listening = false;
+        if (refScan != nullptr) refScan->cancel = true;
         say ("-- interrompu (" + why + ")");
+        if (lotSlotDirty)
+        {
+            lotSlotDirty = false;
+            const auto msg = "Slot INT " + SyBank::slotName (lotSlot) + " NON restaure (il contient la voix de test). Sauvegarde : "
+                           + lotBakFile.getFullPathName() + " (l'ouvrir dans la librairie et l'envoyer au slot).";
+            say ("!! " + msg);
+            juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon, "Banc de test", msg);
+        }
         refreshButtons();
         warnIfEditBufferTouched();
         closeLog();
@@ -397,6 +407,7 @@ private:
                                  (juce::Button*) &btC, (juce::Button*) &btLot, (juce::Button*) &btCross,
                                  (juce::Button*) &btMulti })
             b->setEnabled (! running);
+        btCross.setEnabled (! running && ! crossBusy);
         btStop.setEnabled (running);
     }
 
@@ -417,6 +428,7 @@ private:
 
     void finish()
     {
+        lotSlotDirty = false;   // chaque sortie de LOT apres STORE dit deja ce qu'il en est du slot
         steps.clear();
         stopTimer();
         running = listening = waiting = false;
@@ -463,7 +475,8 @@ private:
         if (act) act();
         if (! running) return;            // l'action a pu terminer/avorter la sonde
         if (steps.empty()) { finish(); return; }
-        stepDeadline = now + (juce::uint32) wait;
+        // Delai compte APRES l'action : une action lente ne mange pas son propre temps d'attente.
+        stepDeadline = juce::Time::getMillisecondCounter() + (juce::uint32) wait;
         waiting = true;
     }
 
@@ -711,26 +724,33 @@ private:
         } };
     }
 
-    /** Voix de la librairie (meme type et taille que s), celle qui couvre le plus de params. */
-    juce::MemoryBlock pickReference (const juce::MemoryBlock& s, int& covered, int& scanned)
+    /** Recherche de la voix de reference, hors thread message (la librairie peut etre grosse). */
+    struct RefScan
     {
-        covered = scanned = 0;
+        std::atomic<bool> done { false }, cancel { false };
         juce::MemoryBlock best;
-        if (ports.libraryDir == juce::File()) return best;
+        int covered = 0, scanned = 0;
+    };
+    std::shared_ptr<RefScan> refScan;
+
+    /** Voix de la librairie (meme type et taille que s), celle qui couvre le plus de params. */
+    static void scanReference (RefScan& st, const juce::File& dir, const juce::MemoryBlock& s)
+    {
+        if (dir == juce::File()) return;
         const auto ms = SyBench::paramMap (s);
-        for (auto& f : ports.libraryDir.findChildFiles (juce::File::findFiles, true, "*.syx"))
+        for (auto& f : dir.findChildFiles (juce::File::findFiles, true, "*.syx"))
         {
             juce::MemoryBlock data;
-            if (f.getSize() > 4 * 1024 * 1024 || ! f.loadFileAsData (data)) continue;
+            if (st.cancel || f.getSize() > 4 * 1024 * 1024 || ! f.loadFileAsData (data)) continue;
             for (auto& v : SyBank::Bank::parse (data.getData(), data.getSize()).voices)
             {
+                if (st.cancel) return;
                 if (v.getSize() != s.getSize() || SyBank::typeOf (v) != SyBank::typeOf (s)) continue;
-                if (++scanned > 4000) return best;
+                if (++st.scanned > 4000) return;
                 const auto plan = SyBench::planLot (ms, s, v);
-                if (plan.toSend.size() > covered) { covered = plan.toSend.size(); best = v; }
+                if (plan.toSend.size() > st.covered) { st.covered = plan.toSend.size(); st.best = v; }
             }
         }
-        return best;
     }
 
     //--------------------------------------------------------------------------
@@ -738,6 +758,8 @@ private:
     juce::MemoryBlock lotBackup, lotRef, lotAfter;
     SyBench::LotPlan lotPlan;
     int lotSlot = 63;
+    bool lotSlotDirty = false;   // STORE confirme, restauration pas encore confirmee
+    juce::File lotBakFile;
 
     void runLot (int slot)
     {
@@ -752,10 +774,20 @@ private:
             say ("LOT slot " + SyBank::slotName (lotSlot) + " : " + voiceInfo (lotBackup));
             const auto bak = saveBlock (lotBackup, "backup_" + SyBank::slotName (lotSlot));
             if (bak == juce::File()) { say ("LOT ARRET : sauvegarde sur disque impossible (" + outDir().getFullPathName() + "). Rien n'a ete envoye."); finish(); return; }
+            lotBakFile = bak;
             say ("LOT sauvegarde : " + bak.getFullPathName());
             say ("    (en cas de souci : ouvrir ce .syx dans la librairie et l'envoyer au slot)");
-            int covered = 0, scanned = 0;
-            lotRef = pickReference (lotBackup, covered, scanned);
+            say ("LOT recherche d'une voix de reference dans la librairie...");
+            refScan = std::make_shared<RefScan>();
+            juce::Thread::launch ([st = refScan, dir = ports.libraryDir, s = lotBackup]
+                                  { scanReference (*st, dir, s); st->done = true; });
+        }, 120000, [this] { return refScan != nullptr && refScan->done.load(); } });
+        steps.push_back ({ [this]
+        {
+            if (refScan == nullptr || ! refScan->done) { say ("LOT KO : recherche de reference trop longue. Rien envoye."); finish(); return; }
+            lotRef = refScan->best;
+            const int scanned = refScan->scanned;
+            refScan.reset();
             if (lotRef.getSize() == 0) { say ("LOT KO : aucune voix de meme type dans la librairie (" + juce::String (scanned) + " examinees)."); finish(); return; }
             lotPlan = SyBench::planLot (lotBackup, lotRef);
             say ("LOT reference : " + voiceInfo (lotRef) + " (" + juce::String (scanned) + " candidates)");
@@ -777,6 +809,7 @@ private:
         steps.push_back ({ [this]
         {
             if (! answerOk) { say ("LOT annule avant STORE : rien n'a ete ecrit (re-selectionner la voix sur le synthe)."); finish(); return; }
+            lotSlotDirty = true;
             rx.clear(); lastRxMs = 0;
             send (SyVoice::voiceDumpRequest (dev(), 0x00, (juce::uint8) lotSlot));
         }, 2500, [this] { return lastVoiceBulk().getSize() > 0 && juce::Time::getMillisecondCounter() - lastRxMs > 250; } });
@@ -788,6 +821,7 @@ private:
             if (SyBench::diffOffsets (lotAfter, lotBackup).isEmpty())
             {
                 say ("LOT ATTENTION : le slot n'a pas change. Le STORE est-il alle dans un AUTRE slot ? (verifier ; rien n'est restaure)");
+                say ("    sauvegarde du slot : " + lotBakFile.getFullPathName());
                 finish(); return;
             }
             reportLot (SyBench::checkLot (lotBackup, lotPlan, lotAfter));
@@ -801,7 +835,7 @@ private:
             if (back.getSize() > 0 && SyBench::diffOffsets (back, lotBackup).isEmpty())
                 say ("LOT restauration OK : slot " + SyBank::slotName (lotSlot) + " identique a la sauvegarde.");
             else
-                say ("LOT ATTENTION : restauration NON confirmee. Renvoyer la sauvegarde du dossier bench au slot.");
+                say ("LOT ATTENTION : restauration NON confirmee. Renvoyer au slot la sauvegarde " + lotBakFile.getFullPathName());
         }, 0, nullptr });
         go();
     }
@@ -835,46 +869,62 @@ private:
 
     //--------------------------------------------------------------------------
     // X : croisement widgets <-> decodeur, hors synthe.
+    bool crossBusy = false;
     void runCrossCheck()
     {
-        if (running) return;
+        if (running || crossBusy) return;
         say (""); say ("=== X  croisement widgets / decodeur");
         if (! ports.widgetAddresses) { say ("X  indisponible."); return; }
-        std::set<juce::int64> wid, dec;
+        std::set<juce::int64> wid;
         for (auto& a : ports.widgetAddresses())
             if (a[0] != 0x7F)   // groupe sentinelle 0x7F = widget a envoi manuel (ex. EGOS 2 octets)
                 wid.insert (SyBench::keyOf (a[0], a[1], a[2], a[3]));
-        // Decodeur : union sur une voix reelle de chaque type (0..10) de la librairie.
-        std::set<int> typesSeen;
-        if (ports.libraryDir != juce::File())
-            for (auto& f : ports.libraryDir.findChildFiles (juce::File::findFiles, true, "*.syx"))
-            {
-                if (typesSeen.size() >= 11) break;
-                juce::MemoryBlock data;
-                if (f.getSize() > 4 * 1024 * 1024 || ! f.loadFileAsData (data)) continue;
-                for (auto& v : SyBank::Bank::parse (data.getData(), data.getSize()).voices)
-                    if (const int ty = SyBank::typeOf (v); ty >= 0 && ty <= 10 && typesSeen.insert (ty).second)
-                        for (auto& [k, p] : SyBench::paramMap (v)) dec.insert (k);
-            }
-        juce::StringArray types; for (int t : typesSeen) types.add (juce::String (t));
-        int both = 0;
-        juce::String csv ("side,group,addrHi,addrLo,param\n");
-        juce::Array<juce::int64> wOnly, dOnly;
-        for (auto k : wid) { if (dec.count (k)) ++both; else wOnly.add (k); }
-        for (auto k : dec) if (! wid.count (k)) dOnly.add (k);
-        auto row = [] (const char* side, juce::int64 k)
+        crossBusy = true;
+        btCross.setEnabled (false);
+        say ("X  lecture de la librairie...");
+        // Decodeur : union sur une voix reelle de chaque type (0..10) de la librairie, hors thread message.
+        juce::Thread::launch ([self = juce::Component::SafePointer<TestBenchPanel> (this), dir = ports.libraryDir,
+                               out = outDir(), wid = std::move (wid)]
         {
-            return juce::String (side) + "," + juce::String ((int) (k >> 24) & 0xFF) + "," + juce::String ((int) (k >> 16) & 0xFF) + ","
-                 + juce::String ((int) (k >> 8) & 0xFF) + "," + juce::String ((int) k & 0xFF) + "\n";
-        };
-        for (auto k : wOnly) csv << row ("widget_seul", k);
-        for (auto k : dOnly) csv << row ("decodeur_seul", k);
-        auto f = outDir().getChildFile ("crosscheck.csv");
-        f.replaceWithText (csv);
-        say ("X  widgets : " + juce::String ((int) wid.size()) + " adresses ; decodeur : " + juce::String ((int) dec.size())
-             + " (types " + types.joinIntoString (",") + ")");
-        say ("X  communes " + juce::String (both) + " ; widget seul " + juce::String (wOnly.size())
-             + " ; decodeur seul " + juce::String (dOnly.size()) + " -> " + f.getFullPathName());
+            std::set<juce::int64> dec;
+            std::set<int> typesSeen;
+            if (dir != juce::File())
+                for (auto& f : dir.findChildFiles (juce::File::findFiles, true, "*.syx"))
+                {
+                    if (typesSeen.size() >= 11) break;
+                    juce::MemoryBlock data;
+                    if (f.getSize() > 4 * 1024 * 1024 || ! f.loadFileAsData (data)) continue;
+                    for (auto& v : SyBank::Bank::parse (data.getData(), data.getSize()).voices)
+                        if (const int ty = SyBank::typeOf (v); ty >= 0 && ty <= 10 && typesSeen.insert (ty).second)
+                            for (auto& [k, p] : SyBench::paramMap (v)) dec.insert (k);
+                }
+            juce::StringArray types; for (int t : typesSeen) types.add (juce::String (t));
+            int both = 0;
+            juce::String csv ("side,group,addrHi,addrLo,param\n");
+            juce::Array<juce::int64> wOnly, dOnly;
+            for (auto k : wid) { if (dec.count (k)) ++both; else wOnly.add (k); }
+            for (auto k : dec) if (! wid.count (k)) dOnly.add (k);
+            auto row = [] (const char* side, juce::int64 k)
+            {
+                return juce::String (side) + "," + juce::String ((int) (k >> 24) & 0xFF) + "," + juce::String ((int) (k >> 16) & 0xFF) + ","
+                     + juce::String ((int) (k >> 8) & 0xFF) + "," + juce::String ((int) k & 0xFF) + "\n";
+            };
+            for (auto k : wOnly) csv << row ("widget_seul", k);
+            for (auto k : dOnly) csv << row ("decodeur_seul", k);
+            auto f = out.getChildFile ("crosscheck.csv");
+            f.replaceWithText (csv);
+            const juce::String l1 = "X  widgets : " + juce::String ((int) wid.size()) + " adresses ; decodeur : " + juce::String ((int) dec.size())
+                                  + " (types " + types.joinIntoString (",") + ")";
+            const juce::String l2 = "X  communes " + juce::String (both) + " ; widget seul " + juce::String (wOnly.size())
+                                  + " ; decodeur seul " + juce::String (dOnly.size()) + " -> " + f.getFullPathName();
+            juce::MessageManager::callAsync ([self, l1, l2]
+            {
+                if (self == nullptr) return;
+                self->say (l1); self->say (l2);
+                self->crossBusy = false;
+                self->refreshButtons();
+            });
+        });
     }
 
     //--------------------------------------------------------------------------
