@@ -1,0 +1,1173 @@
+// Tests unitaires : SysexUtils (inclus par Source/Tests.h, ordre d'enregistrement conserve).
+#pragma once
+
+//==============================================================================
+struct SysexUtilsTests : public juce::UnitTest
+{
+    // Contrôleurs voix commune N2 0x28..0x3D décodés de chaque dump (d[32 + N2]).
+    static constexpr int kCtrl = 0x3D - 0x28 + 1;   // 22
+    static constexpr int kFx = 0x1C + 1;            // effets group 0x08 N2 0x00..0x1C (29)
+    static constexpr int kElemCom = 8;              // element commun group 0x03 N2 0x01..0x08
+    static constexpr int kFilt = 2 * (1 + 5 + 4) + 2;  // FTYPE, FRS, BP1-4, FOS1-4 x2 filtres + FVSON/FCMS
+    static constexpr int kAfmLfo = 14;              // PEG range/RS + Main LFO 0x0D-13 + Sub LFO 0x15-19
+    // Par élément AWM : N2 0x02..0x18 (23) + HOLD, PARS, BP1-4, VEL, ARVSW, AMS (9).
+    static constexpr int kAwmExtra = 1 + 23 + 9 + 4 + 2 * (21 + 4) + 3;   // + WSOURCE   // + filtres AWM (2 x (N2 0x00-0x14 + FOS1-4) + commun)   // + PAOS1-4 (o/b2)
+    SysexUtilsTests() : juce::UnitTest ("SysexUtils") {}
+
+    // Construit un faux dump : pour chaque voix, 0xF0 puis 32 octets, puis 10 chars de nom.
+    static void appendFakeVoice (juce::MemoryBlock& mb, const char* name10)
+    {
+        juce::uint8 header[33] = { 0xF0 }; // 0xF0 + 32 octets à zéro -> nom à l'offset 33
+        mb.append (header, sizeof (header));
+        mb.append (name10, 10);
+    }
+
+    void runTest() override
+    {
+        beginTest ("extractVoiceNames reads names at offset 33");
+        {
+            juce::MemoryBlock mb;
+            appendFakeVoice (mb, "GrandPiano");
+            appendFakeVoice (mb, "Arianne   ");
+
+            auto names = SyVoice::extractVoiceNames ((const juce::uint8*) mb.getData(), mb.getSize());
+            expectEquals (names.size(), 2);
+            expectEquals (names[0], juce::String ("GrandPiano"));
+            expectEquals (names[1].trim(), juce::String ("Arianne"));
+        }
+
+        beginTest ("extractVoiceNames truncated buffer is bounds-safe");
+        {
+            const juce::uint8 truncated[] = { 0xF0, 0x43, 0x10 }; // 0xF0 mais pas la place du nom
+            auto names = SyVoice::extractVoiceNames (truncated, sizeof (truncated));
+            expect (names.isEmpty());
+        }
+
+        beginTest ("extractVoiceNames null input");
+        {
+            expect (SyVoice::extractVoiceNames (nullptr, 0).isEmpty());
+        }
+
+        beginTest ("getVoiceBlock extracts the Nth F0..F7 block");
+        {
+            const juce::uint8 syx[] = {
+                0xF0, 0x43, 0x10, 0x01, 0xF7,       // voix 0 (5 octets)
+                0xF0, 0x43, 0x10, 0x02, 0x03, 0xF7  // voix 1 (6 octets)
+            };
+            auto b0 = SyVoice::getVoiceBlock (syx, sizeof (syx), 0);
+            expectEquals ((int) b0.getSize(), 5);
+            expectEquals ((int) ((const juce::uint8*) b0.getData())[0], 0xF0);
+            expectEquals ((int) ((const juce::uint8*) b0.getData())[4], 0xF7);
+
+            auto b1 = SyVoice::getVoiceBlock (syx, sizeof (syx), 1);
+            expectEquals ((int) b1.getSize(), 6);
+            expectEquals ((int) ((const juce::uint8*) b1.getData())[5], 0xF7);
+
+            expect (SyVoice::getVoiceBlock (syx, sizeof (syx), 9).getSize() == 0);
+        }
+
+        beginTest ("mixed bank: only LM  8101VC blocks are presets");
+        {
+            auto mk = [] (const char* id, const char* name)
+            {
+                juce::MemoryBlock b (50, true);
+                auto* d = (juce::uint8*) b.getData();
+                d[0] = 0xF0; d[1] = 0x43; d[2] = 0x00; d[3] = 0x7A;
+                for (int k = 0; k < 10; ++k) d[6 + k] = (juce::uint8) id[k];
+                for (int k = 0; k < 10; ++k) d[33 + k] = (juce::uint8) name[k];
+                d[49] = 0xF7;
+                return b;
+            };
+            juce::MemoryBlock bank;
+            bank.append (mk ("LM  8101MU", "MULTI 1   ").getData(), 50);
+            bank.append (mk ("LM  8101VC", "VOICE A   ").getData(), 50);
+            bank.append (mk ("LM  8101PN", "PAN 1     ").getData(), 50);
+            bank.append (mk ("LM  8101VC", "VOICE B   ").getData(), 50);
+            bank.append (mk ("LM  8101SY", "SYSTEM    ").getData(), 50);
+            const auto* d = (const juce::uint8*) bank.getData();
+            auto names = SyVoice::extractVoiceNames (d, bank.getSize());
+            expectEquals (names.size(), 2);
+            expectEquals (names[0].trim(), juce::String ("VOICE A"));
+            expectEquals (names[1].trim(), juce::String ("VOICE B"));
+            auto b1 = SyVoice::getVoiceBlock (d, bank.getSize(), 1);
+            expectEquals ((int) b1.getSize(), 50);
+            expectEquals ((int) ((const juce::uint8*) b1.getData())[33], (int) 'V');
+            expectEquals ((int) ((const juce::uint8*) b1.getData())[39], (int) 'B');
+            expect (SyVoice::getVoiceBlock (d, bank.getSize(), 2).getSize() == 0);
+            // migration v2->v3 : ancien slot (chaque F0) -> slot voix, -1 pour MU/PN/SY
+            auto map = SyVoice::legacySlotToVoiceSlot (d, bank.getSize());
+            expectEquals (map.size(), 5);
+            expect (map[0] == -1 && map[1] == 0 && map[2] == -1 && map[3] == 1 && map[4] == -1);
+            // fiches slot info : 2 voix, en-tete non-SY77 => pas de badge rouge sur banque etrangere
+            expectEquals (SyVoice::computeSlotInfo (d, bank.getSize()).size(), 2);
+            const juce::uint8 foreign[] = { 0xF0, 0x43, 0x00, 0x09, 0x20, 0x00, 0x01, 0xF7 };
+            expect (SyVoice::computeSlotInfo (foreign, sizeof (foreign)).isEmpty());
+        }
+
+        beginTest ("yamahaChecksum sum+checksum mod 128 == 0");
+        {
+            const juce::uint8 data[] = { 0x12, 0x34, 0x7F, 0x01, 0x40 };
+            auto ck = SyVoice::yamahaChecksum (data, (int) sizeof (data));
+            int sum = ck;
+            for (auto b : data) sum += b;
+            expectEquals (sum & 0x7F, 0);
+            expect (ck <= 0x7F);
+        }
+
+        beginTest ("verifyYamahaBulkChecksum accepts a well-formed bulk block");
+        {
+            // Construit un bulk minimal F0 43 0n 7A cMSB cLSB <data> <ck> F7 dont le checksum
+            // est calculé par yamahaChecksum sur la zone data (index 6..ck-1).
+            juce::uint8 blk[] = { 0xF0, 0x43, 0x10, 0x7A, 0x00, 0x04,
+                                  'L', 'M', ' ', ' ',          // 4 octets de data factices
+                                  0x00,                        // emplacement du checksum
+                                  0xF7 };
+            const int dataStart = 6, ckIndex = (int) sizeof (blk) - 2;
+            blk[ckIndex] = SyVoice::yamahaChecksum (blk + dataStart, ckIndex - dataStart);
+            expect (SyVoice::verifyYamahaBulkChecksum (blk, (int) sizeof (blk)));
+
+            // Un octet de data corrompu -> le checksum ne correspond plus -> rejet.
+            juce::uint8 bad[sizeof (blk)];
+            memcpy (bad, blk, sizeof (blk));
+            bad[dataStart] ^= 0x01;
+            expect (! SyVoice::verifyYamahaBulkChecksum (bad, (int) sizeof (bad)));
+        }
+
+        beginTest ("verifyYamahaBulkChecksum rejects non-bulk / malformed blocks");
+        {
+            // Pas F0…F7
+            const juce::uint8 noFrame[] = { 0x43, 0x10, 0x7A, 0x00, 0x04, 0x00, 0x00, 0x00 };
+            expect (! SyVoice::verifyYamahaBulkChecksum (noFrame, (int) sizeof (noFrame)));
+            // Pas Yamaha (octet [1] != 0x43)
+            const juce::uint8 notYam[] = { 0xF0, 0x7E, 0x10, 0x7A, 0x00, 0x04, 0x00, 0x00, 0xF7 };
+            expect (! SyVoice::verifyYamahaBulkChecksum (notYam, (int) sizeof (notYam)));
+            // Message paramétrique court (0x34) : pas un bulk -> false (non concerné)
+            const juce::uint8 paramMsg[] = { 0xF0, 0x43, 0x10, 0x34, 0x0f, 0x00, 0x00, 0x2d, 0x00, 0x05, 0xF7 };
+            expect (! SyVoice::verifyYamahaBulkChecksum (paramMsg, (int) sizeof (paramMsg)));
+            // Trop court / nullptr
+            expect (! SyVoice::verifyYamahaBulkChecksum (nullptr, 0));
+        }
+
+        beginTest ("retargetVoiceToEditBuffer met memtype=$7F, mem#=0 et recalcule le checksum");
+        {
+            // Bulk voix synthétique (>= 34 octets) : F0 43 0n 7A cMSB cLSB "LM  8101VC" ... ck F7.
+            // Offsets 30 = Memory type, 31 = Memory#. On part d'un slot interne (type 0, mem# 5).
+            juce::uint8 blk[40] = { 0 };
+            blk[0] = 0xF0; blk[1] = 0x43; blk[2] = 0x10; blk[3] = 0x7A;
+            blk[4] = 0x00; blk[5] = (juce::uint8) (sizeof (blk) - 8);   // count data factice
+            const char* id = "LM  8101VC";
+            for (int i = 0; i < 10; ++i) blk[6 + i] = (juce::uint8) id[i];
+            blk[30] = 0x00;   // Memory type = internal
+            blk[31] = 0x05;   // Memory# = un slot quelconque
+            blk[sizeof (blk) - 1] = 0xF7;
+            // Checksum initial cohérent (pour partir d'un bloc valide).
+            blk[sizeof (blk) - 2] = SyVoice::yamahaChecksum (blk + 6, (int) sizeof (blk) - 8);
+            expect (SyVoice::verifyYamahaBulkChecksum (blk, (int) sizeof (blk)));
+
+            SyVoice::retargetVoiceToEditBuffer (blk, (int) sizeof (blk));
+            expectEquals ((int) blk[30], 0x7F);     // -> Edit Buffer
+            expectEquals ((int) blk[31], 0x00);     // Memory# remis à 0
+            // Le checksum a été recalculé -> le bloc reste valide.
+            expect (SyVoice::verifyYamahaBulkChecksum (blk, (int) sizeof (blk)));
+
+            // No-op si pas un bulk voix (octet [3] != 0x7A) : rien n'est modifié.
+            juce::uint8 notVoice[40] = { 0 };
+            notVoice[0] = 0xF0; notVoice[1] = 0x43; notVoice[3] = 0x7E; notVoice[30] = 0x11;
+            notVoice[sizeof (notVoice) - 1] = 0xF7;
+            SyVoice::retargetVoiceToEditBuffer (notVoice, (int) sizeof (notVoice));
+            expectEquals ((int) notVoice[30], 0x11);   // inchangé
+        }
+
+        beginTest ("detectSynthKind reconnait SY77 et les autres fabricants");
+        {
+            // Bloc voix SY77 : F0 43 0n 7A cMSB cLSB "LM  8101VC" ...
+            juce::uint8 sy77[20] = { 0 };
+            sy77[0] = 0xF0; sy77[1] = 0x43; sy77[2] = 0x10; sy77[3] = 0x7A;
+            const char* id = "LM  8101VC";
+            for (int i = 0; i < 10; ++i) sy77[6 + i] = (juce::uint8) id[i];
+            expect (SyVoice::detectSynthKind (sy77, sizeof (sy77)) == SyVoice::SynthKind::SY77);
+
+            // Yamaha mais pas le classifieur SY77 -> OtherYamaha
+            juce::uint8 yam[20] = { 0xF0, 0x43, 0x10, 0x7A };
+            expect (SyVoice::detectSynthKind (yam, sizeof (yam)) == SyVoice::SynthKind::OtherYamaha);
+
+            // Roland / Korg / inconnu
+            const juce::uint8 roland[] = { 0xF0, 0x41, 0x10, 0x42 };
+            expect (SyVoice::detectSynthKind (roland, sizeof (roland)) == SyVoice::SynthKind::Roland);
+            const juce::uint8 korg[] = { 0xF0, 0x42, 0x30 };
+            expect (SyVoice::detectSynthKind (korg, sizeof (korg)) == SyVoice::SynthKind::Korg);
+            expect (SyVoice::detectSynthKind (nullptr, 0) == SyVoice::SynthKind::Unknown);
+        }
+
+        beginTest ("isNewerVersion compare en ignorant 'v' et le suffixe -dev");
+        {
+            expect (  SyVoice::isNewerVersion ("1.3.0", "1.2.72-dev"));
+            expect (  SyVoice::isNewerVersion ("v1.3.0", "1.2.99"));
+            expect (  SyVoice::isNewerVersion ("2.0.0", "1.9.9"));
+            expect (! SyVoice::isNewerVersion ("1.2.72", "1.2.72-dev"));   // égales (suffixe ignoré)
+            expect (! SyVoice::isNewerVersion ("1.2.5", "1.2.5"));
+            expect (! SyVoice::isNewerVersion ("1.2.0", "1.3.0"));
+        }
+
+        beginTest ("splitSysexMessages splits successive F0..F7 blocks");
+        {
+            const juce::uint8 syx[] = {
+                0xF0, 0x43, 0x10, 0x01, 0xF7,        // bloc 0 (5 octets)
+                0xF0, 0x43, 0x10, 0x02, 0x03, 0xF7   // bloc 1 (6 octets)
+            };
+            auto blocks = SyVoice::splitSysexMessages (syx, sizeof (syx));
+            expectEquals (blocks.size(), 2);
+            expectEquals ((int) blocks[0].getSize(), 5);
+            expectEquals ((int) ((const juce::uint8*) blocks[0].getData())[0], 0xF0);
+            expectEquals ((int) ((const juce::uint8*) blocks[0].getData())[4], 0xF7);
+            expectEquals ((int) blocks[1].getSize(), 6);
+            expectEquals ((int) ((const juce::uint8*) blocks[1].getData())[5], 0xF7);
+
+            // Buffer non terminé (dernier bloc sans F7) : borné, pas de débordement.
+            const juce::uint8 trunc[] = { 0xF0, 0x43, 0x10, 0xF7, 0xF0, 0x43, 0x10 };
+            auto t = SyVoice::splitSysexMessages (trunc, sizeof (trunc));
+            expectEquals (t.size(), 2);
+            expectEquals ((int) t[0].getSize(), 4);     // F0 43 10 F7
+            expectEquals ((int) t[1].getSize(), 3);     // F0 43 10 (non terminé)
+            expect (SyVoice::splitSysexMessages (nullptr, 0).isEmpty());
+        }
+
+        beginTest ("voiceDumpRequest is a well-framed VCED request");
+        {
+            auto m = SyVoice::voiceDumpRequest (3, 0x00, 0x05);   // device 3, Internal, A6
+            const juce::uint8* d = m.getSysExData();
+            const int sz = m.getSysExDataSize();                  // sans F0/F7
+            expectEquals (sz, 29);                                // 31 octets - F0 - F7
+            expectEquals ((int) d[0], 0x43);                      // Yamaha
+            expectEquals ((int) d[1], 0x22);                      // 0x20 | (3-1) -> dump request, dev 3
+            expectEquals ((int) d[2], 0x7A);                      // format Voice Bulk Dump
+            // Identifiant VCED "LM  8101VC" (octets 3..12 du corps = 4..13 avec F0)
+            const char* id = "LM  8101VC";
+            for (int i = 0; i < 10; ++i)
+                expectEquals ((int) d[3 + i], (int) (juce::uint8) id[i]);
+            expectEquals ((int) d[sz - 2], 0x00);                 // Memory_type = Internal
+            expectEquals ((int) d[sz - 1], 0x05);                 // Memory# = A6
+            // dumpRequestDeviceByte : nibble haut 0x2, borné
+            expectEquals ((int) SyVoice::dumpRequestDeviceByte (1),  0x20);
+            expectEquals ((int) SyVoice::dumpRequestDeviceByte (16), 0x2F);
+        }
+
+        beginTest ("diffVoiceBlocks reports differing byte offsets");
+        {
+            const juce::uint8 a[] = { 0xF0, 0x43, 0x10, 0x20, 0x30, 0x40, 0xF7 };
+            const juce::uint8 b[] = { 0xF0, 0x43, 0x10, 0x25, 0x30, 0x44, 0xF7 };
+            auto d = SyVoice::diffVoiceBlocks (a, sizeof (a), b, sizeof (b));
+            expectEquals (d.size(), 2);
+            expectEquals (d[0].offset, 3);
+            expectEquals ((int) d[0].before, 0x20);
+            expectEquals ((int) d[0].after,  0x25);
+            expectEquals (d[1].offset, 5);
+
+            // blocs identiques -> aucune différence
+            expect (SyVoice::diffVoiceBlocks (a, sizeof (a), a, sizeof (a)).isEmpty());
+            // longueurs différentes : compare sur la plus courte, pas de débordement
+            expect (SyVoice::diffVoiceBlocks (a, sizeof (a), b, 3).isEmpty());
+        }
+
+        beginTest ("parseParam9 valid SY77 message");
+        {
+            const juce::uint8 msg[] = { 0x43, 0x10, 0x34, 0x0f, 0x00, 0x00, 0x2d, 0x00, 0x05 };
+            SyVoice::Param9 p;
+            expect (SyVoice::parseParam9 (msg, 9, p));
+            expectEquals ((int) p.param,  0x2d);
+            expectEquals ((int) p.dataLo, 5);
+            expectEquals ((int) p.channel, 0x10);
+        }
+
+        beginTest ("parseParam9 rejects bad size or maker");
+        {
+            SyVoice::Param9 p;
+            const juce::uint8 wrongMaker[] = { 0x00, 0x10, 0x34, 0,0,0,0,0,0 };
+            expect (! SyVoice::parseParam9 (wrongMaker, 9, p));
+            const juce::uint8 wrongSize[]  = { 0x43, 0x10, 0x34 };
+            expect (! SyVoice::parseParam9 (wrongSize, 3, p));
+        }
+
+        beginTest ("deviceByte encodes 0x1n and clamps to 1..16");
+        {
+            expectEquals ((int) SyVoice::deviceByte (1),  0x10);
+            expectEquals ((int) SyVoice::deviceByte (4),  0x13);
+            expectEquals ((int) SyVoice::deviceByte (16), 0x1F);
+            expectEquals ((int) SyVoice::deviceByte (0),  0x10); // borné en bas
+            expectEquals ((int) SyVoice::deviceByte (99), 0x1F); // borné en haut
+        }
+
+        beginTest ("deviceNumberFromByte decodes 0x1n, -1 otherwise");
+        {
+            expectEquals (SyVoice::deviceNumberFromByte (0x10), 1);
+            expectEquals (SyVoice::deviceNumberFromByte (0x1F), 16);
+            expectEquals (SyVoice::deviceNumberFromByte (0x20), -1);
+            expectEquals (SyVoice::deviceNumberFromByte (0x00), -1);
+        }
+
+        beginTest ("acceptsDevice honours selection and omni");
+        {
+            expect (  SyVoice::acceptsDevice (0x13, 4, false));   // device 4 attendu, reçu 4
+            expect (! SyVoice::acceptsDevice (0x13, 5, false));   // device 5 attendu, reçu 4
+            expect (  SyVoice::acceptsDevice (0x13, 5, true));    // omni : accepte
+            expect (! SyVoice::acceptsDevice (0x25, 5, true));    // pas un 0x1n -> refusé
+        }
+
+        beginTest ("paramBytes builds the 9-byte SY77 message");
+        {
+            auto b = SyVoice::paramBytes (1, 0x02, 0x00, 0x00, 0x3F, 0x40); // volume voix
+            const juce::uint8 expected[9] = { 0x43, 0x10, 0x34, 0x02, 0x00, 0x00, 0x3F, 0x00, 0x40 };
+            for (int i = 0; i < 9; ++i)
+                expectEquals ((int) b[(size_t) i], (int) expected[i]);
+
+            // le device se reflète dans l'octet [1]
+            expectEquals ((int) SyVoice::paramBytes (5, 0, 0, 0, 0, 0)[1], 0x14);
+        }
+
+        beginTest ("paramBytes is byte-identical to the legacy inline format (anti-regression)");
+        {
+            // Preuve de non-régression pour la TÂCHE 1.3 : les ~205 widgets Midi* et les
+            // littéraux de MidiDemo/MidiSysex construisaient à la main le tableau
+            //   sysexData[9] = { 0x43, 0x10, 0x34, group, addrHi, addrLo, param, 0x00, value }
+            // (octet [1] = device placeholder 0x10). On les a unifiés sur SyVoice::paramBytes.
+            // Ce test reconstruit l'ANCIEN format inline EN DUR et le compare octet-pour-octet
+            // au builder, pour un échantillon de (group, addrHi, addrLo, param, value).
+            //
+            // Sur le fil, l'octet device [1] est de toute façon réécrit par le choke-point
+            // (MidiSysex.h : sysexdata[1] = deviceByte(sysexDeviceNumber)), donc placeholder
+            // sans effet ; ici on passe device=1 -> 0x10, ce qui reproduit l'ancien littéral
+            // 0x10 et permet une comparaison des 9 octets, [1] compris.
+            const struct { juce::uint8 group, addrHi, addrLo, param, value; } cases[] =
+            {
+                { 0x03, 0x00, 0x00, 0x08, 0x40 },   // voice group / élément 1
+                { 0x03, 0x60, 0x00, 0x02, 0x10 },   // pitch élément 4 (addrHi=0x60)
+                { 0x09, 0x20, 0x00, 0x01, 0x7F },   // cutoff filtre, élément 2
+                { 0x06, 0x00, 0x00, 0x00, 0x00 },   // op AFM (group 0x06)
+                { 0x56, 0x00, 0x00, 0x05, 0x2A },   // op AFM OP1 (group 0x56)
+                { 0x0f, 0x00, 0x00, 0x2d, 0x03 },   // System Setup (foot / bulk-protect)
+                { 0x02, 0x00, 0x00, 0x3f, 0x64 },   // total voice volume
+            };
+
+            for (auto& c : cases)
+            {
+                // ANCIEN format, écrit à la main (device placeholder 0x10 == deviceByte(1)).
+                const juce::uint8 legacy[9] =
+                    { 0x43, 0x10, 0x34, c.group, c.addrHi, c.addrLo, c.param, 0x00, c.value };
+
+                auto built = SyVoice::paramBytes (1, c.group, c.addrHi, c.addrLo, c.param, c.value);
+                for (int i = 0; i < 9; ++i)
+                    expectEquals ((int) built[(size_t) i], (int) legacy[i]);
+            }
+        }
+
+        beginTest ("looksLikeYamahaSysex detects F0 43 header");
+        {
+            const juce::uint8 yam[] = { 0xF0, 0x43, 0x00, 0x12 };
+            const juce::uint8 other[] = { 0x00, 0x43, 0x00 };
+            expect (  SyVoice::looksLikeYamahaSysex (yam, sizeof (yam)));
+            expect (! SyVoice::looksLikeYamahaSysex (other, sizeof (other)));
+            expect (! SyVoice::looksLikeYamahaSysex (nullptr, 0));
+        }
+
+        beginTest ("elementAddrHi and afmOperatorGroup encodings");
+        {
+            expectEquals ((int) SyVoice::elementAddrHi (0), 0x00);
+            expectEquals ((int) SyVoice::elementAddrHi (1), 0x20);
+            expectEquals ((int) SyVoice::elementAddrHi (2), 0x40);
+            expectEquals ((int) SyVoice::elementAddrHi (3), 0x60);
+            // OP6..OP1 = 0x06,0x16,0x26,0x36,0x46,0x56
+            expectEquals ((int) SyVoice::afmOperatorGroup (0), 0x06);
+            expectEquals ((int) SyVoice::afmOperatorGroup (4), 0x46);
+            expectEquals ((int) SyVoice::afmOperatorGroup (5), 0x56);
+        }
+
+        beginTest ("egGroupFor locks EG send-side group bytes (anti-regression)");
+        {
+            // Filet anti-régression du bug « group-byte 0x00 » (cf. [[project-eg-sysex-bug]]).
+            // Les 4 éditeurs d'EG (WaveEg/PitchEG/Filter1/Filter2) CONSOMMENT egGroupFor pour
+            // l'octet [3] (group) de leur message param-change. Ce test verrouille la valeur
+            // attendue : si quelqu'un repasse un group à 0x00 (ou une valeur fausse), il casse.
+            using EG = SyVoice::EgKind;
+            expectEquals ((int) SyVoice::egGroupFor (EG::filter),       0x09);  // Filtre 1 & 2
+            expectEquals ((int) SyVoice::egGroupFor (EG::pitch),        0x05);  // AFM pitch-EG
+            expectEquals ((int) SyVoice::egGroupFor (EG::awmAmplitude), 0x07);  // AWM amp-EG
+            expectEquals ((int) SyVoice::egGroupFor (EG::awmPitch),     0x07);  // AWM pitch-EG
+            // PEG : PPR1 = FPR1 + 5 (0x01 -> 0x06), PPEGR 0x0F, PPRS 0x10, PVPSW 0x11 (OCR l.492-503).
+            expectEquals (0x01 + SyVoice::pitchEgN2Offset (true), 0x06);
+            expectEquals (0x0C + SyVoice::pitchEgN2Offset (true), 0x11);
+            expectEquals (SyVoice::pitchEgN2Offset (false), 0);
+
+            // AFM amp-EG = PAR OPÉRATEUR : group = (op<<4)|6, op 0..5 = OP6..OP1.
+            const int expectedOp[6] = { 0x06, 0x16, 0x26, 0x36, 0x46, 0x56 };
+            for (int op = 0; op < 6; ++op)
+                expectEquals ((int) SyVoice::egGroupFor (EG::afmAmplitude, op), expectedOp[op]);
+            // cohérent avec afmOperatorGroup (même source).
+            for (int op = 0; op < 6; ++op)
+                expectEquals ((int) SyVoice::egGroupFor (EG::afmAmplitude, op),
+                              (int) SyVoice::afmOperatorGroup (op));
+
+            // INVARIANT CLÉ : aucun type d'EG ne doit JAMAIS renvoyer 0x00 (le group du bug).
+            for (auto k : { EG::filter, EG::pitch, EG::afmAmplitude, EG::awmAmplitude, EG::awmPitch })
+                expect (SyVoice::egGroupFor (k, 0) != 0x00);
+        }
+
+        beginTest ("egLevelToDisplay/egLevelToWire — offset-binary (o/b) inversible + valeurs lua");
+        {
+            // Inversibilité sur TOUTE la plage filaire 0..127 (round-trip wire->display->wire).
+            for (int w = 0; w <= 127; ++w)
+            {
+                const int disp = SyVoice::egLevelToDisplay ((juce::uint8) w);
+                expectEquals ((int) SyVoice::egLevelToWire (disp), w);
+                expect (disp >= -64 && disp <= 63);   // plage d'affichage TG77_Voice.json
+            }
+            // Inversibilité sur la plage d'affichage -64..+63 (display->wire->display).
+            for (int dpy = -64; dpy <= 63; ++dpy)
+                expectEquals (SyVoice::egLevelToDisplay (SyVoice::egLevelToWire (dpy)), dpy);
+
+            // Valeurs ANCRES dérivées du codec lua/json (offset 64 ; centre par défaut = wire 64).
+            //   main.lua l.22 : « (o/b) offset binary -64..+63 -> E1 msg 0..127 passes through »
+            //   TG77_Voice.json PEG/FEG L : display{-64,63} message{0,127} defaultValue 64.
+            expectEquals (SyVoice::egLevelToDisplay (64), 0);     // centre
+            expectEquals (SyVoice::egLevelToDisplay (0), -64);    // minimum
+            expectEquals (SyVoice::egLevelToDisplay (127), 63);   // maximum
+            expectEquals ((int) SyVoice::egLevelToWire (0), 64);  // display 0 -> wire 64 (defaultValue)
+            expectEquals ((int) SyVoice::egLevelToWire (-64), 0);
+            expectEquals ((int) SyVoice::egLevelToWire (63), 127);
+            // Bornage : un display hors plage ne déborde jamais l'octet filaire 7 bits.
+            expectEquals ((int) SyVoice::egLevelToWire (200), 127);
+            expectEquals ((int) SyVoice::egLevelToWire (-200), 0);
+        }
+
+        beginTest ("panLevelToDisplay/panLevelToWire — pan EG offset-binary (o/b) offset 32 inversible");
+        {
+            // Round-trip sur toute la plage filaire pan 0..63 (centre 32).
+            for (int w = 0; w <= 63; ++w)
+            {
+                const int disp = SyVoice::panLevelToDisplay ((juce::uint8) w);
+                expectEquals ((int) SyVoice::panLevelToWire (disp), w);
+                expect (disp >= -32 && disp <= 31);   // plage d'affichage spec (-32~+31 o/b)
+            }
+            for (int dpy = -32; dpy <= 31; ++dpy)
+                expectEquals (SyVoice::panLevelToDisplay (SyVoice::panLevelToWire (dpy)), dpy);
+
+            // Ancres : centre = octet 32 ; extrêmes -32/+31. Cf. sy77midi_ocr.txt l.563-584.
+            expectEquals (SyVoice::panLevelToDisplay (32), 0);    // centre (pan = milieu)
+            expectEquals (SyVoice::panLevelToDisplay (0), -32);   // gauche
+            expectEquals (SyVoice::panLevelToDisplay (63), 31);   // droite
+            expectEquals ((int) SyVoice::panLevelToWire (0), 32); // display 0 -> octet 32
+            expectEquals ((int) SyVoice::panLevelToWire (-32), 0);
+            expectEquals ((int) SyVoice::panLevelToWire (31), 63);
+            // Bornage : ne déborde jamais 0..63 (distinct de l'offset-64 des EG pitch/filtre).
+            expectEquals ((int) SyVoice::panLevelToWire (200), 63);
+            expectEquals ((int) SyVoice::panLevelToWire (-200), 0);
+        }
+
+        beginTest ("fpdDetuneToWire/Display — détune s/m inversible + valeurs lua (half=15 signbit=16)");
+        {
+            // Inversibilité sur la plage d'affichage -15..+15.
+            for (int d = -15; d <= 15; ++d)
+                expectEquals (SyVoice::fpdDetuneToDisplay (SyVoice::fpdDetuneToWire (d)), d);
+
+            // Valeurs ANCRES (main.lua l.45 : SM[op*1000+0x1A] = {15,16} ; OCR l.438 « FPD -15~+15 s/m »).
+            expectEquals ((int) SyVoice::fpdDetuneToWire (0),   0);    // 0 -> 0
+            expectEquals ((int) SyVoice::fpdDetuneToWire (15),  15);   // +max -> 15
+            expectEquals ((int) SyVoice::fpdDetuneToWire (-1),  17);   // signbit 16 | 1
+            expectEquals ((int) SyVoice::fpdDetuneToWire (-15), 31);   // signbit 16 | 15
+            // L'octet filaire 29/30 vu dans la trace SY77 = display -13/-14 (16|13, 16|14).
+            expectEquals (SyVoice::fpdDetuneToDisplay (29), -13);
+            expectEquals (SyVoice::fpdDetuneToDisplay (30), -14);
+            expectEquals (SyVoice::fpdDetuneToDisplay (15),  15);
+            expectEquals (SyVoice::fpdDetuneToDisplay (0),    0);
+            // Concorde EXACTEMENT avec le chemin boolNegative de MidiSlider (intNegativeDelta=17, ~v) :
+            //   TX d<0 : (~d)+17 == 16|(-d). Vérifie l'équivalence pour toute la plage négative.
+            for (int d = -15; d <= -1; ++d)
+                expectEquals ((int) SyVoice::fpdDetuneToWire (d), (~d) + 17);
+            // Bornage.
+            expectEquals ((int) SyVoice::fpdDetuneToWire (100),  15);
+            expectEquals ((int) SyVoice::fpdDetuneToWire (-100), 31);
+        }
+
+        beginTest ("codec déclaratif — primitives s/m, o/b1, o/b2 (oracle lua) + équivalence wrappers");
+        {
+            using namespace SyVoice;
+            // s/m générique : ±7 {7,8}, ±12 {12,16}, ±15 {15,16} — inversible + ancres lua.
+            for (auto sb : { std::pair<int,int>{7,8}, {12,16}, {15,16} })
+                for (int d = -sb.first; d <= sb.first; ++d)
+                    expectEquals (smToDisplay (smToWire (d, sb.first, sb.second), sb.first, sb.second), d);
+            expectEquals (smToWire ( 0, 7, 8), 0);
+            expectEquals (smToWire (-1, 7, 8), 9);    // signbit 8 | 1
+            expectEquals (smToWire (-7, 7, 8), 15);   // 8 | 7
+            expectEquals (smToWire (-12, 12, 16), 28);// 16 | 12 (AT PB range)
+            // Formule ad hoc de MidiSlider::sliderValueChanged (setRangeAndRound(min<0) :
+            // d<0 -> (~d) + (max+2)) == codec s/m pour ±7 (RS/VEL/PARS) et ±15 (detune).
+            for (auto sb : { std::pair<int,int>{7,8}, {15,16} })
+                for (int d = -sb.first; d < 0; ++d)
+                    expectEquals ((~d) + (sb.first + 2), smToWire (d, sb.first, sb.second));
+            // fpdDetune == primitive s/m {15,16} (le wrapper ne change rien).
+            for (int d = -15; d <= 15; ++d)
+                expectEquals ((int) fpdDetuneToWire (d), smToWire (d, 15, 16));
+
+            // o/b1 générique : EG filtre (offset 64) et pan (offset 32) == wrappers.
+            for (int w = 0; w <= 127; ++w) expectEquals (egLevelToDisplay ((juce::uint8) w), obToDisplay (w, 64));
+            for (int d = -64; d <= 63; ++d) expectEquals ((int) egLevelToWire (d), obToWire (d, 64, 127));
+            for (int d = -32; d <= 31; ++d) expectEquals ((int) panLevelToWire (d), obToWire (d, 32, 63));
+
+            // o/b2 (FOS break-point offsets) : display -127..+127 -> combined=display+128, V1=bit7,V2=low7.
+            expectEquals (ob2Combined (0),   128);
+            expectEquals (ob2Combined (-127), 1);
+            expectEquals (ob2Combined (127), 255);
+            expectEquals ((int) ob2V1 (127), 1);  expectEquals ((int) ob2V2 (127), 127);   // 255 = (1<<7)|127
+            expectEquals ((int) ob2V1 (0),   1);  expectEquals ((int) ob2V2 (0),   0);      // 128 = (1<<7)|0
+            for (int d = -127; d <= 127; ++d)
+                expectEquals (ob2ToDisplay (ob2V1 (d), ob2V2 (d)), d);   // inversibilité 2 octets
+        }
+
+        beginTest ("SyParamTable — dico déclaratif : 228 entrées, ui uniques, codec aller-retour");
+        {
+            using namespace SyVoice;
+            expectEquals (SyParam::kNumParams, 228);
+            std::set<int> uis;
+            for (const auto& e : SyParam::kParams)
+            {
+                expect (uis.insert (e.ui).second, juce::String ("ui dupliqué: ") + juce::String (e.ui));
+                for (int dsp = e.dispMin; dsp <= e.dispMax; ++dsp)
+                {
+                    switch (e.enc)
+                    {
+                        case SyEnc::plain:   break;   // display == octet filaire (rien à convertir)
+                        case SyEnc::signMag: expectEquals (smToDisplay (smToWire (dsp, e.encA, e.encB), e.encA, e.encB), dsp); break;
+                        case SyEnc::offBin1: expectEquals (obToDisplay (obToWire (dsp, e.encA, e.encB), e.encA), dsp); break;
+                        case SyEnc::offBin2: expectEquals (ob2ToDisplay (ob2V1 (dsp), ob2V2 (dsp)), dsp); break;
+                    }
+                }
+            }
+            // Ancrages (oracle lua/Electra) : encodage correct des params « pièges ».
+            auto find = [] (int ui) -> const SyParam::Entry* {
+                for (const auto& e : SyParam::kParams) if (e.ui == ui) return &e; return nullptr; };
+            expect (find (1026) != nullptr && find (1026)->enc == SyEnc::signMag && find (1026)->encA == 15); // DETUNE OP1
+            expect (find (7309) != nullptr && find (7309)->enc == SyEnc::offBin1 && find (7309)->encA == 64); // FEG L0
+            expect (find (7321) != nullptr && find (7321)->enc == SyEnc::offBin2);                            // BP1 OFFSET
+            expect (find (1000) != nullptr && find (1000)->enc == SyEnc::plain);                              // R1 OP1
+        }
+
+        beginTest ("syTranslate — resolver d'adresse (port lua) : ancrages + cohérence table/helpers");
+        {
+            using namespace SyVoice;
+            auto A = [] (int ui, int el, int fl) { return syTranslate (ui, el, fl); };
+            // Ancrages (oracle main.lua translate()).
+            { auto a = A(1026,0,0); expect (a.ok && a.group==0x56 && a.t2==0x00 && a.n2==0x1A); } // DETUNE OP1
+            { auto a = A(6000,0,0); expect (a.ok && a.group==0x06 && a.t2==0x00 && a.n2==0x00); } // R1 OP6
+            { auto a = A(7000,1,0); expect (a.ok && a.group==0x05 && a.t2==0x20 && a.n2==0x00); } // AFM commun, élém 2
+            { auto a = A(7141,0,0); expect (a.ok && a.group==0x02 && a.t2==0x00 && a.n2==0x29); } // AT PB (voice commun)
+            { auto a = A(7201,2,0); expect (a.ok && a.group==0x03 && a.t2==0x40 && a.n2==0x01); } // ELDT, élém 3
+            { auto a = A(7309,0,0); expect (a.ok && a.group==0x09 && a.t2==0x00 && a.n2==0x09); } // FEG L0 (par-élément)
+            { auto a = A(7351,0,0); expect (a.ok && a.group==0x09 && a.t2==0x02 && a.n2==0x33); } // VEL SENS commun AFM (fn=2)
+            { auto a = A(7351,3,3); expect (a.ok && a.group==0x09 && a.t2==0x65 && a.n2==0x33); } // commun AWM (fn=5) + élém 4
+            { auto a = A(7400,0,0); expect (a.ok && a.group==0x08 && a.t2==0x00 && a.n2==0x00); } // effet
+            expect (! A(9001,0,0).ok && ! A(500,0,0).ok);                                          // non transmissibles
+
+            // T2 = bits d'élément (sauf voice-commun/effet) : doit suivre elementAddrHi.
+            for (int el = 0; el <= 3; ++el)
+                expectEquals ((int) A(7000, el, 0).t2, (int) elementAddrHi (el));
+
+            // Cohérence avec la TABLE : chaque entrée se résout, son N2 == table, et le groupe
+            // d'op AFM == afmOperatorGroup(6-op).
+            for (const auto& e : SyParam::kParams)
+            {
+                auto a = A(e.ui, 0, 0);
+                expect (a.ok, juce::String ("ui non résolu: ") + juce::String (e.ui));
+                expectEquals ((int) a.n2, (int) e.n2);
+                if (e.zone == SyParam::Zone::afmOp)
+                    expectEquals ((int) a.group, (int) afmOperatorGroup (6 - e.op));
+            }
+        }
+
+        beginTest ("SyParam::bytesFor — pipeline bout-en-bout (table+adresse+encodage) byte-identique");
+        {
+            const int dev = 1;
+            const auto db = SyVoice::deviceByte (dev);
+            auto eq = [&] (SyParam::Msg m, std::array<juce::uint8,9> exp)
+            { expect (m.ok); for (int i = 0; i < 9; ++i) expectEquals ((int) m.bytes[(size_t) i], (int) exp[(size_t) i]); };
+
+            // TL OP1 (plain) : group 0x56, N2 0x1B, valeur brute 100.
+            eq (SyParam::bytesFor (1027, 100, 0, 0, dev),
+                { { 0x43, db, 0x34, 0x56, 0x00, 0x00, 0x1B, 0x00, 100 } });
+            // DETUNE OP1 (s/m 15/16) : display -3 -> wire 16|3 = 19.
+            eq (SyParam::bytesFor (1026, -3, 0, 0, dev),
+                { { 0x43, db, 0x34, 0x56, 0x00, 0x00, 0x1A, 0x00, 19 } });
+            // FEG L0 (offBin1 offset 64), élément 2 : T2 0x20, N2 0x09, display 0 -> wire 64.
+            eq (SyParam::bytesFor (7309, 0, 1, 0, dev),
+                { { 0x43, db, 0x34, 0x09, 0x20, 0x00, 0x09, 0x00, 64 } });
+            // BP1 OFFSET (offBin2) : display 0 -> combined 128 -> V1=1 (octet[7]), V2=0 (octet[8]).
+            eq (SyParam::bytesFor (7321, 0, 0, 0, dev),
+                { { 0x43, db, 0x34, 0x09, 0x00, 0x00, 0x15, 0x01, 0x00 } });
+            // Effet « EF MODE » (group 0x08, N2 0x00, plage 0..3) : display 2 -> V2 2.
+            eq (SyParam::bytesFor (7400, 2, 0, 0, dev),
+                { { 0x43, db, 0x34, 0x08, 0x00, 0x00, 0x00, 0x00, 2 } });
+            // La valeur affichée est BORNÉE à la plage déclarée (7 > max 3 -> 3).
+            expectEquals ((int) SyParam::bytesFor (7400, 7, 0, 0, dev).bytes[8], 3);
+            // ui inconnu -> ok=false.
+            expect (! SyParam::bytesFor (424242, 0, 0, 0, dev).ok);
+
+            // Cohérence : pour CHAQUE entrée de la table, bytesFor concorde octet-pour-octet avec
+            // syTranslate + le codec (sur la borne basse de la plage). Verrouille tout le pipeline.
+            for (const auto& e : SyParam::kParams)
+            {
+                auto a = SyVoice::syTranslate (e.ui, 0, 0);
+                auto m = SyParam::bytesFor (e.ui, e.dispMin, 0, 0, dev);
+                expect (m.ok);
+                expectEquals ((int) m.bytes[3], (int) a.group);
+                expectEquals ((int) m.bytes[6], (int) a.n2);
+            }
+        }
+
+        beginTest ("Phase 4 pilote Effects — adresses/plages du dico == ancien inline (byte-identité)");
+        {
+            // Effects.h émettait {0x43,dev,0x34, 0x08, 0x00, 0x00, n2, 0x00, val} pour n2=0x00..0x1C.
+            // Migré : adresse via syTranslate(7400+n2) + plage via SyParamTable. Doit être IDENTIQUE.
+            for (int n2 = 0x00; n2 <= 0x1C; ++n2)
+            {
+                auto a = SyVoice::syTranslate (7400 + n2, 0, 0);
+                expect (a.ok, juce::String ("effet ui non résolu: ") + juce::String (7400 + n2));
+                expectEquals ((int) a.group, 0x08);
+                expectEquals ((int) a.t2,    0x00);
+                expectEquals ((int) a.n2,    n2);
+            }
+            // Plages du dico == maxVal historiquement codés à la main (échantillon).
+            expectEquals (SyParam::entry (7400)->dispMax,  3);   // EF MODE
+            expectEquals (SyParam::entry (7401)->dispMax,  4);   // CH1 TYPE
+            expectEquals (SyParam::entry (7415)->dispMax, 40);   // RV1 TYPE
+            expectEquals (SyParam::entry (7404)->dispMax, 127);  // CH1 PRM1
+            expectEquals (SyParam::entry (7427)->dispMax,  1);   // ST MIX1
+        }
+
+        beginTest ("Phase 4 filtres — syTranslate reproduit l'adressage Filter1/Filter2 (byte-identité)");
+        {
+            // Filter1/2 émettaient group 0x09, addrHi = ((élém-1)<<5) | fN, N2 (rates 03-08, levels
+            // 09-0F, slope 10). fN : Filtre1 = 0 (AFM)/3 (AWM) ; Filtre2 = 1 (AFM)/4 (AWM).
+            const int filterN2[] = { 0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0x0C,0x0D,0x0E,0x0F,0x10 };
+            for (int el = 0; el <= 3; ++el)
+                for (int fn : { 0, 1, 3, 4 })
+                    for (int n2 : filterN2)
+                    {
+                        auto a = SyVoice::syTranslate (7300 + n2, el, fn);
+                        expect (a.ok);
+                        expectEquals ((int) a.group, 0x09);
+                        expectEquals ((int) a.t2,    (el << 5) | fn);
+                        expectEquals ((int) a.n2,    n2);
+                    }
+            // CommonFilter : cutoff/mode (N2 0x00-0x02) sur fN f1=fnBase+0 / f2=fnBase+1.
+            for (int el = 0; el <= 3; ++el)
+                for (int fn : { 0, 1, 3, 4 })
+                    for (int n2 : { 0x00, 0x01, 0x02 })
+                    {
+                        auto a = SyVoice::syTranslate (7300 + n2, el, fn);
+                        expect (a.ok); expectEquals ((int) a.group, 0x09);
+                        expectEquals ((int) a.t2, (el << 5) | fn);
+                        expectEquals ((int) a.n2, n2);
+                    }
+            // Params filtre-COMMUNS (N2 0x32-0x34 : FRES/FVSON/FCMS) -> fN FORCÉ 2 (AFM) / 5 (AWM),
+            // quel que soit le filterTarget passé (CommonFilter passe fnBase+2 = 2 ou 5).
+            for (int el = 0; el <= 3; ++el)
+                for (int n2 : { 0x32, 0x33, 0x34 })
+                {
+                    expectEquals ((int) SyVoice::syTranslate (7300 + n2, el, 0 + 2).t2, (el << 5) | 2); // AFM
+                    expectEquals ((int) SyVoice::syTranslate (7300 + n2, el, 3 + 2).t2, (el << 5) | 5); // AWM
+                }
+        }
+
+        beginTest ("voiceBlobToParams decodes confirmed AFM operator params (SteelStrng)");
+        {
+            // Dump réel de la voix « SteelStrng » (1AFM, type@32 == 0x03), F0..F7 (466 o.).
+            // Sert d'oracle : valeurs confirmées hardware (TL 6/6, Fine 6/6, R/L/RR/RL/L0).
+            static const juce::uint8 steel[] = {
+            0xf0, 0x43, 0x00, 0x7a, 0x03, 0x4a, 0x4c, 0x4d, 0x20, 0x20, 0x38, 0x31, 0x30, 0x31, 0x56, 0x43,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7f, 0x1b,
+            0x03, 0x53, 0x74, 0x65, 0x65, 0x6c, 0x53, 0x74, 0x72, 0x6e, 0x67, 0x03, 0x04, 0x05, 0x1c, 0x33,
+            0x0e, 0x10, 0x3c, 0x04, 0x2e, 0x09, 0x20, 0x37, 0x10, 0x29, 0x04, 0x1b, 0x32, 0x0d, 0x0e, 0x32,
+            0x16, 0x2d, 0x08, 0x1f, 0x26, 0x11, 0x01, 0x01, 0x02, 0x00, 0x01, 0x28, 0x00, 0x00, 0x79, 0x0e,
+            0x00, 0x00, 0x0d, 0x28, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x03, 0x3c,
+            0x00, 0x00, 0x01, 0x0f, 0x18, 0x00, 0x7f, 0x01, 0x7f, 0x45, 0x06, 0x18, 0x3f, 0x1b, 0x31, 0x00,
+            0x3f, 0x20, 0x1a, 0x0e, 0x0a, 0x07, 0x00, 0x03, 0x3f, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
+            0x05, 0x36, 0x00, 0x0c, 0x0c, 0x00, 0x01, 0x15, 0x55, 0x00, 0x1f, 0x3e, 0x5d, 0x01, 0x00, 0x01,
+            0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x0f, 0x00, 0x18, 0x3f, 0x1b, 0x31, 0x00, 0x3f, 0x20, 0x1a,
+            0x0e, 0x0a, 0x07, 0x00, 0x03, 0x3f, 0x00, 0x02, 0x00, 0x02, 0x00, 0x00, 0x00, 0x12, 0x3f, 0x00,
+            0x0f, 0x0d, 0x00, 0x00, 0x03, 0x36, 0x00, 0x1f, 0x3e, 0x5d, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00,
+            0x01, 0x00, 0x01, 0x04, 0x2e, 0x18, 0x3f, 0x1b, 0x31, 0x00, 0x3f, 0x20, 0x1a, 0x0e, 0x0a, 0x07,
+            0x00, 0x03, 0x3f, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x01, 0x13, 0x36, 0x00, 0x0c, 0x0c, 0x01,
+            0x00, 0x0e, 0x3c, 0x00, 0x1f, 0x3e, 0x5d, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00,
+            0x0b, 0x00, 0x18, 0x3f, 0x1b, 0x31, 0x00, 0x3f, 0x20, 0x1a, 0x0e, 0x0a, 0x07, 0x00, 0x03, 0x3f,
+            0x00, 0x02, 0x00, 0x02, 0x00, 0x00, 0x01, 0x10, 0x3f, 0x00, 0x0f, 0x01, 0x00, 0x00, 0x00, 0x1e,
+            0x00, 0x1f, 0x3e, 0x5d, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x04, 0x2e, 0x18,
+            0x1d, 0x1b, 0x31, 0x00, 0x3f, 0x20, 0x1a, 0x0e, 0x0a, 0x07, 0x00, 0x03, 0x3f, 0x00, 0x00, 0x00,
+            0x02, 0x00, 0x01, 0x11, 0x04, 0x36, 0x01, 0x0c, 0x00, 0x01, 0x00, 0x00, 0x30, 0x00, 0x1f, 0x3e,
+            0x5d, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x05, 0x00, 0x18, 0x3f, 0x1b, 0x31,
+            0x00, 0x3f, 0x20, 0x1a, 0x0e, 0x0a, 0x07, 0x00, 0x03, 0x3f, 0x00, 0x02, 0x00, 0x02, 0x00, 0x00,
+            0x00, 0x14, 0x3f, 0x01, 0x0f, 0x01, 0x01, 0x1e, 0x00, 0x5b, 0x00, 0x1f, 0x3e, 0x5d, 0x01, 0x00,
+            0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x01, 0x2e, 0x17, 0x00, 0x10, 0x0d, 0x12, 0x37, 0x0e,
+            0x22, 0x27, 0x15, 0x01, 0x00, 0x00, 0x40, 0x00, 0x0a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46,
+            0x00, 0x0f, 0x04, 0x02, 0x1b, 0x02, 0x0b, 0x00, 0x14, 0x2d, 0x00, 0x00, 0x40, 0x2d, 0x25, 0x20,
+            0x19, 0x14, 0x22, 0x06, 0x00, 0x30, 0x54, 0x7f, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00,
+            0x01, 0x32, 0x02, 0x0a, 0x0c, 0x00, 0x3f, 0x00, 0x00, 0x1c, 0x36, 0x17, 0x36, 0x1c, 0x2c, 0x2c,
+            0x01, 0x00, 0x30, 0x54, 0x7f, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x3b, 0x0f, 0x0d,
+            0x41, 0xf7
+            };
+
+            auto params = SyVoice::voiceBlobToParams (steel, (int) sizeof (steel));
+            // Offsets de scaling EGOS (0x20-0x23) : 2 octets o/b2, V1 = MSB (0/1) porte par vp.v1.
+            for (auto& q : params)
+                if ((q.group & 0x0F) == 0x06 && q.param >= 0x20 && q.param <= 0x23)
+                {
+                    expect (q.v1 == 0 || q.v1 == 1);
+                    const int d = SyVoice::ob2ToDisplay (q.v1, q.value);
+                    expect (d >= -128 && d <= 127);
+                    expectEquals ((int) SyVoice::ob2V1 (juce::jlimit (-127, 127, d)), q.v1 & 1);   // aller-retour
+                }
+            // 6 op×29 + (ELVL,ALGNUM,FCTOF1,FCTOF2,FFRES,FYPSW) + 4 pitch-rates + 5 pitch-levels
+            // (FPL0-3+FPRL1) + 2×7 filtre-rates + 2×7 filtre-niveaux + VVOL.
+            expectEquals (params.size(), 6 * 36 + 6 + 4 + 5 + 14 + 14 + kElemCom + kAfmLfo + kFilt + 1 + kCtrl + kFx);
+
+            auto val = [&params] (int group, int param) -> int
+            {
+                for (auto& p : params)
+                    if (p.group == group && p.param == param && p.addrHi == 0 && p.addrLo == 0)
+                        return p.value;
+                return -1;
+            };
+
+            // TL (param 0x1B) — confirmé 6/6 contre le dump (OP1=0x56 … OP6=0x06).
+            expectEquals (val (0x56, 0x1B), 91);   // OP1 (offset 361)
+            expectEquals (val (0x46, 0x1B), 48);   // OP2 (offset 316)
+            expectEquals (val (0x06, 0x1B), 85);   // OP6 (offset 136)
+            // Coarse (FPC, param 0x25, interne 43) + Waveform (PWAVE, param 0x17, interne 24), OP1.
+            expectEquals (val (0x56, 0x25), 1);    // coarse OP1 (offset 375)
+            expectEquals (val (0x56, 0x17), 15);   // waveform OP1
+            expectEquals (val (0x56, 0x26), 46);   // fine OP1 (offset 376)
+            // R1 (param 0x00) OP1 = octet @332.
+            expectEquals (val (0x56, 0x00), 24);
+            // ALGNUM (group 0x05, param 0x00) = octet @377 (confirmé par diff single-param).
+            expectEquals (val (0x05, 0x00), 23);
+            // Cutoff filtre 1 (group 0x09, addrHi 0, param 0x01) = octet @404 (confirmé par diff).
+            expectEquals (val (0x09, 0x01), 27);
+            // Autres params à offset absolu (offsets Table 2 / spot-check SteelStrng).
+            expectEquals (val (0x02, 0x3F), 60);   // VVOL  @95  (volume de voix)
+            expectEquals (val (0x03, 0x00), 1);    // ELVL0 @98  (niveau élément 1)
+            // cutoff filtre 2 (addrHi 1) et résonance (addrHi 2) : helper val() ne filtre que
+            // addrHi==0, donc on les lit directement dans la liste.
+            auto valH = [&params] (int g, int h, int p) -> int {
+                for (auto& q : params)
+                    if (q.group == g && q.addrHi == h && q.param == p) return q.value;
+                return -1; };
+            expectEquals (valH (0x09, 1, 0x01), 50);   // FCTOF2 @433 (cutoff filtre 2)
+            expectEquals (valH (0x09, 2, 0x32), 59);   // FFRES  @461 (résonance)
+            // Pitch-EG rates (group 0x05) + filtre 1 mode/rate (group 0x09) : bloc N2-ordonné.
+            expectEquals (val (0x05, 0x02), 16);   // FPR2  @379
+            expectEquals (val (0x05, 0x03), 13);   // FPR3  @380
+            expectEquals (val (0x09, 0x02), 2);    // FMODE filtre 1 @405
+            expectEquals (val (0x09, 0x03), 11);   // FR1   filtre 1 @406
+
+            // NIVEAUX D'EG (o/b) — chargés en octet filaire (0..127). Valeurs lues directement
+            // dans le dump SteelStrng (cf. recoupement codec lua : passthrough wire == octet).
+            // Pitch-EG levels FPL0-3 (group 0x05, N2 0x05-0x08) = octets @382-385.
+            expectEquals (val (0x05, 0x05), 55);   // FPL0  @382 -> display egLevelToDisplay = -9
+            expectEquals (val (0x05, 0x06), 14);   // FPL1  @383 -> display -50
+            expectEquals (val (0x05, 0x07), 34);   // FPL2  @384 -> display -30
+            expectEquals (val (0x05, 0x08), 39);   // FPL3  @385 -> display -25
+            // Filtre-1 EG levels FL0-4 (group 0x09, addrHi 0, N2 0x09-0x0D) = octets @412-416.
+            expectEquals (val (0x09, 0x09), 64);   // FL0 @412 == CENTRE o/b par défaut -> display 0
+            expectEquals (val (0x09, 0x0A), 45);   // FL1 @413 -> display -19
+            expectEquals (val (0x09, 0x0D), 25);   // FL4 @416 -> display -39
+            expectEquals (val (0x09, 0x0E), 20);   // FRL1 @417 -> display -44
+            // Filtre-2 EG level FL0 (group 0x09, addrHi 1, N2 0x09) = octet @441.
+            expectEquals (valH (0x09, 1, 0x09), 28);   // FL0 filtre 2 @441 -> display -36
+            // Tous les niveaux d'EG chargés DOIVENT être dans la plage filaire valide 0..127.
+            for (auto& q : params)
+                if (q.group == 0x05 && q.param >= 0x05 && q.param <= 0x09)   // pitch levels
+                    expect (q.value >= 0 && q.value <= 127);
+            for (auto& q : params)
+                if (q.group == 0x09 && q.param >= 0x09 && q.param <= 0x0F)   // filter levels
+                    expect (q.value >= 0 && q.value <= 127);
+
+            // 1 AFM MONO (type $00) partage la structure 1AFM -> doit charger aussi (Table 2).
+            juce::MemoryBlock mono (steel, sizeof (steel));
+            ((juce::uint8*) mono.getData())[32] = 0x00;
+            expectEquals (SyVoice::voiceBlobToParams ((const juce::uint8*) mono.getData(),
+                                                      (int) mono.getSize()).size(), 6 * 36 + 6 + 4 + 5 + 14 + 14 + kElemCom + kAfmLfo + kFilt + 1 + kCtrl + kFx);
+
+            // 2 AFM / 4 AFM : N « layers » identiques (Table 2). On vérifie le compte et que
+            // l'adressage par élément (addrHi = élément<<5) est bien produit.
+            const int perElem = 6 * 36 + 6 + 4 + 5 + 14 + 14 + kElemCom + kAfmLfo + kFilt;   // op + 6 + 4 pitch-rates + 5 pitch-levels + 2×7 filtre-rates + 2×7 filtre-niveaux
+            {
+                juce::MemoryBlock two; two.setSize (832, true);
+                ((juce::uint8*) two.getData())[32] = 0x01;   // 2 AFM
+                auto p2 = SyVoice::voiceBlobToParams ((const juce::uint8*) two.getData(), 832);
+                expectEquals (p2.size(), perElem * 2 + 1 + kCtrl + kFx);   // + VVOL + controleurs
+
+                juce::MemoryBlock four; four.setSize (1564, true);
+                ((juce::uint8*) four.getData())[32] = 0x02;  // 4 AFM
+                auto p4 = SyVoice::voiceBlobToParams ((const juce::uint8*) four.getData(), 1564);
+                expectEquals (p4.size(), perElem * 4 + 1 + kCtrl + kFx);
+                bool e2 = false, e4 = false;
+                for (auto& q : p4) { if (q.addrHi == 32) e2 = true; if (q.addrHi == 96) e4 = true; }
+                expect (e2);   // élément 2 (addrHi 0x20)
+                expect (e4);   // élément 4 (addrHi 0x60)
+            }
+
+            // Garde-fous « fiabilité d'abord » : un type mixte AFM+AWM ($08) -> rien (non géré).
+            juce::uint8 unh[466] = { 0 }; unh[32] = 0x08;
+            expect (SyVoice::voiceBlobToParams (unh, 466).isEmpty());
+            expect (SyVoice::voiceBlobToParams (steel, 100).isEmpty());   // tronqué
+
+            // Vue hexa dev (PresetHexView) : le sondage par inversion de bit retrouve les
+            // offsets du loader. Base E1 = 107 : ALGNUM @+270, TL OP1 = record 5 (OP6..OP1) +29.
+            {
+                juce::MemoryBlock blk (steel, sizeof (steel));
+                const auto notes = PresetHex::probe (blk);
+                expect (notes[377].joinIntoString (";").contains ("ALGORITHM"));
+                expect (notes[107 + 5 * 45 + 29].joinIntoString (";").contains ("LEVEL OP1"));
+                expect (notes[35].isEmpty());                                   // nom : non sonde
+                expect (PresetHex::regionOf (107 + 5 * 45 + 29, (int) blk.getSize(),
+                                             PresetHex::layoutFor (0x03)).contains ("OP1 +29"));
+                expect (PresetHex::report (blk, "t").contains ("Checksum : OK"));
+
+                // Lot effets / LFO / element commun (offsets par statistiques, 12 089 voix).
+                auto val = [&] (int g, int hi, int n2) -> int
+                {
+                    for (auto& vp : SyVoice::voiceBlobToParams (steel, (int) sizeof (steel)))
+                        if (vp.group == g && vp.addrHi == hi && vp.param == n2) return vp.value;
+                    return -1;
+                };
+                expectEquals (val (0x08, 0, 0x00), (int) steel[43]);          // EFMODE
+                expectEquals (val (0x08, 0, 0x01), (int) steel[44]);          // CHR1 type
+                expectEquals (val (0x08, 0, 0x1C), (int) steel[71]);          // ST_MIX2
+                expectEquals (val (0x05, 0, 0x0D), (int) steel[107 + 270 + 0x0D]);   // LFO speed
+                expectEquals (val (0x05, 0, 0x19), (int) steel[107 + 270 + 0x19]);   // sub LFO PMD
+                expectEquals (val (0x05, 0, 0x14), -1);                      // N2 0x14 omis
+                expectEquals (val (0x03, 0, 0x07), (int) steel[98 + 7]);      // PANNM
+                expectEquals (val (0x03, 0, 0x08), (int) steel[98 + 8]);      // OUTSEL
+                expect (notes[43].joinIntoString (";").contains ("EF MODE"));
+                // Sante d'un bloc (flag rouge librairie) + tailles attendues (12 086/12 089 voix OK).
+                expectEquals (SyVoice::expectedVoiceSize (0x03), 466);
+                expectEquals (SyVoice::expectedVoiceSize (0x06), 342);
+                expectEquals (SyVoice::expectedVoiceSize (0x07), 584);
+                expectEquals (SyVoice::expectedVoiceSize (0x0A), 588);
+                expect (SyVoice::voiceProblem (steel, (int) sizeof (steel)).isEmpty());
+                {
+                    juce::MemoryBlock bad (steel, sizeof (steel));
+                    ((juce::uint8*) bad.getData())[200] ^= 0x01;
+                    expect (SyVoice::voiceProblem ((const juce::uint8*) bad.getData(), (int) bad.getSize()).contains ("checksum"));
+                    expect (SyVoice::voiceProblem (steel, 400).contains ("taille"));
+                }
+                {   // DRUM : commun (29 effets + 22 controleurs + VVOL) + 61 notes x 7 params.
+                    juce::MemoryBlock dr; dr.setSize (588, true);
+                    auto* q = (juce::uint8*) dr.getData();
+                    q[32] = 0x0A; q[98 + 8 * 2 + 3] = 0x15; q[98 + 8 * 2 + 2] = 0x01;   // note 38 : WAV = 0x95
+                    const auto dp = SyVoice::voiceBlobToParams (q, 588);
+                    expectEquals (dp.size(), 29 + 22 + 1 + 61 * 7);
+                    bool found = false;
+                    for (auto& x : dp) if (x.group == 0x04 && x.addrHi == 38 && x.param == 0x02) found = x.value == 0x15 && x.v1 == 1;
+                    expect (found);
+                    // Vue drum : le rejeu remplit SyDrum::Kit (note 38 = ligne 2) ; offsets o/b.
+                    q[98 + 8 * 2 + 0] = 0x43; q[98 + 8 * 2 + 1] = 1; q[98 + 8 * 2 + 4] = 100;
+                    q[98 + 8 * 2 + 5] = 64;   q[98 + 8 * 2 + 6] = 16; q[98 + 8 * 2 + 7] = 31;
+                    SyDrum::Kit kit;
+                    expect (! kit.loaded);
+                    for (auto& x : SyVoice::voiceBlobToParams (q, 588))
+                        kit.apply (x.group, x.addrHi, x.addrLo, x.param, x.v1, x.value);
+                    expect (kit.loaded);
+                    const auto* r = kit.raw[2];
+                    expectEquals (SyDrum::wave (r), 0x95);
+                    expectEquals (SyDrum::source (r), 1);
+                    expectEquals (SyDrum::volume (r), 100);
+                    expectEquals (SyDrum::tune (r), 0);
+                    expectEquals (SyDrum::shift (r), -48);
+                    expectEquals (SyDrum::pan (r), 0);
+                    expect (SyDrum::alternate (r));
+                    expectEquals (SyDrum::outputs (r), juce::String ("1+2"));
+                    expect (! kit.apply (0x04, 35, 0, 0x03, 0, 1));    // hors C1..C6
+                    expect (! kit.apply (0x07, 38, 0, 0x03, 0, 1));    // autre groupe
+                    // Envoi (etape 2) : octet packe recompose, bits etrangers conserves.
+                    expectEquals (SyDrum::packOutAlt (0x43, true, false, false), 0x01);
+                    expectEquals (SyDrum::packOutAlt (0x01, true, true, true), 0x43);
+                    expectEquals (SyDrum::packOutAlt (0x0C | 0x02, false, true, false), 0x0E);
+                    // Un param-change drum est enregistrable par l'historique (undo/A-B).
+                    {
+                        auto m = SyVoice::paramMessage (1, 0x04, 38, 0x00, 0x03, 90);
+                        expect (SyVoice::isRecordableVoiceParamChange (m.getRawData(), m.getRawDataSize()));
+                        expect (kit.apply (0x04, 38, 0, 0x02, 1, 0x05));   // WAV MSB/LSB
+                        expectEquals (SyDrum::wave (kit.raw[2]), 133);
+                    }
+                }
+                // Filtres (Table 2) : FTYPE1 @403, FTYPE2 @432, FOS11 (MSB @424, low @425), FVSON @462.
+                expectEquals (val (0x09, 0, 0x00), (int) steel[403]);
+                expectEquals (val (0x09, 1, 0x00), (int) steel[432]);
+                expectEquals (val (0x09, 0, 0x14), (int) steel[423]);   // FBP4 filtre 1
+                expectEquals (val (0x09, 0, 0x15), (int) steel[425]);   // FOS1 V2 (low 7 bits)
+                expectEquals (val (0x09, 2, 0x33), (int) steel[462]);
+                expectEquals (val (0x09, 2, 0x34), (int) steel[463]);
+                // Octets packes operateur (OP1 = record 5) : RS @15, 0x18 @25, 0x19 V1 @26 / V2 @27.
+                const int op1 = 107 + 5 * 45;
+                expectEquals (val (0x56, 0, 0x0F), (int) steel[op1 + 15]);
+                expectEquals (val (0x56, 0, 0x18), (int) steel[op1 + 25]);
+                expectEquals (val (0x56, 0, 0x19), (int) steel[op1 + 27]);
+                for (auto& vp : SyVoice::voiceBlobToParams (steel, (int) sizeof (steel)))
+                    if (vp.group == 0x56 && vp.addrHi == 0 && vp.param == 0x19)
+                        expectEquals (vp.v1, (int) steel[op1 + 26]);
+            }
+            expect (SyVoice::voiceBlobToParams (nullptr, 466).isEmpty());
+        }
+
+        beginTest ("Multi: groups 0x00/0x01 kept out of voice history; 8101MU decode; dump request");
+        {
+            // Phase 0 : un param-change Multi n'est jamais enregistrable (undo/A-B renverraient au synthe).
+            for (int g : { 0x00, 0x01, 0x0F })
+            {
+                auto m = SyVoice::paramMessage (1, (juce::uint8) g, 0x02, 0x00, 0x03, 50);
+                expect (! SyVoice::isRecordableVoiceParamChange (m.getRawData(), m.getRawDataSize()));
+            }
+            auto mv = SyVoice::paramMessage (1, 0x03, 0x00, 0x00, 0x00, 50);
+            expect (SyVoice::isRecordableVoiceParamChange (mv.getRawData(), mv.getRawDataSize()));
+
+            juce::uint8 d[SyMulti::kSize] = {};
+            const char* hdr = "LM  8101MU";
+            d[0] = 0xF0; d[1] = 0x43; d[2] = 0x00; d[3] = 0x7A; d[4] = 0x01; d[5] = 0x44;
+            for (int k = 0; k < 10; ++k) d[6 + k] = (juce::uint8) hdr[k];
+            d[30] = 0x00; d[31] = 3;
+            const char* nm = "MY MULTI";
+            for (int k = 0; k < 20; ++k) d[32 + k] = (juce::uint8) (k < 8 ? nm[k] : ' ');
+            d[52] = 2;                                                   // EFMODE
+            const int p5 = SyMulti::kPartBase + 5 * SyMulti::kStride;    // partie 6
+            d[p5 + 0] = 0x43; d[p5 + 1] = 1; d[p5 + 2] = 17; d[p5 + 3] = 100;
+            d[p5 + 4] = 64;   d[p5 + 5] = 52; d[p5 + 6] = 0;
+            const int p15 = SyMulti::kPartBase + 15 * SyMulti::kStride;
+            d[p15 + 6] = 63;                                             // STPAN @201 = +31
+            expectEquals (p15 + 6, 201);
+            d[202] = SyVoice::yamahaChecksum (d + 6, SyMulti::kSize - 8);
+            d[203] = 0xF7;
+
+            auto m = SyMulti::parse (d, SyMulti::kSize);
+            expect (m.loaded);
+            expectEquals (m.name, juce::String ("MY MULTI"));
+            expectEquals (m.memNumber, 3);
+            expectEquals ((int) m.fx[0], 2);
+            const auto& pt = m.part[5];
+            expectEquals (SyMulti::voiceNum (pt), 17);
+            expectEquals (SyMulti::volume (pt), 100);
+            expectEquals (SyMulti::tune (pt), 0);
+            expectEquals (SyMulti::shift (pt), -12);
+            expect (SyMulti::panFromVoice (pt));
+            expect (SyMulti::out1 (pt) && SyMulti::out2 (pt) && SyMulti::ofvcsw (pt));
+            expectEquals (SyMulti::voiceLabel (pt), juce::String ("M1 B2"));
+            expectEquals (SyMulti::pan (m.part[15]), 31);
+            // Checksum faux -> refuse.
+            d[202] ^= 1;
+            expect (! SyMulti::parse (d, SyMulti::kSize).loaded);
+            // RX param-change -> etat.
+            expect (m.apply (0x01, 5, 0, 0x03, 0, 90));
+            expectEquals (SyMulti::volume (m.part[5]), 90);
+            expect (m.apply (0x00, 0, 0, 0, 0, 'X'));
+            expect (m.name.startsWith ("XY MULTI"));
+            expect (! m.apply (0x03, 0, 0, 0, 0, 1));
+            // Encodage pour l'edit buffer : nom + parties courants, $7F, checksum valide, effets gardes.
+            {
+                d[202] ^= 1;   // (checksum re-valide pour servir de base)
+                const juce::MemoryBlock base (d, SyMulti::kSize);
+                auto e = SyMulti::encodeForEditBuffer (m, base);
+                const auto* ed = (const juce::uint8*) e.getData();
+                expectEquals ((int) e.getSize(), SyMulti::kSize);
+                expectEquals ((int) ed[30], 0x7F);
+                expectEquals ((int) ed[32], (int) 'X');
+                expectEquals ((int) ed[p5 + 3], 90);
+                expectEquals ((int) ed[52], 2);
+                expectEquals ((int) ed[202], (int) SyVoice::yamahaChecksum (ed + 6, SyMulti::kSize - 8));
+                expect (SyMulti::parse (ed, SyMulti::kSize).loaded);
+            }
+            // Octet packe : bit 2 (non documente) conserve.
+            expectEquals (SyMulti::packPart (0x44, true, false, true), 0x45);
+            expectEquals (SyMulti::packPart (0x47, false, false, false), 0x04);
+            // Dump request : 31 octets, « MU », memoire 00 / n° 4.
+            auto rq = SyMulti::dumpRequest (1, 0x00, 4);
+            expectEquals (rq.getRawDataSize(), 31);
+            expectEquals ((int) rq.getRawData()[12], (int) 'M');
+            expectEquals ((int) rq.getRawData()[13], (int) 'U');
+            expectEquals ((int) rq.getRawData()[29], 4);
+        }
+
+        beginTest ("SyBank: renumber + checksum, bank D rule for 4-element voices, metadata map");
+        {
+            auto voice = [] (int type, int slot)
+            {
+                auto m = VoiceTemplates::make (0);
+                auto* d = (juce::uint8*) m.getData();
+                d[32] = (juce::uint8) type; d[30] = 0; d[31] = (juce::uint8) slot;
+                d[m.getSize() - 2] = SyVoice::yamahaChecksum (d + 6, (int) m.getSize() - 8);
+                return m;
+            };
+            auto makeFile = [&] (int n, int fourElemFrom)
+            {
+                juce::MemoryBlock f;
+                const juce::uint8 sys[] = { 0xF0, 0x43, 0x00, 0x7A, 0x00, 0x02, 0x11, 0x22, 0x00, 0xF7 };   // non-voix
+                f.append (sys, sizeof (sys));
+                for (int i = 0; i < n; ++i) { auto v = voice (i >= fourElemFrom ? 0x09 : 0x03, i); f.append (v.getData(), v.getSize()); }
+                return f;
+            };
+            auto slotsOk = [this] (const SyBank::Bank& b)
+            {
+                const auto out = b.serialize();
+                const auto re = SyBank::Bank::parse (out.getData(), out.getSize());
+                int nonVoice = 0;
+                for (auto& m : b.blocks) nonVoice += SyBank::isVoiceBlock (m) ? 0 : 1;
+                expectEquals (re.blocks.size() - re.voices.size(), nonVoice);          // non-voix conserves
+                if (nonVoice > 0) expect (! SyBank::isVoiceBlock (re.blocks[0]));
+                for (int i = 0; i < re.voices.size(); ++i)
+                {
+                    auto* d = (const juce::uint8*) re.voices.getReference (i).getData();
+                    expectEquals ((int) d[31], i);
+                    const int n = (int) re.voices.getReference (i).getSize();   // (fausses voix 4 elem : taille 1AFM)
+                    expectEquals ((int) d[n - 2], (int) SyVoice::yamahaChecksum (d + 6, n - 8));
+                }
+            };
+
+            auto f64 = makeFile (64, 48);
+            auto b = SyBank::Bank::parse (f64.getData(), f64.getSize());
+            expectEquals (b.numVoices(), 64);
+            expect (b.problem().isEmpty());
+            // 4 elements hors banque D : refuse, banque intacte.
+            auto r = SyBank::move (b, 50, 2);
+            expect (r.error.isNotEmpty());
+            expectEquals (SyBank::typeOf (b.voices[50]), 0x09);
+            expect (SyBank::swap (b, 50, 10).error.isNotEmpty());
+            expect (SyBank::duplicate (b, 3).error.isNotEmpty());              // pleine
+            // Echange dans D et deplacement hors D : ok, carte des metadonnees.
+            r = SyBank::swap (b, 49, 60);
+            expect (r.error.isEmpty());
+            expectEquals (r.newPosOfOld[49], 60);
+            r = SyBank::move (b, 0, 5);
+            expect (r.error.isEmpty());
+            expectEquals (r.newPosOfOld[0], 5);
+            expectEquals (r.newPosOfOld[3], 2);
+            expectEquals (r.newPosOfOld[6], 6);
+            slotsOk (b);
+            // Supprimer = Init a la meme place : 64 voix, metadonnees de la voix abandonnees.
+            r = SyBank::replace (b, 7, voice (0x00, 0));
+            expect (r.error.isEmpty());
+            expectEquals (b.numVoices(), 64);
+            expectEquals (r.newPosOfOld[7], -1);
+            expect (SyBank::replace (b, 50, voice (0x00, 0)).error.isEmpty());
+
+            auto f10 = makeFile (10, 99);
+            auto c = SyBank::Bank::parse (f10.getData(), f10.getSize());
+            r = SyBank::duplicate (c, 2);
+            expect (r.error.isEmpty());
+            expectEquals (c.numVoices(), 11);
+            expectEquals (r.newPosOfOld[3], 4);
+            expect (SyBank::append (c, voice (0x07, 0)).error.isNotEmpty());   // 4AWM -> slot 11 (A12) refuse
+            expectEquals (c.numVoices(), 11);
+            r = SyBank::append (c, voice (0x03, 40));
+            expect (r.error.isEmpty());
+            slotsOk (c);                                                          // la copie prend le slot 11, pas 40
+            expectEquals (SyBank::slotName (0), juce::String ("A1"));
+            expectEquals (SyBank::slotName (63), juce::String ("D16"));
+            // Les Multi de la banque suivent les voix deplacees (VMEM 0 = interne).
+            {
+                juce::uint8 mu[204] = {};
+                const char* id = "LM  8101MU";
+                mu[0] = 0xF0; mu[1] = 0x43; mu[3] = 0x7A; mu[4] = 0x01; mu[5] = 0x44; mu[203] = 0xF7;
+                for (int k = 0; k < 10; ++k) mu[6 + k] = (juce::uint8) id[k];
+                mu[90 + 1] = 0; mu[90 + 2] = 2;          // partie 1 -> voix interne slot 2
+                mu[97 + 1] = 1; mu[97 + 2] = 2;          // partie 2 -> autre memoire, slot 2 : intact
+                auto f = makeFile (10, 99);
+                f.append (mu, sizeof (mu));
+                auto mb = SyBank::Bank::parse (f.getData(), f.getSize());
+                expect (SyBank::swap (mb, 2, 5).error.isEmpty());
+                const auto out = mb.serialize();
+                const auto* od = (const juce::uint8*) out.getData();
+                const int mo = (int) out.getSize() - 204;
+                expectEquals ((int) od[mo + 92], 5);
+                expectEquals ((int) od[mo + 99], 2);
+                expectEquals ((int) od[mo + 202], (int) SyVoice::yamahaChecksum (od + mo + 6, 196));
+            }
+            // Banque vide (nouveau fichier) : append ok.
+            SyBank::Bank e;
+            expect (SyBank::append (e, voice (0x03, 5)).error.isEmpty());
+            slotsOk (e);
+        }
+
+        beginTest ("voiceBlobToParams decodes AWM waveform (TARKUSCYMB, 1 AWM)");
+        {
+            // Dump réel « TARKUSCYMB » (1 AWM, type @32 == 0x05), 221 octets.
+            static const juce::uint8 awm[] = {
+            0xf0, 0x43, 0x00, 0x7a, 0x01, 0x55, 0x4c, 0x4d, 0x20, 0x20, 0x38, 0x31, 0x30, 0x31, 0x56, 0x43,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7f, 0x24,
+            0x05, 0x54, 0x41, 0x52, 0x4b, 0x55, 0x53, 0x43, 0x59, 0x4d, 0x42, 0x00, 0x03, 0x64, 0x64, 0x0c,
+            0x3f, 0x00, 0x00, 0x03, 0x64, 0x64, 0x03, 0x50, 0x00, 0x00, 0x24, 0x64, 0x64, 0x00, 0x00, 0x08,
+            0x24, 0x64, 0x64, 0x0c, 0x0c, 0x0c, 0x00, 0x00, 0x02, 0x00, 0x01, 0x19, 0x01, 0x1b, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x03, 0x7f,
+            0x00, 0x00, 0x7f, 0x02, 0x34, 0x00, 0x7f, 0x01, 0x7f, 0x20, 0x06, 0x00, 0x00, 0x69, 0x00, 0x3c,
+            0x40, 0x03, 0x3f, 0x3f, 0x3f, 0x3f, 0x40, 0x40, 0x40, 0x40, 0x40, 0x01, 0x00, 0x00, 0x43, 0x00,
+            0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x7f, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40,
+            0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x00, 0x00, 0x2a, 0x4a, 0x60, 0x01, 0x00, 0x01, 0x00, 0x01,
+            0x00, 0x00, 0x48, 0x00, 0x7f, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x40, 0x40, 0x40,
+            0x40, 0x40, 0x40, 0x00, 0x00, 0x2a, 0x4a, 0x60, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x48,
+            0x00, 0x00, 0x05, 0x00, 0x20, 0x11, 0x17, 0x00, 0x1c, 0x30, 0x3f, 0x00, 0x2d, 0x43, 0x48, 0x5b,
+            0x01, 0x00, 0x01, 0x00, 0x00, 0x76, 0x00, 0x76, 0x00, 0x00, 0x03, 0x43, 0xf7
+            };
+
+            auto p = SyVoice::voiceBlobToParams (awm, (int) sizeof (awm));
+            {   // Filtres AWM : FTYPE f1 @107+27, f2 @107+56, FRES @107+85 (fN 3/4/5).
+                auto v = [&] (int hi, int n2) { for (auto& q : p) if (q.group == 0x09 && q.addrHi == hi && q.param == n2) return q.value; return -1; };
+                expectEquals (v (3, 0x00), (int) awm[107 + 27]);
+                expectEquals (v (4, 0x00), (int) awm[107 + 56]);
+                expectEquals (v (3, 0x14), (int) awm[107 + 27 + 0x14]);
+                expectEquals (v (5, 0x32), (int) awm[107 + 85]);
+            }
+            // 1 AWM : par élément = ELVL + waveform + 7 params amp-EG ; + VVOL commun = 10 ; + contrôleurs.
+            expectEquals (p.size(), 10 + kCtrl + kAwmExtra + kElemCom + kFx);
+
+            auto val = [&p] (int g, int h, int prm) -> int {
+                for (auto& q : p) if (q.group == g && q.addrHi == h && q.param == prm) return q.value;
+                return -1; };
+            expectEquals (val (0x07, 0, 0x01), 105);   // AWMWAVE @109 (low7) -> wave "106" (0-indexé)
+            // Bloc AWM N2+1 / N2+9 : plages de la spec sur ce dump réel.
+            expect (val (0x07, 0, 0x0F) >= 1 && val (0x07, 0, 0x0F) <= 3);   // PPEGR 1~3
+            expect (val (0x07, 0, 0x17) >= 0 && val (0x07, 0, 0x17) <= 5);   // PLFWAV 0~5
+            expect (val (0x07, 0, 0x4F) == 0 || val (0x07, 0, 0x4F) == 1);   // PAEGMD normal/hold
+            expect (val (0x07, 0, 0x58) <= val (0x07, 0, 0x5B));            // BP1 <= BP4
+            // VEL / ARVSW / AMS apres les 4 PAOS (2 octets) : base + N2 + 13 (revue : pas +9).
+            expectEquals (val (0x07, 0, 0x60), (int) awm[107 + 0x60 + 13]);
+            expect (val (0x07, 0, 0x61) == 0 || val (0x07, 0, 0x61) == 1);
+            expectEquals (val (0x03, 0, 0x00), 127);   // ELVL0 @98
+            expectEquals (val (0x02, 0, 0x3F), 127);   // VVOL  @95
+            // amp-EG AWM (offsets @base+89.., valeurs confirmées par l'utilisateur).
+            expectEquals (val (0x07, 0, 0x50), 32);    // PAR1
+            expectEquals (val (0x07, 0, 0x51), 17);    // PAR2
+            expectEquals (val (0x07, 0, 0x52), 23);    // PAR3
+            expectEquals (val (0x07, 0, 0x53), 0);     // PAR4
+            expectEquals (val (0x07, 0, 0x54), 28);    // PARR1
+            expectEquals (val (0x07, 0, 0x55), 48);    // PAL2
+            expectEquals (val (0x07, 0, 0x56), 63);    // PAL3
+        }
+
+        beginTest ("voiceBlobToParams handles mixed AFM+AWM (1AFM_1AWM, type 8)");
+        {
+            // type $08 : élément 1 AFM (357 o.) + élément 2 AWM (112 o.). firstBase=116,
+            // taille = 116 + 357 + 112 = 585 (+F7).
+            juce::MemoryBlock mb; mb.setSize (586, true);
+            auto* p = (juce::uint8*) mb.getData();
+            p[0] = 0xF0; p[32] = 0x08;
+            auto params = SyVoice::voiceBlobToParams (p, 586);
+            expectEquals (params.size(), 241 + 6 * 3 + 9 + kAwmExtra + 1 + kCtrl + 2 * kElemCom + kAfmLfo + kFilt + kFx);   // AFM él.(217, dont niveaux EG o/b) + AWM él.(9) + VVOL
+
+            bool afmE1 = false, awmE2 = false;
+            for (auto& q : params)
+            {
+                if (q.addrHi == 0  && q.group == 0x56) afmE1 = true;   // OP1 élément 1 (AFM)
+                if (q.addrHi == 32 && q.group == 0x07) awmE2 = true;   // AWM élément 2
+            }
+            expect (afmE1);   // l'élément 1 est bien décodé en AFM
+            expect (awmE2);   // l'élément 2 est bien décodé en AWM (addrHi 0x20)
+        }
+    }
+};
+
+static SysexUtilsTests sysexUtilsTests;
