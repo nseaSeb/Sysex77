@@ -105,14 +105,15 @@ namespace SyBench
         bool compatible = false;  // meme type @32 et meme taille
     };
 
-    inline LotPlan planLot (const juce::MemoryBlock& s, const juce::MemoryBlock& t)
+    /** ms = paramMap (s), precalcule par l'appelant (choix de reference : s decode UNE fois). */
+    inline LotPlan planLot (const std::map<juce::int64, VP>& ms, const juce::MemoryBlock& s, const juce::MemoryBlock& t)
     {
         LotPlan r;
         if (s.getSize() != t.getSize() || s.getSize() < 34
             || ((const juce::uint8*) s.getData())[32] != ((const juce::uint8*) t.getData())[32])
             return r;
         r.compatible = true;
-        const auto ms = paramMap (s), mt = paramMap (t);
+        const auto mt = paramMap (t);
         for (auto& [k, vt] : mt)
         {
             auto it = ms.find (k);
@@ -122,6 +123,7 @@ namespace SyBench
         }
         return r;
     }
+    inline LotPlan planLot (const juce::MemoryBlock& s, const juce::MemoryBlock& t) { return planLot (paramMap (s), s, t); }
 
     enum class LotVerdict { Ok, Ignored, OtherValue, Missing };
 
@@ -227,7 +229,7 @@ struct TestBenchPanel : public juce::Component, private juce::Timer
 
     TestBenchPanel()
     {
-        title.setText ("Banc de test hardware (etape 0 : sondes)", juce::dontSendNotification);
+        title.setText ("Banc de test hardware (etape 0 : sondes de capacite)", juce::dontSendNotification);
         title.setFont (juce::FontOptions (14.0f, juce::Font::bold));
         addAndMakeVisible (title);
 
@@ -317,6 +319,7 @@ struct TestBenchPanel : public juce::Component, private juce::Timer
         running = listening = false;
         say ("-- interrompu (" + why + ")");
         refreshButtons();
+        warnIfEditBufferTouched();
     }
 
     void resized() override
@@ -371,7 +374,7 @@ private:
                      btCal { "CAL  Boucle fermee" }, btC { "C  Multi $7F" },
                      btStop { "Stop" }, btCopy { "Copier rapport" };
     juce::Label      title2;
-    juce::ComboBox   voiceSlot, multiSlot;
+    juce::ComboBox   voiceSlot;
     juce::TextButton btLot { "LOT  Voix (slot INT)" }, btCross { "X  Croiser widgets/decodeur" },
                      btMulti { "M  Lire multis INT 1-16" };
     juce::TextEditor log;
@@ -415,6 +418,20 @@ private:
         stopTimer();
         running = listening = waiting = false;
         refreshButtons();
+        warnIfEditBufferTouched();
+    }
+
+    // L'edit buffer du SY77 a ete modifie par une sonde : l'editeur (et son historique
+    // undo/A-B) ne decrit plus le synthe -> le dire, une fois, en fin de sonde.
+    bool editBufferTouched = false;
+    void warnIfEditBufferTouched()
+    {
+        if (! editBufferTouched) return;
+        editBufferTouched = false;
+        say ("!! L'edit buffer du SY77 a ete modifie : recharger la voix / le multi dans l'editeur avant d'editer, undo ou A/B.");
+        juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon, "Banc de test",
+            "L'edit buffer du SY77 a ete modifie par le banc.\n"
+            "Recharge la voix (ou le multi) dans l'editeur avant d'editer, d'utiliser undo ou A/B.");
     }
 
     void go()
@@ -569,6 +586,7 @@ private:
             calOrig  = d[kOff];
             calValue = (calOrig + 37) % 128;
             say ("CAL avant : ELVL = " + juce::String (calOrig) + " ; envoi " + juce::String (calValue));
+            editBufferTouched = true;
             send (SyVoice::paramMessage (dev(), 0x03, 0x00, 0x00, 0x00, (juce::uint8) calValue));
         }, 250, nullptr });
         steps.push_back (voiceEditRequest());
@@ -619,6 +637,7 @@ private:
             m.name = "BENCH TEST";
             const auto blk = SyMulti::encodeForEditBuffer (m, base);
             if (blk.getSize() == 0) { say ("C  KO : encodage impossible."); finish(); return; }
+            editBufferTouched = true;
             send (juce::MidiMessage (blk.getData(), (int) blk.getSize()));
         }, 600, nullptr });
         steps.push_back ({ [this]
@@ -648,10 +667,13 @@ private:
         d.createDirectory();
         return d;
     }
+    /** Ecrit puis RELIT le bloc ; File() si l'ecriture n'est pas prouvee. */
     juce::File saveBlock (const juce::MemoryBlock& b, const juce::String& tag)
     {
         auto f = outDir().getChildFile (juce::Time::getCurrentTime().formatted ("%Y%m%d-%H%M%S_") + tag + ".syx");
-        f.replaceWithData (b.getData(), b.getSize());
+        juce::MemoryBlock check;
+        if (! f.replaceWithData (b.getData(), b.getSize()) || ! f.loadFileAsData (check) || check != b)
+            return {};
         return f;
     }
 
@@ -691,6 +713,7 @@ private:
         covered = scanned = 0;
         juce::MemoryBlock best;
         if (ports.libraryDir == juce::File()) return best;
+        const auto ms = SyBench::paramMap (s);
         for (auto& f : ports.libraryDir.findChildFiles (juce::File::findFiles, true, "*.syx"))
         {
             juce::MemoryBlock data;
@@ -699,7 +722,7 @@ private:
             {
                 if (v.getSize() != s.getSize() || SyBank::typeOf (v) != SyBank::typeOf (s)) continue;
                 if (++scanned > 4000) return best;
-                const auto plan = SyBench::planLot (s, v);
+                const auto plan = SyBench::planLot (ms, s, v);
                 if (plan.toSend.size() > covered) { covered = plan.toSend.size(); best = v; }
             }
         }
@@ -723,7 +746,9 @@ private:
             lotBackup = lastVoiceBulk();
             if (lotBackup.getSize() == 0) { say ("LOT KO : slot illisible."); finish(); return; }
             say ("LOT slot " + SyBank::slotName (lotSlot) + " : " + voiceInfo (lotBackup));
-            say ("LOT sauvegarde : " + saveBlock (lotBackup, "backup_" + SyBank::slotName (lotSlot)).getFullPathName());
+            const auto bak = saveBlock (lotBackup, "backup_" + SyBank::slotName (lotSlot));
+            if (bak == juce::File()) { say ("LOT ARRET : sauvegarde sur disque impossible (" + outDir().getFullPathName() + "). Rien n'a ete envoye."); finish(); return; }
+            say ("LOT sauvegarde : " + bak.getFullPathName());
             say ("    (en cas de souci : ouvrir ce .syx dans la librairie et l'envoyer au slot)");
             int covered = 0, scanned = 0;
             lotRef = pickReference (lotBackup, covered, scanned);
@@ -734,8 +759,9 @@ private:
                  + " non couverts (meme valeur dans les 2 voix).");
             saveBlock (lotRef, "reference");
             auto eb = lotBackup;
-            SyVoice::retargetVoiceToEditBuffer ((juce::uint8*) eb.getData(), (int) eb.getSize());
-            SyVoice::setBulkDevice ((juce::uint8*) eb.getData(), (int) eb.getSize(), dev());
+            if (! SyVoice::prepareEditBufferBulk ((juce::uint8*) eb.getData(), (int) eb.getSize(), dev()))
+            { say ("LOT ARRET : bloc non redirigeable vers l'edit buffer (rien envoye)."); finish(); return; }
+            editBufferTouched = true;
             send (juce::MidiMessage (eb.getData(), (int) eb.getSize()));
             pending = lotPlan.toSend;
         }, 900, nullptr });
@@ -823,7 +849,7 @@ private:
                 juce::MemoryBlock data;
                 if (f.getSize() > 4 * 1024 * 1024 || ! f.loadFileAsData (data)) continue;
                 for (auto& v : SyBank::Bank::parse (data.getData(), data.getSize()).voices)
-                    if (typesSeen.insert (SyBank::typeOf (v)).second)
+                    if (const int ty = SyBank::typeOf (v); ty >= 0 && ty <= 10 && typesSeen.insert (ty).second)
                         for (auto& [k, p] : SyBench::paramMap (v)) dec.insert (k);
             }
         juce::StringArray types; for (int t : typesSeen) types.add (juce::String (t));

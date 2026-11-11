@@ -530,10 +530,11 @@ public:
         // que le test de connexion.
         midiSettingsPage->bench.ports.send = [this] (const MidiMessage& m)
         {
-            const ScopedValueSetter<bool> svs (benchSending, true);
             MidiMessage msg (m);
             msg.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
+            benchSending = true;
             sendToOutputs (msg);
+            benchSending = false;
         };
         midiSettingsPage->bench.ports.device    = [] { return sysexDeviceNumber; };
         // Rapport ecrit aussi sur disque (lu directement pour l'analyse, sans copier-coller).
@@ -1249,7 +1250,9 @@ private:
             if (midiSettingsPage != nullptr)
                 midiSettingsPage->bench.handleIncoming (message);
 
-            if (message.isSysEx() && SyMulti::isMultiBlock (message.getRawData(), message.getRawDataSize()))
+            // (pendant une sonde du banc, les Multi recus sont pour le banc : ne pas ecraser l'onglet Multi)
+            if (message.isSysEx() && SyMulti::isMultiBlock (message.getRawData(), message.getRawDataSize())
+                && ! (midiSettingsPage != nullptr && midiSettingsPage->bench.isBusy()))
             {
                 valueMultiBulk = var (message.getRawData(), (size_t) message.getRawDataSize());
                 valueMultiBulk.getValueSource().sendChangeMessage (false);
@@ -1329,7 +1332,7 @@ public:
         // Edit history: record user voice param-changes (message thread only; not our own
         // undo/redo/B sends, not while A is shown, not system setup group 0x0F). AVANT le gate
         // Out (fidele) : un B differe en attente est avance ici, avant que l'edit ne sorte.
-        if (MessageManager::existsAndIsCurrentThread() && ! benchSending)
+        if (MessageManager::existsAndIsCurrentThread() && ! benchSending.load())
             session.observeOutgoing (msg.getRawData(), msg.getRawDataSize(),
                                      ModifierKeys::currentModifiers.isAnyMouseButtonDown());
         // Note-offs still pass when Out is OFF: otherwise a note started before the switch
@@ -1340,7 +1343,8 @@ public:
         const ScopedLock sl (outLock);
         // Retrig mode: restart the phrase after a VOICE PARAM CHANGE only (F0 43 1n 34 ...,
         // 11 bytes) — not after dump requests, system setup or bulk transfers.
-        if (msg.isSysEx() && msg.getRawDataSize() == 11)
+        // (pas pour les envois du banc de test : un LOT en enverrait des centaines)
+        if (msg.isSysEx() && msg.getRawDataSize() == 11 && ! benchSending.load())
         {
             const uint8* d = msg.getRawData();
             if (d[1] == 0x43 && (d[2] & 0xF0) == 0x10 && d[3] == 0x34)
@@ -1578,9 +1582,8 @@ public:
         getAppSettings()->saveIfNeeded();
         resized();
     }
-    // Sélecteurs de ports MIDI TOUJOURS VISIBLES (bandeau bas, à gauche du toggle clavier).
-    // Ouvrent un PopupMenu à cases cochables ; même source de vérité que l'onglet Midi Setting
-    // (midiInputs/midiOutputs + openDevice/closeDevice + saveEnabledDevices).
+    // Interrupteurs In/Out de la barre du haut : gates ecoute/envoi (midiListen/midiSend), libelle =
+    // nombre de ports ouverts. Le CHOIX des ports se fait dans l'onglet Setting (MidiDeviceListBox).
     TextButton  btMidiIn  {"In"};
     TextButton  btMidiOut {"Out"};
     std::unique_ptr<MidiDeviceListBox> midiInputSelector, midiOutputSelector;
@@ -1714,7 +1717,7 @@ public:
     // Test de connexion (carte MIDI de Settings) : envoi d'une requête + attente de la réponse.
     ConfigPage* configPage      = nullptr;  // page "Setting" (pour publier le statut de connexion)
     bool        awaitingConnReply = false;
-    bool        benchSending      = false;   // envoi du banc de test : hors historique voix
+    std::atomic<bool> benchSending { false };   // lu aussi par les threads sequenceur/banque   // envoi du banc de test : hors historique voix
     uint32      connDeadlineMs   = 0;
 
     uint8 data[12];
