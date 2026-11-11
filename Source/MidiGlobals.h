@@ -20,6 +20,7 @@ static const String adresseOpMode = "/77OpMode";
 static const String adresseOscSendBank ="/77SendBank";
 static const String adresseOscRequestDump ="/77RequestDump";
 static const String adresseOscRequestMulti ="/77RequestMulti";
+static const String adresseOscOpenVoiceBlock = "/77OpenVoiceBlock";   // bloc voix (Mixture TEST) -> edit buffer + editeur
 static const String adresseOscSendMulti ="/77SendMulti";   // bulk Multi -> edit buffer (clic + confirmation)   // dump request d'un Multi INT (lecture)
 static const String adresseOscRepaint = "/77Repaint";
 static const String adresseOscSendVoice = "/77SendVoice";

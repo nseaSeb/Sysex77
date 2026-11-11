@@ -132,6 +132,21 @@ void oscMessageReceived (const OSCMessage& message)
         else
             Logger::writeToLog ("Send BANK : aucune banque chargee");
     }
+    if (address.matches (adresseOscOpenVoiceBlock) && message.size() == 1 && message[0].isBlob())
+    {
+        // Mixture TEST : meme chemin qu'une audition de librairie (openVoiceBlock -> edit buffer
+        // $7F + editeur + historique). Garde SY77 ; confirmation si edits non sauves.
+        auto block = message[0].getBlob();
+        if (! SyBank::isVoiceBlock (block)
+            || SyVoice::detectSynthKind ((const uint8*) block.getData(), block.getSize()) != SyVoice::SynthKind::SY77)
+            Logger::writeToLog ("OpenVoiceBlock ignore : voix non-SY77");
+        else if (! session.hasUnsavedEdits())
+            openVoiceBlock (block);
+        else
+            NativeMessageBox::showOkCancelBox (MessageBoxIconType::QuestionIcon, TRANS ("New voice"),
+                TRANS ("Replace the voice being edited? Unsaved edits will be lost."), this,
+                ModalCallbackFunction::create ([this, block] (int r) { if (r == 1) openVoiceBlock (block); }));
+    }
     if (address.matches (adresseOscSendMulti) && message.size() == 1 && message[0].isBlob())
     {
         // Onglet Multi, bouton + confirmation : bulk 8101MU vers l'EDIT BUFFER ($7F). Garde : seul

@@ -40,6 +40,7 @@
 #include "BankSendProgress.h"      // fenêtre de progression de l'envoi de banque
 #include "BankReceiveProgress.h"   // fenêtre de progression de la réception de banque
 #include "Voice.h"
+#include "MixtureView.h"      // Quadratic Mixture (fenetre, ouverte depuis la librairie)
 #include "Librairie.h"
 #include "Effects.h"
 #include "ControllersPage.h"

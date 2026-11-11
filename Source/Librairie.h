@@ -733,6 +733,16 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
         m.addSubMenu (TRANS ("Move to"), moveTo);
         m.addSubMenu (TRANS ("Swap with"), swapWith);
         m.addItem (TRANS ("Copy to bank..."), [this, glob] { copyPresetToBank (glob); });
+        {
+            PopupMenu mix;
+            const auto vb = bank.voices[glob];
+            for (int c = 0; c < 4; ++c)
+                mix.addItem (TRANS ("Corner") + " " + String (c + 1), SyBank::typeOf (vb) != 0x0A,
+                             false, [vb, c, lbl = label (glob)] { MixtureView::show (c, vb, lbl); });
+            mix.addSeparator();
+            mix.addItem (TRANS ("Open Quadratic Mixture"), [] { MixtureView::show(); });
+            m.addSubMenu (TRANS ("Quadratic Mixture"), mix);
+        }
         m.addSeparator();
         m.addItem (TRANS ("Replace with Init voice..."), [this, glob, label]
         {
