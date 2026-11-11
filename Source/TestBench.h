@@ -24,6 +24,7 @@
 #pragma once
 
 #include <deque>
+#include "SysexMix.h"
 #include <map>
 #include <set>
 
@@ -82,19 +83,8 @@ namespace SyBench
     // DECODEUR (pas le cablage des widgets : voir le croisement widgets/decodeur).
     using VP = SyVoice::VoiceParam;
 
-    inline juce::int64 keyOf (int g, int hi, int lo, int p)
-    {
-        return ((juce::int64) (g & 0xFF) << 24) | ((hi & 0xFF) << 16) | ((lo & 0xFF) << 8) | (p & 0xFF);
-    }
-    inline juce::int64 keyOf (const VP& v) { return keyOf (v.group, v.addrHi, v.addrLo, v.param); }
-
-    inline std::map<juce::int64, VP> paramMap (const juce::MemoryBlock& b)
-    {
-        std::map<juce::int64, VP> m;
-        for (auto& v : SyVoice::voiceBlobToParams ((const juce::uint8*) b.getData(), (int) b.getSize()))
-            m[keyOf (v)] = v;   // derniere occurrence gagne (comme une relecture par l'editeur)
-        return m;
-    }
+    using SyMix::keyOf;                                                       // une seule cle (SysexMix.h)
+    inline std::map<juce::int64, VP> paramMap (const juce::MemoryBlock& b) { return SyMix::decode (b); }
 
     inline bool sameValue (const VP& a, const VP& b) { return a.value == b.value && a.v1 == b.v1; }
 
@@ -219,6 +209,7 @@ struct TestBenchPanel : public juce::Component, private juce::Timer
     {
         std::function<void (const juce::MidiMessage&)> send;   // hors historique d'edition
         std::function<int()>                            device;
+        std::function<bool()>                           omni;       // reception "ALL" (tout device)
         std::function<juce::String()>                   preflight;  // "" = OK, sinon raison
         juce::File                                      logFile;    // copie du rapport (append), vide = aucune
         juce::File                                      libraryDir; // banques .syx (voix de reference)
@@ -285,7 +276,7 @@ struct TestBenchPanel : public juce::Component, private juce::Timer
         refreshButtons();
     }
 
-    ~TestBenchPanel() override { stopTimer(); }
+    ~TestBenchPanel() override { stopTimer(); closeLog(); }
 
     bool isBusy() const noexcept { return running; }
 
@@ -301,7 +292,7 @@ struct TestBenchPanel : public juce::Component, private juce::Timer
             const auto* d = m.getSysExData();
             if (d[0] != 0x43 || d[2] != 0x34) return;
             const int dev = ports.device ? ports.device() : 1;
-            const bool devOk = (d[1] & 0xF0) == 0x10 && (d[1] & 0x0F) == ((dev - 1) & 0x0F);
+            const bool devOk = SyVoice::acceptsDevice (d[1], dev, ports.omni && ports.omni());   // meme regle que la reception
             if (devOk) ++listenOk; else ++listenBadDev;
             auto hx = [] (int v) { return juce::String::toHexString (v).paddedLeft ('0', 2).toUpperCase(); };
             say ("  recu  G=" + hx (d[3]) + " AH=" + hx (d[4]) + " AL=" + hx (d[5]) + " P=" + hx (d[6])
@@ -320,6 +311,7 @@ struct TestBenchPanel : public juce::Component, private juce::Timer
         say ("-- interrompu (" + why + ")");
         refreshButtons();
         warnIfEditBufferTouched();
+        closeLog();
     }
 
     void resized() override
@@ -384,8 +376,19 @@ private:
     {
         log.moveCaretToEnd();
         log.insertTextAtCaret (s + "\n");
-        if (ports.logFile != juce::File())
-            ports.logFile.appendText (s + "\n", false, false, "\n");
+        // Flux garde ouvert pendant une sonde (pas d'ouverture/fermeture par ligne) ; ferme en fin.
+        if (logOut == nullptr && ports.logFile != juce::File())
+        {
+            logOut = std::make_unique<juce::FileOutputStream> (ports.logFile);
+            if (! logOut->openedOk()) logOut.reset();
+        }
+        if (logOut != nullptr) *logOut << s << "\n";
+        if (! running) closeLog();   // ligne hors sonde (ex. croisement X) : ecrite tout de suite
+    }
+    std::unique_ptr<juce::FileOutputStream> logOut;
+    void closeLog()
+    {
+        if (logOut != nullptr) { logOut->flush(); logOut.reset(); }
     }
 
     void refreshButtons()
@@ -419,6 +422,7 @@ private:
         running = listening = waiting = false;
         refreshButtons();
         warnIfEditBufferTouched();
+        closeLog();
     }
 
     // L'edit buffer du SY77 a ete modifie par une sonde : l'editeur (et son historique

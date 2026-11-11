@@ -520,17 +520,16 @@ public:
         // Bouton Clear : vide aussi l'historique borné (sinon un re-render le ferait réapparaître).
         midiSettingsPage->onClearHistory = [this] { monitorHistory.clearQuick(); };
 
-        // Banc de test : envois HORS historique d'edition (benchSending), memes gates In/Out
+        // Banc de test : envois HORS historique d'edition (sendToOutputs fromBench), memes gates In/Out
         // que le test de connexion.
         midiSettingsPage->bench.ports.send = [this] (const MidiMessage& m)
         {
             MidiMessage msg (m);
             msg.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
-            benchSending = true;
-            sendToOutputs (msg);
-            benchSending = false;
+            sendToOutputs (msg, true);
         };
         midiSettingsPage->bench.ports.device    = [] { return sysexDeviceNumber; };
+        midiSettingsPage->bench.ports.omni      = [] { return sysexReceiveOmni; };
         // Rapport ecrit aussi sur disque (lu directement pour l'analyse, sans copier-coller).
         midiSettingsPage->bench.ports.logFile   = getAppSettings()->getFile().getSiblingFile ("testbench.log");
         midiSettingsPage->bench.ports.libraryDir = appDirPath;
@@ -1220,7 +1219,9 @@ private:
 
     }
 public:
-    void sendToOutputs (const MidiMessage& msg)
+    /** fromBench = envoi du banc de test : hors historique voix et sans Retrig (parametre
+        explicite, pas d'etat partage entre threads). */
+    void sendToOutputs (const MidiMessage& msg, bool fromBench = false)
     {
         // Interrupteur « Out » (envoi) OFF : l'app n'émet RIEN vers le synthé. Point de coupe
         // unique -> couvre notes, param-changes/sysex, bulk ET le MIDI Thru (qui passe par ici),
@@ -1228,7 +1229,7 @@ public:
         // Edit history: record user voice param-changes (message thread only; not our own
         // undo/redo/B sends, not while A is shown, not system setup group 0x0F). AVANT le gate
         // Out (fidele) : un B differe en attente est avance ici, avant que l'edit ne sorte.
-        if (MessageManager::existsAndIsCurrentThread() && ! benchSending.load())
+        if (MessageManager::existsAndIsCurrentThread() && ! fromBench)
             session.observeOutgoing (msg.getRawData(), msg.getRawDataSize(),
                                      ModifierKeys::currentModifiers.isAnyMouseButtonDown());
         // Note-offs still pass when Out is OFF: otherwise a note started before the switch
@@ -1240,7 +1241,7 @@ public:
         // Retrig mode: restart the phrase after a VOICE PARAM CHANGE only (F0 43 1n 34 ...,
         // 11 bytes) — not after dump requests, system setup or bulk transfers.
         // (pas pour les envois du banc de test : un LOT en enverrait des centaines)
-        if (msg.isSysEx() && msg.getRawDataSize() == 11 && ! benchSending.load())
+        if (msg.isSysEx() && msg.getRawDataSize() == 11 && ! fromBench)
         {
             const uint8* d = msg.getRawData();
             if (d[1] == 0x43 && (d[2] & 0xF0) == 0x10 && d[3] == 0x34)
@@ -1613,7 +1614,6 @@ public:
     // Test de connexion (carte MIDI de Settings) : envoi d'une requête + attente de la réponse.
     ConfigPage* configPage      = nullptr;  // page "Setting" (pour publier le statut de connexion)
     bool        awaitingConnReply = false;
-    std::atomic<bool> benchSending { false };   // lu aussi par les threads sequenceur/banque   // envoi du banc de test : hors historique voix
     uint32      connDeadlineMs   = 0;
 
     uint8 data[12];
