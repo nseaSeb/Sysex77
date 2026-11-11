@@ -511,31 +511,11 @@ public:
             juce::FileOutputStream os (csv);
             os << "group,addrHi,addrLo,param,value,type\n";
             int counter = 0;
-            std::function<void(juce::Component*)> walk = [&] (juce::Component* c)
+            forEachWiredWidget ([&] (const int* a, int val, const char* type)
             {
-                // Même descente dans les TabbedComponent imbriqués que pour le fingerprint
-                // (sinon la lecture ne couvre que les sous-onglets actifs).
-                if (auto* tc = dynamic_cast<juce::TabbedComponent*> (c))
-                {
-                    for (int t = 0; t < tc->getNumTabs(); ++t)
-                        if (auto* cc = tc->getTabContentComponent (t))
-                            walk (cc);
-                    return;
-                }
-                for (auto* k : c->getChildren())
-                {
-                    int a[9]; int val = 0; bool ok = false; const char* type = "";
-                    if      (auto* s  = dynamic_cast<MidiSlider*>(k)) { ok = s->reRead  (a, val); type = "slider"; }
-                    else if (auto* b  = dynamic_cast<MidiButton*>(k)) { ok = b->reRead  (a, val); type = "button"; }
-                    else if (auto* cb = dynamic_cast<MidiCombo*> (k)) { ok = cb->reRead (a, val); type = "combo";  }
-                    else if (auto* r  = dynamic_cast<MidiRadio*> (k)) { ok = r->reRead  (a, val); type = "radio";  }
-                    if (ok) { os << a[3] << "," << a[4] << "," << a[5] << "," << a[6] << "," << val << "," << type << "\n"; ++counter; }
-                    walk (k);
-                }
-            };
-            for (int i = 0; i < tabs.getNumTabs(); ++i)
-                if (auto* content = tabs.getTabContentComponent (i))
-                    walk (content);
+                os << a[3] << "," << a[4] << "," << a[5] << "," << a[6] << "," << val << "," << type << "\n";
+                ++counter;
+            });
             os.flush();
             midiMonitor.moveCaretToEnd();
             midiMonitor.insertTextAtCaret ("\n[RE] valeurs: " + juce::String (counter) + " controles -> " + csv.getFullPathName() + "\n");
@@ -563,27 +543,7 @@ public:
         midiSettingsPage->bench.ports.widgetAddresses = [this]
         {
             std::vector<std::array<int, 4>> out;
-            std::function<void(juce::Component*)> walk = [&] (juce::Component* c)
-            {
-                if (auto* tc = dynamic_cast<juce::TabbedComponent*> (c))
-                {
-                    for (int t = 0; t < tc->getNumTabs(); ++t)
-                        if (auto* cc = tc->getTabContentComponent (t)) walk (cc);
-                    return;
-                }
-                for (auto* k : c->getChildren())
-                {
-                    int a[9]; int val = 0; bool ok = false;
-                    if      (auto* s  = dynamic_cast<MidiSlider*>(k)) ok = s->reRead  (a, val);
-                    else if (auto* b  = dynamic_cast<MidiButton*>(k)) ok = b->reRead  (a, val);
-                    else if (auto* cb = dynamic_cast<MidiCombo*> (k)) ok = cb->reRead (a, val);
-                    else if (auto* r  = dynamic_cast<MidiRadio*> (k)) ok = r->reRead  (a, val);
-                    if (ok) out.push_back ({ a[3], a[4], a[5], a[6] });
-                    walk (k);
-                }
-            };
-            for (int i = 0; i < tabs.getNumTabs(); ++i)
-                if (auto* content = tabs.getTabContentComponent (i)) walk (content);
+            forEachWiredWidget ([&] (const int* a, int, const char*) { out.push_back ({ a[3], a[4], a[5], a[6] }); });
             return out;
         };
         midiSettingsPage->bench.ports.preflight = [this]() -> String
@@ -720,7 +680,36 @@ public:
         m.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
         sendToOutputs (m);
     }
-    // Mode développeur : ajoute/retire l'onglet "Midi Setting" (moniteur + outils RE) à chaud.
+    /** Parcourt (LECTURE SEULE, aucun envoi) chaque widget Midi* cable de TOUS les onglets,
+        sous-onglets imbriques compris (un TabbedComponent ne garde dans l'arbre que l'onglet
+        actif -> descente explicite via getTabContentComponent). fn (addr[9], valeur, type). */
+    template <typename Fn>
+    void forEachWiredWidget (Fn&& fn)
+    {
+        std::function<void (juce::Component*)> walk = [&] (juce::Component* c)
+        {
+            if (auto* tc = dynamic_cast<juce::TabbedComponent*> (c))
+            {
+                for (int t = 0; t < tc->getNumTabs(); ++t)
+                    if (auto* cc = tc->getTabContentComponent (t)) walk (cc);
+                return;
+            }
+            for (auto* k : c->getChildren())
+            {
+                int a[9]; int val = 0; bool ok = false; const char* type = "";
+                if      (auto* sl = dynamic_cast<MidiSlider*>(k)) { ok = sl->reRead (a, val); type = "slider"; }
+                else if (auto* b  = dynamic_cast<MidiButton*>(k)) { ok = b->reRead  (a, val); type = "button"; }
+                else if (auto* cb = dynamic_cast<MidiCombo*> (k)) { ok = cb->reRead (a, val); type = "combo";  }
+                else if (auto* r  = dynamic_cast<MidiRadio*> (k)) { ok = r->reRead  (a, val); type = "radio";  }
+                if (ok) fn ((const int*) a, val, type);
+                walk (k);
+            }
+        };
+        for (int i = 0; i < tabs.getNumTabs(); ++i)
+            if (auto* content = tabs.getTabContentComponent (i)) walk (content);
+    }
+
+    // Mode développeur : ajoute/retire l'onglet "Midi Setting" à chaud.
     // L'onglet est toujours le dernier ; midiSettingsPage reste vivant (non possédé par tabs).
     void setMidiSettingsTabVisible (bool on)
     {
