@@ -151,7 +151,7 @@ public:
         History::noteRx lui-meme. */
     void observeIncomingParam (const juce::uint8 d[6])
     {
-        if (d[0] != 0x0F && ! showingA)
+        if (SyVoice::isVoiceGroup (d[0]) && ! showingA)
             editHistory.noteRx (EditHist::keyOf (d[0], d[1], d[2], d[3]), EditHist::valOf (d[4], d[5]));
     }
 

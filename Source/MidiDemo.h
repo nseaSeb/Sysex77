@@ -125,6 +125,7 @@ static     int timeOut;
 static String bankSelected;
 
 static Value valueSysexIn; //values from sysex midi in
+static Value valueMultiIn; // param-change Multi (groupes 0x00/0x01) : PAS sur valueSysexIn (widgets de voix)
 
 static int sysexModel;
 // Device number sysex SY77 (canal) : un seul réglage global, piloté par ConfigPage.
@@ -1569,8 +1570,9 @@ private:
                         if (g == 0x08)                                   target = 3; // Effets
                         else if (g == 0x02 && data[6] >= 0x28 && data[6] <= 0x3D) target = 4; // Controleurs
                         else if (g == 0x02 || g == 0x03 || g == 0x05 || g == 0x07
-                                 || g == 0x09 || g == 0x0A || g == 0x00
+                                 || g == 0x09 || g == 0x0A
                                  || (g & 0x0F) == 0x06)                  target = 2; // Voice
+                        else if (SyVoice::isMultiGroup (g))              target = 5; // Multi
                         if (target >= 0 && tabs.getCurrentTabIndex() != target)
                             tabs.setCurrentTabIndex (target);
                     }
@@ -1897,8 +1899,11 @@ public:
         de l'appelant (param recu dans handleAsyncUpdate, rejeu de VoiceSession). */
     void applyParamToUi (int g, int hi, int lo, int p, int v1, int v2)
     {
-        valueSysexIn = make_var_array (g, hi, lo, p, v1, v2);
-        valueSysexIn.getValueSource().sendChangeMessage (true);
+        // Multi (0x00/0x01) : canal dedie -> jamais vu par les widgets de voix (un widget non
+        // cable, sysexData a zero, aurait capte MNAM0 = 00 00 00 00).
+        auto& v = SyVoice::isMultiGroup (g) ? valueMultiIn : valueSysexIn;
+        v = make_var_array (g, hi, lo, p, v1, v2);
+        v.getValueSource().sendChangeMessage (true);
     }
 
     VoiceSession::Ports makeSessionPorts()

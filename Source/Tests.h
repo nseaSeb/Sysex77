@@ -996,6 +996,65 @@ struct SysexUtilsTests : public juce::UnitTest
             expect (SyVoice::voiceBlobToParams (nullptr, 466).isEmpty());
         }
 
+        beginTest ("Multi: groups 0x00/0x01 kept out of voice history; 8101MU decode; dump request");
+        {
+            // Phase 0 : un param-change Multi n'est jamais enregistrable (undo/A-B renverraient au synthe).
+            for (int g : { 0x00, 0x01, 0x0F })
+            {
+                auto m = SyVoice::paramMessage (1, (juce::uint8) g, 0x02, 0x00, 0x03, 50);
+                expect (! SyVoice::isRecordableVoiceParamChange (m.getRawData(), m.getRawDataSize()));
+            }
+            auto mv = SyVoice::paramMessage (1, 0x03, 0x00, 0x00, 0x00, 50);
+            expect (SyVoice::isRecordableVoiceParamChange (mv.getRawData(), mv.getRawDataSize()));
+
+            juce::uint8 d[SyMulti::kSize] = {};
+            const char* hdr = "LM  8101MU";
+            d[0] = 0xF0; d[1] = 0x43; d[2] = 0x00; d[3] = 0x7A; d[4] = 0x01; d[5] = 0x44;
+            for (int k = 0; k < 10; ++k) d[6 + k] = (juce::uint8) hdr[k];
+            d[30] = 0x00; d[31] = 3;
+            const char* nm = "MY MULTI";
+            for (int k = 0; k < 20; ++k) d[32 + k] = (juce::uint8) (k < 8 ? nm[k] : ' ');
+            d[52] = 2;                                                   // EFMODE
+            const int p5 = SyMulti::kPartBase + 5 * SyMulti::kStride;    // partie 6
+            d[p5 + 0] = 0x43; d[p5 + 1] = 1; d[p5 + 2] = 17; d[p5 + 3] = 100;
+            d[p5 + 4] = 64;   d[p5 + 5] = 52; d[p5 + 6] = 0;
+            const int p15 = SyMulti::kPartBase + 15 * SyMulti::kStride;
+            d[p15 + 6] = 63;                                             // STPAN @201 = +31
+            expectEquals (p15 + 6, 201);
+            d[202] = SyVoice::yamahaChecksum (d + 6, SyMulti::kSize - 8);
+            d[203] = 0xF7;
+
+            auto m = SyMulti::parse (d, SyMulti::kSize);
+            expect (m.loaded);
+            expectEquals (m.name, juce::String ("MY MULTI"));
+            expectEquals (m.memNumber, 3);
+            expectEquals ((int) m.fx[0], 2);
+            const auto& pt = m.part[5];
+            expectEquals (SyMulti::voiceNum (pt), 17);
+            expectEquals (SyMulti::volume (pt), 100);
+            expectEquals (SyMulti::tune (pt), 0);
+            expectEquals (SyMulti::shift (pt), -12);
+            expect (SyMulti::panFromVoice (pt));
+            expect (SyMulti::out1 (pt) && SyMulti::out2 (pt) && SyMulti::ofvcsw (pt));
+            expectEquals (SyMulti::voiceLabel (pt), juce::String ("M1 B2"));
+            expectEquals (SyMulti::pan (m.part[15]), 31);
+            // Checksum faux -> refuse.
+            d[202] ^= 1;
+            expect (! SyMulti::parse (d, SyMulti::kSize).loaded);
+            // RX param-change -> etat.
+            expect (m.apply (0x01, 5, 0, 0x03, 0, 90));
+            expectEquals (SyMulti::volume (m.part[5]), 90);
+            expect (m.apply (0x00, 0, 0, 0, 0, 'X'));
+            expect (m.name.startsWith ("XY MULTI"));
+            expect (! m.apply (0x03, 0, 0, 0, 0, 1));
+            // Dump request : 31 octets, « MU », memoire 00 / n° 4.
+            auto rq = SyMulti::dumpRequest (1, 0x00, 4);
+            expectEquals (rq.getRawDataSize(), 31);
+            expectEquals ((int) rq.getRawData()[12], (int) 'M');
+            expectEquals ((int) rq.getRawData()[13], (int) 'U');
+            expectEquals ((int) rq.getRawData()[29], 4);
+        }
+
         beginTest ("SyBank: renumber + checksum, bank D rule for 4-element voices, metadata map");
         {
             auto voice = [] (int type, int slot)
