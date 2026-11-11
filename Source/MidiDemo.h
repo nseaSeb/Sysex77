@@ -17,35 +17,8 @@
  ==============================================================================
  */
 
-/*******************************************************************************
- The block below describes the properties of this PIP. A PIP is a short snippet
- of code that can be read by the Projucer and used to generate a JUCE project.
- 
- BEGIN_JUCE_PIP_METADATA
- 
- name:             MidiDemo
- version:          1.0.0
- vendor:           JUCE
- website:          http://juce.com
- description:      Handles incoming and outcoming midi messages.
- 
- dependencies:     juce_audio_basics, juce_audio_devices, juce_audio_formats,
- juce_audio_processors, juce_audio_utils, juce_core,
- juce_data_structures, juce_events, juce_graphics,
- juce_gui_basics, juce_gui_extra
- exporters:        xcode_mac, vs2017, linux_make, xcode_iphone, androidstudio
- 
- moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
- 
- type:             Component
- mainClass:        MidiDemo
- 
- useLocalCopy:     1
- 
- END_JUCE_PIP_METADATA
- 
- 
- *******************************************************************************/
+// Sysex77 : composant racine (onglets, ports MIDI, bus sysex interne). Derive de l'exemple
+// JUCE MidiDemo (licence ISC ci-dessus).
 #include "Values.h"
 #include "SysexBus.h"
 #include "SysexUtils.h"   // SyVoice:: (builder sysex, device, helpers) — visible par tous les widgets
@@ -1058,16 +1031,8 @@ public:
     
     //==============================================================================
 
+    // Include TEXTUEL dans la classe : routine bus interne (OSC historique) -> envoi sysex MIDI.
 #include "MidiSysex.h"
-    
-    /*
-     ==============================================================================
-     
-     Pour réduire le code et retrouver facilement la routine l'include externalise
-     le code de la routine qui recupere l'osc et envoi le sysex en midi
-     
-     ==============================================================================
-     */
     
     void handleNoteOn (MidiKeyboardState*, int midiChannel, int midiNoteNumber, float velocity) override
     {
@@ -1402,12 +1367,6 @@ private:
                     Logger::writeToLog("other message");
                 }
                 
-            }
-            else
-            {
-               // Logger::writeToLog(String(message.getSysExDataSize()));
-                
-           
             }
             triggerAsyncUpdate();
         }
