@@ -445,62 +445,6 @@ public:
             cfg->onTestConnection   = [this] { sendConnectionTest(); };
         }
 
-        // Outil RE (jetable) : « empreinte ». Parcourt le contenu de CHAQUE onglet (via
-        // getTabContentComponent, qui les renvoie même non-courants), envoie à chaque contrôle
-        // câblé une valeur brute distinctive (rampe 1..120) et journalise (addr -> valeur) dans
-        // re_fingerprint.csv. Workflow : dump AVANT -> clic -> dump APRÈS ; diff = nos octets, CSV = noms.
-        midiSettingsPage->onFingerprint = [this]
-        {
-            juce::File csv = appDirPath.getChildFile ("re_fingerprint.csv");
-            csv.deleteFile();
-            juce::FileOutputStream os (csv);
-            os << "idx,group,addrHi,addrLo,param,wireValue,type\n";
-            int counter = 0;
-            std::function<void(juce::Component*)> walk = [&] (juce::Component* c)
-            {
-                // Descend dans les sous-onglets imbriqués (AfmVue/FilterVue/WaveVue) : un
-                // TabbedComponent ne garde dans l'arbre que l'onglet ACTIF -> on parcourt
-                // explicitement TOUS ses contenus via getTabContentComponent, sinon on ne
-                // voit que ~95 contrôles (les onglets affichés) au lieu de la totalité.
-                if (auto* tc = dynamic_cast<juce::TabbedComponent*> (c))
-                {
-                    for (int t = 0; t < tc->getNumTabs(); ++t)
-                        if (auto* cc = tc->getTabContentComponent (t))
-                            walk (cc);
-                    return;
-                }
-                for (auto* k : c->getChildren())
-                {
-                    int a[9]; bool sent = false; const char* type = "";
-                    // Valeur distinctive et bien espacée, bornée 1..60 pour ne JAMAIS écrêter
-                    // (la plupart des params sont 0..63/0..127). ×23 mod 60 (coprime) -> les
-                    // contrôles voisins reçoivent des valeurs très différentes => lecture facile
-                    // dans le dump. Période 60 ; au-delà, on lève l'ambiguïté par zone (OCR) + idx.
-                    const int v = ((counter * 23) % 60) + 1;
-                    if      (auto* s  = dynamic_cast<MidiSlider*>(k)) { sent = s->reSend  (v, a); type = "slider"; }
-                    else if (auto* b  = dynamic_cast<MidiButton*>(k)) { sent = b->reSend  (v, a); type = "button"; }
-                    else if (auto* cb = dynamic_cast<MidiCombo*> (k)) { sent = cb->reSend (v, a); type = "combo";  }
-                    else if (auto* r  = dynamic_cast<MidiRadio*> (k)) { sent = r->reSend  (v, a); type = "radio";  }
-                    if (sent)
-                    {
-                        os << counter << "," << a[3] << "," << a[4] << "," << a[5] << "," << a[6] << "," << a[8] << "," << type << "\n";
-                        ++counter;
-                        // Throttle : la chaîne d'envoi est SYNCHRONE (SysexBus -> sendMessageNow),
-                        // donc ce sleep espace réellement les messages MIDI et évite la saturation
-                        // de l'entrée du synthé. ~10 ms/msg -> ~2 s pour ~200 contrôles (UI figée
-                        // le temps de l'opération, acceptable pour un outil RE jetable).
-                        juce::Thread::sleep (10);
-                    }
-                    walk (k);
-                }
-            };
-            for (int i = 0; i < tabs.getNumTabs(); ++i)
-                if (auto* content = tabs.getTabContentComponent (i))
-                    walk (content);
-            os.flush();
-            midiMonitor.moveCaretToEnd();
-            midiMonitor.insertTextAtCaret ("\n[RE] fingerprint: " + juce::String (counter) + " controles -> " + csv.getFullPathName() + "\n");
-        };
 
         // RE : exporte la valeur ACTUELLE de chaque contrôle câblé (lecture seule, aucun envoi).
         // L'éditeur reflétant la voix dumpée, ce CSV = texte clair complet à corréler au dump.

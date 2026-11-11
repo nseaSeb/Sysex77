@@ -256,18 +256,6 @@ public:
         strOscAdress = oscAdress;
     }
 
-    // Outil RE (jetable) : envoie une valeur brute connue et renvoie l'adresse sysex,
-    // pour corréler avec un dump bulk -> carte d'offsets. Mono-groupe (n'utilise pas le
-    // broadcast), ce qui ISOLE un opérateur pour l'EG d'ampli AFM.
-    bool reSend (int wireValue, int outAddr[9])
-    {
-        if (sysexData[0] != 0x43) return false;   // pas d'adresse câblée
-        for (int i = 0; i < 9; ++i) outAddr[i] = sysexData[i];
-        sysexData[8] = (uint8) wireValue;  outAddr[8] = wireValue;
-        sender.sendParam9 (oscAddressPatern, sysexData);
-        return true;
-    }
-
     // Outil RE (jetable) : lit la valeur AFFICHÉE actuelle + l'adresse, sans rien envoyer.
     bool reRead (int outAddr[9], int& value)
     {
@@ -408,17 +396,6 @@ public:
     // Auto-send désactivé (octet packé recomposé par l'hôte). Cf. MidiSlider::setAutoSend.
     void setAutoSend (bool e) { autoSend = e; }
 
-    // Outil RE (jetable) : un bouton est 0/1 -> envoie ON.
-    bool reSend (int wireValue, int outAddr[9])
-    {
-        if (sysexData[0] != 0x43) return false;
-        for (int i = 0; i < 9; ++i) outAddr[i] = sysexData[i];
-        const int v = (wireValue != 0) ? 1 : 0;
-        sysexData[8] = (uint8) v;  outAddr[8] = v;
-        sender.sendParam9 (oscAddressPatern, sysexData);
-        return true;
-    }
-
     // Outil RE (jetable) : lit l'état du bouton (0/1) + l'adresse, sans rien envoyer.
     bool reRead (int outAddr[9], int& value)
     {
@@ -554,16 +531,6 @@ void resized() override
             
         }
     }
-    // Outil RE (jetable) : envoie une valeur brute connue, renvoie l'adresse sysex.
-    bool reSend (int wireValue, int outAddr[9])
-    {
-        if (! hasSysex) return false;
-        for (int i = 0; i < 9; ++i) outAddr[i] = sysexData[i];
-        sysexData[8] = (uint8) wireValue;  outAddr[8] = wireValue;
-        sender.sendParam9 (oscAddressPatern, sysexData);
-        return true;
-    }
-
     // Outil RE (jetable) : lit l'index radio + l'adresse, sans rien envoyer.
     bool reRead (int outAddr[9], int& value)
     {
@@ -694,16 +661,6 @@ public:
         strOscAdress = oscAdress;
     }
     
-    // Outil RE (jetable) : envoie une valeur brute connue, renvoie l'adresse sysex.
-    bool reSend (int wireValue, int outAddr[9])
-    {
-        if (sysexData[0] != 0x43) return false;
-        for (int i = 0; i < 9; ++i) outAddr[i] = sysexData[i];
-        sysexData[8] = (uint8) wireValue;  outAddr[8] = wireValue;
-        sender.sendParam9 (oscAddressPatern, sysexData);
-        return true;
-    }
-
     // Outil RE (jetable) : lit l'index combo (id-1) + l'adresse, sans rien envoyer.
     bool reRead (int outAddr[9], int& value)
     {

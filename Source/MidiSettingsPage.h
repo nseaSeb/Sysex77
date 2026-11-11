@@ -4,7 +4,7 @@
 
 //==============================================================================
 /** Vue "Midi Setting" (MODE DÉVELOPPEUR uniquement) : moniteur MIDI + outils de
-    rétro-ingénierie (fingerprint, lecture valeurs, diff de dumps), Bluetooth et le
+    rétro-ingénierie (lecture valeurs, diff de dumps, banc de test), Bluetooth et le
     "MIDI Thru" (gardé ici car il écrit vers le synthé / risque d'écho). Le choix des
     interfaces In/Out, "Suivre le synthé", le canal et "Bulk Protect" ont été rapatriés
     dans l'onglet "Setting" (ConfigPage). Cet onglet n'est ajouté à la barre que si
@@ -36,12 +36,6 @@ struct MidiSettingsPage : public Component
             o.useNativeTitleBar = true;
             o.launchAsync();
         };
-
-        // Outil RE (jetable) : « empreinte » — envoie à chaque contrôle câblé de l'éditeur
-        // une valeur brute distinctive + journalise (addr -> valeur) dans re_fingerprint.csv.
-        // Workflow : dump AVANT -> clic -> dump APRÈS ; le diff isole nos octets, le CSV les nomme.
-        addAndMakeVisible (reBtn);
-        reBtn.onClick = [this] { if (onFingerprint) onFingerprint(); };
 
         // RE : exporte la valeur ACTUELLE de tous les contrôles câblés (sans rien envoyer).
         // Corréler avec un dump de la même voix = carte d'offsets, sans toucher au synthé.
@@ -83,12 +77,10 @@ struct MidiSettingsPage : public Component
         pairBtn.setBounds (r.removeFromTop (24));
         r.removeFromTop (8);
 
-        // Outils RE : Diff | Fingerprint, puis Lire valeurs (pleine largeur)
+        // Outils RE : Diff | Lire valeurs
         auto row2 = r.removeFromTop (24);
-        diffBtn.setBounds (row2.removeFromLeft (half));
-        reBtn  .setBounds (row2.removeFromRight (half));
-        r.removeFromTop (8);
-        reReadBtn.setBounds (r.removeFromTop (24));
+        diffBtn  .setBounds (row2.removeFromLeft (half));
+        reReadBtn.setBounds (row2.removeFromRight (half));
         r.removeFromTop (10);
         bench.setBounds (r.removeFromTop (juce::jmax (200, r.getHeight() / 2)));
         r.removeFromTop (10);
@@ -106,10 +98,7 @@ struct MidiSettingsPage : public Component
         monitorRef.setBounds (r);
     }
 
-    // Déclenché par le bouton RE ; câblé par MidiDemo, qui possède les onglets et peut
-    // parcourir TOUS les contenus (même non-courants — un TabbedComponent ne garde dans
-    // l'arbre que l'onglet actif). Cf. la lambda onFingerprint dans MidiDemo.
-    std::function<void()> onFingerprint;
+    // Cable par MidiDemo (possede les onglets ; parcours via forEachWiredWidget).
     std::function<void()> onReadValues;
 
     TextButton& pairBtn;
@@ -117,7 +106,6 @@ struct MidiSettingsPage : public Component
     TextEditor& monitorRef;
     ToggleButton rawBtn    { "Moniteur : octets bruts (hex) au lieu de la forme decodee" };
     TextButton   diffBtn   { "Diff 2 dumps (.syx)..." };
-    TextButton   reBtn     { "RE fingerprint -> CSV" };
     TextButton   reReadBtn { "RE lire valeurs -> CSV" };
     TextButton   copyBtn   { "Copier" };
     TextButton   clearBtn  { "Clear" };
