@@ -71,6 +71,7 @@ static const String adresseOscMod = "/77Mod";
 static const String adresseOpMode = "/77OpMode";
 static const String adresseOscSendBank ="/77SendBank";
 static const String adresseOscRequestDump ="/77RequestDump";
+static const String adresseOscRequestMulti ="/77RequestMulti";   // dump request d'un Multi INT (lecture)
 static const String adresseOscRepaint = "/77Repaint";
 static const String adresseOscParseVoices = "/77ParseVoices";
 static const String adresseOscSendVoice = "/77SendVoice";
@@ -125,6 +126,7 @@ static     int timeOut;
 static String bankSelected;
 
 static Value valueSysexIn; //values from sysex midi in
+static Value valueMultiBulk; // bloc bulk 8101MU recu (MemoryBlock) -> MultiPage
 static Value valueMultiIn; // param-change Multi (groupes 0x00/0x01) : PAS sur valueSysexIn (widgets de voix)
 
 static int sysexModel;
@@ -180,6 +182,7 @@ int intTabIndex;
 #include "Librairie.h"
 #include "Effects.h"
 #include "ControllersPage.h"
+#include "MultiPage.h"
 #include "DumpDiffView.h"   // outil RE : comparer 2 dumps .syx
 #include "MidiObjects.h"
 
@@ -210,7 +213,8 @@ struct DemoTabbedComponent  : public TabbedComponent
         addTab (TRANS("Voice"), colour, new VoicePage(), true);
         addTab (TRANS("Effects"), colour, new EffectsPage(), true);
         addTab (TRANS("Controllers"), colour, new ControllersPage(), true);
-        // L'onglet "Midi Setting" (index 5, mode développeur) est ajouté par MidiDemo avec un vrai
+        addTab (TRANS("Multi"), colour, new MultiPage(), true);   // index 5 (followSynth groupes 0x00/0x01)
+        // L'onglet "Midi Setting" (index 6, mode développeur) est ajouté par MidiDemo avec un vrai
         // contenu (MidiSettingsPage), car il réutilise des composants de MidiDemo.
 
         // ConfigPage (1er onglet) a appliqué le thème pendant sa construction :
@@ -1524,6 +1528,13 @@ private:
             // Test de connexion : on accepte SOIT un dump/param Yamaha (F0 43 ..., réponse à notre
             // demande de dump = preuve que le SY77 parle), SOIT un Identity Reply universel
             // (F0 7E <dev> 06 02 <fab> ...) pour du matériel générique.
+            // Bulk Multi recu (reponse a une demande de l'onglet Multi, ou envoi depuis le synthe).
+            if (message.isSysEx() && SyMulti::isMultiBlock (message.getRawData(), message.getRawDataSize()))
+            {
+                valueMultiBulk = var (message.getRawData(), (size_t) message.getRawDataSize());
+                valueMultiBulk.getValueSource().sendChangeMessage (false);
+            }
+
             if (awaitingConnReply && message.isSysEx())
             {
                 const uint8* id = message.getSysExData();

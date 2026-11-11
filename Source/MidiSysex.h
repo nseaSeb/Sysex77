@@ -143,6 +143,14 @@ void oscMessageReceived (const OSCMessage& message)
         else
             Logger::writeToLog ("Send BANK : aucune banque chargee");
     }
+    if (address.matches (adresseOscRequestMulti) && message.size() == 1 && message[0].isInt32())
+    {
+        // Onglet Multi, clic utilisateur : demande au SY77 d'EMETTRE un Multi memorise (INT n).
+        // Lecture seule cote synthe (aucune memoire ecrite).
+        auto m = SyMulti::dumpRequest (sysexDeviceNumber, 0x00, jlimit (0, 15, message[0].getInt32()));
+        m.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
+        sendToOutputs (m);
+    }
     if (address.matches (adresseOscRequestDump))
     {
         // Dump request USER-TRIGGERED (bouton RECEIVE) : demande au SY77 d'émettre le bulk

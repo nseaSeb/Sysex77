@@ -113,6 +113,7 @@ Sortir de `MidiDemo` (2000+ lignes) la session d'édition de la voix ouverte (hi
 ---
 
 ## Journal
+- **2026-11-11 (Multi, étape 1 : lecture seule)** — Phase 0 : groupes 0x00/0x01 exclus de l'historique voix, canal RX dédié `valueMultiIn`, suivi du synthé vers l'onglet Multi. `SyMulti` (SysexUtils.h) décode les blocs 8101MU (layout vérifié sur 346 dumps). Onglet **Multi** (index 5, `MultiPage.h`) : 16 parties en tableau, ouverture depuis la librairie ou dump request INT 1-16 (clic). Aucun envoi de param/bulk. RESTE : étape 2 édition ; ordre VMEM, polarité OFVCSW (bit 6 = 1 sur les parties utilisées dans les dumps), $7F edit buffer, effets via G 0x08 — à vérifier sur le SY77.
 - **2026-11-11 (v1.7.0 — release : éditeur de voix Drum, Bulk Protect mémorisé)** — Release minor.
   Depuis v1.6.0 : vue Drum (61 touches, lecture + panneau d'édition de la touche sélectionnée,
   bouton Play, undo/A-B ; numéros d'ondes 1-indexés confirmés sur le SY77), plus d'écho ELMODE au
