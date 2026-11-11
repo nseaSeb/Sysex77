@@ -32,6 +32,16 @@ struct LibrairiePage   : public Component,public Button::Listener, private Timer
 {
     LibrairiePage()
     {
+        // Quadratic Mixture STORE : meme ecriture sure (.bak + fichier temporaire) que les outils
+        // de banque, puis reindexation et rafraichissement de la liste.
+        MixtureView::bankWriter() = [safe = Component::SafePointer<LibrairiePage> (this)] (const File& f, const MemoryBlock& d)
+        {
+            if (! writeBankSafely (f, d)) return false;
+            LibraryIndex::get().refreshBank (f);
+            if (safe != nullptr) safe->bankList.loadBank();
+            return true;
+        };
+
         setOpaque(false);
         // Easter-egg : Cmd+Alt+X (quand la page Librairie est visible) -> dialogue
         // (code « sysex ») -> import des banques web embarquées. Le KeyListener est

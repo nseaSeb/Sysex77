@@ -93,22 +93,33 @@ namespace SyMix
         const auto m0 = decode (sample);
         std::map<juce::int64, int> hitsV, hitsV1;
         std::set<juce::int64> bad;
+        const auto* s0 = (const juce::uint8*) sample.getData();
         for (int o = 43; o < n - 2; ++o)
         {
-            auto t = sample;
-            auto* d = (juce::uint8*) t.getData();
-            d[o] = (juce::uint8) (d[o] ^ 0x01);
-            const auto m1 = decode (t);
+            // Deux perturbations (bit 0 et bit 6) : l'octet doit porter UN param, tel quel
+            // (valeur decodee == octet brut apres chaque flip : pas de masque, biais ni bits voisins).
             int changed = 0;
             juce::int64 kV = -1, kV1 = -1;
-            for (auto& [k, v] : m1)
+            bool rawMismatch = false;
+            for (juce::uint8 bit : { (juce::uint8) 0x01, (juce::uint8) 0x40 })
             {
-                auto it = m0.find (k);
-                if (it == m0.end()) continue;
-                if (it->second.value != v.value) { ++changed; kV = k; }
-                if (it->second.v1 != v.v1)       { ++changed; kV1 = k; }
+                auto t = sample;
+                auto* d = (juce::uint8*) t.getData();
+                d[o] = (juce::uint8) (s0[o] ^ bit);
+                const auto m1 = decode (t);
+                int c = 0;
+                for (auto& [k, v] : m1)
+                {
+                    auto it = m0.find (k);
+                    if (it == m0.end()) continue;
+                    if (it->second.value != v.value) { ++c; if (kV >= 0 && kV != k) ++changed; kV = k; if (v.value != d[o]) rawMismatch = true; }
+                    if (it->second.v1 != v.v1)       { ++c; if (kV1 >= 0 && kV1 != k) ++changed; kV1 = k; if (v.v1 != d[o]) rawMismatch = true; }
+                }
+                changed += c;
             }
-            if (changed != 1) { if (kV >= 0) bad.insert (kV); if (kV1 >= 0) bad.insert (kV1); continue; }
+            const bool one = (kV >= 0) != (kV1 >= 0);
+            if (changed != 2 || ! one || rawMismatch)
+            { if (kV >= 0) bad.insert (kV); if (kV1 >= 0) bad.insert (kV1); continue; }
             if (kV >= 0)  { if (map[kV].off >= 0) bad.insert (kV);    map[kV].off = o; }
             if (kV1 >= 0) { if (map[kV1].offV1 >= 0) bad.insert (kV1); map[kV1].offV1 = o; }
         }
@@ -139,7 +150,9 @@ namespace SyMix
     inline juce::String incompatibility (const std::array<juce::MemoryBlock, 4>& c)
     {
         for (auto& b : c)
-            if (! SyBank::isVoiceBlock (b)) return "Each corner needs a SY77 voice.";
+            if (! SyBank::isVoiceBlock (b)
+                || SyVoice::detectSynthKind ((const juce::uint8*) b.getData(), b.getSize()) != SyVoice::SynthKind::SY77)
+                return "Each corner needs a SY77 voice.";
         const int t = SyBank::typeOf (c[0]);
         if (t == 0x0A) return "Drum voices cannot be mixed.";
         for (auto& b : c)
@@ -150,15 +163,22 @@ namespace SyMix
 
     struct Result { juce::MemoryBlock block; int base = 0, mixed = 0; };
 
-    /** Melange (coins deja valides par incompatibility()). `map` = buildOffsetMap d'un coin. */
-    inline Result mix (const std::array<juce::MemoryBlock, 4>& c, double x, double y, const OffsetMap& map,
-                       const juce::String& name)
+    using Decoded = std::array<std::map<juce::int64, VP>, 4>;
+    inline Decoded decodeAll (const std::array<juce::MemoryBlock, 4>& c)
+    {
+        Decoded d;
+        for (int i = 0; i < 4; ++i) d[(size_t) i] = decode (c[(size_t) i]);
+        return d;
+    }
+
+    /** Melange (coins deja valides par incompatibility()). `map` = buildOffsetMap d'un coin,
+        `dec` = decodeAll (c), calcules une fois quand les coins changent (pas a chaque geste). */
+    inline Result mix (const std::array<juce::MemoryBlock, 4>& c, const Decoded& dec, double x, double y,
+                       const OffsetMap& map, const juce::String& name)
     {
         Result r;
         const auto w = weights (x, y);
         r.base = baseCorner (w);
-        std::array<std::map<juce::int64, VP>, 4> dec;
-        for (int i = 0; i < 4; ++i) dec[(size_t) i] = decode (c[(size_t) i]);
         std::map<juce::int64, VP> out;
         for (auto& [k, vb] : dec[(size_t) r.base])
         {
@@ -182,4 +202,7 @@ namespace SyMix
         r.block = blk;
         return r;
     }
+    inline Result mix (const std::array<juce::MemoryBlock, 4>& c, double x, double y, const OffsetMap& map,
+                       const juce::String& name)
+    { return mix (c, decodeAll (c), x, y, map, name); }
 }

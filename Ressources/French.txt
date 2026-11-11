@@ -211,3 +211,4 @@ countries: FR
 "Each corner needs a SY77 voice." = "Chaque coin doit avoir une voix SY77."
 "Drum voices cannot be mixed." = "Les voix drum ne peuvent pas être mélangées."
 "All four voices must have the same voice type." = "Les quatre voix doivent avoir le même type."
+"A1-C16 filled with INIT (4-element voices go to bank D)" = "A1-C16 remplis avec INIT (les voix 4 éléments vont en banque D)"

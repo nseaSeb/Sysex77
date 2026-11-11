@@ -5,6 +5,7 @@
 // "Mixtures.syx" de la librairie (jamais a une memoire du synthe).
 #pragma once
 #include "SysexMix.h"
+#include "Templates.h"
 
 class MixturePad : public juce::Component
 {
@@ -60,14 +61,7 @@ public:
         {
             auto* v = new MixtureView();
             v->setSize (640, 600);
-            juce::DialogWindow::LaunchOptions o;
-            o.content.setOwned (v);
-            o.dialogTitle = "Quadratic Mixture";
-            o.dialogBackgroundColour = SYPal.background;
-            o.resizable = true;
-            o.useNativeTitleBar = true;
-            o.escapeKeyTriggersCloseButton = true;
-            if (auto* w = o.launchAsync()) w->setResizeLimits (420, 420, 2000, 2000);
+            new Window (v);   // NON modale : la librairie reste utilisable (coins par clic droit)
             inst = v;
         }
         if (corner >= 0) inst->setCorner (corner, voice, label);
@@ -79,7 +73,7 @@ public:
         if (i < 0 || i > 3) return;
         corners[(size_t) i] = voice;
         cornerBt[i].setButtonText (label.isNotEmpty() ? label : TRANS ("(choose a voice)"));
-        mapValid = false;
+        mapValid = false;   // carte + decodage des coins recalcules une fois (pas a chaque geste)
         refresh();
     }
 
@@ -133,12 +127,39 @@ private:
         storeBt.setTooltip (TRANS ("Add the mixed voice to the Mixtures.syx bank of the library (nothing is written to the synth)"));
         testBt.onClick  = [this] { test(); };
         storeBt.onClick = [this] { store(); };
-        exitBt.onClick  = [this] { if (auto* dw = findParentComponentOfClass<juce::DialogWindow>()) dw->exitModalState (0); };   // launchAsync : supprime a la sortie
+        exitBt.onClick  = [this] { if (auto* w = findParentComponentOfClass<Window>()) w->closeButtonPressed(); };
         for (auto* b : { &testBt, &storeBt, &exitBt }) addAndMakeVisible (b);
         refresh();
     }
 
     static juce::Component::SafePointer<MixtureView>& instance() { static juce::Component::SafePointer<MixtureView> p; return p; }
+
+    /** Fenetre non modale ; se detruit (avec son contenu) a la fermeture. */
+    struct Window : public juce::DocumentWindow
+    {
+        explicit Window (MixtureView* content)
+            : juce::DocumentWindow ("Quadratic Mixture", SYPal.background, juce::DocumentWindow::closeButton)
+        {
+            setUsingNativeTitleBar (true);
+            setContentOwned (content, true);
+            setResizable (true, false);
+            setResizeLimits (420, 420, 2000, 2000);
+            centreWithSize (getWidth(), getHeight());
+            setVisible (true);
+        }
+        void closeButtonPressed() override
+        {
+            setVisible (false);
+            juce::MessageManager::callAsync ([w = juce::Component::SafePointer<Window> (this)] { delete w.getComponent(); });
+        }
+    };
+
+public:
+    /** Ecriture d'une banque de la librairie (fournie par LibrairiePage : ecriture sure +
+        reindexation + rafraichissement). false = echec, rien d'ecrit. */
+    static std::function<bool (const juce::File&, const juce::MemoryBlock&)>& bankWriter()
+    { static std::function<bool (const juce::File&, const juce::MemoryBlock&)> f; return f; }
+private:
 
     void chooseCorner (int i)
     {
@@ -165,8 +186,8 @@ private:
         const bool ok = why.isEmpty();
         testBt.setEnabled (ok); storeBt.setEnabled (ok);
         if (! ok) { status.setText (TRANS (why), juce::dontSendNotification); result = {}; return; }
-        if (! mapValid) { map = SyMix::buildOffsetMap (corners[0]); mapValid = true; }
-        result = SyMix::mix (corners, pad.pos.x, pad.pos.y, map, nameEd.getText());
+        if (! mapValid) { map = SyMix::buildOffsetMap (corners[0]); decoded = SyMix::decodeAll (corners); mapValid = true; }
+        result = SyMix::mix (corners, decoded, pad.pos.x, pad.pos.y, map, nameEd.getText());
         const auto w = SyMix::weights (pad.pos.x, pad.pos.y);
         status.setText (TRANS ("Base") + ": " + cornerBt[result.base].getButtonText() + "   |   "
                         + juce::String (result.mixed) + " " + TRANS ("params mixed") + "   |   "
@@ -190,6 +211,16 @@ private:
         juce::MemoryBlock data;
         if (f.existsAsFile()) f.loadFileAsData (data);
         auto bank = SyBank::Bank::parse (data.getData(), data.getSize());
+        // Voix 4 elements : seulement en banque D (D1..D16). Banque trop courte -> on complete
+        // A1..C16 avec la voix INIT (modele 0), signale dans le statut.
+        int padded = 0;
+        if (SyBank::needsBankD (SyBank::typeOf (result.block)))
+            while (bank.numVoices() < SyBank::kFirstD)
+            {
+                const auto init = VoiceTemplates::make (0);
+                if (init.getSize() == 0 || SyBank::append (bank, init).error.isNotEmpty()) break;
+                ++padded;
+            }
         const auto r = SyBank::append (bank, result.block);
         if (r.error.isNotEmpty())
         {
@@ -197,16 +228,20 @@ private:
             return;
         }
         const auto out = bank.serialize();
-        if (! f.replaceWithData (out.getData(), out.getSize()))
+        const bool written = bankWriter() ? bankWriter() (f, out) : f.replaceWithData (out.getData(), out.getSize());
+        if (! written)
         {
             juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon, TRANS ("Store"), TRANS ("Cannot write") + " " + f.getFullPathName());
             return;
         }
-        status.setText (TRANS ("Stored in") + " Mixtures.syx (" + SyBank::slotName (bank.numVoices() - 1) + ")", juce::dontSendNotification);
+        status.setText (TRANS ("Stored in") + " Mixtures.syx (" + SyBank::slotName (bank.numVoices() - 1) + ")"
+                        + (padded > 0 ? "  -  " + TRANS ("A1-C16 filled with INIT (4-element voices go to bank D)") : juce::String()),
+                        juce::dontSendNotification);
     }
 
     std::array<juce::MemoryBlock, 4> corners;
     SyMix::OffsetMap map;
+    SyMix::Decoded decoded;
     bool mapValid = false;
     SyMix::Result result;
     juce::Label title, status;
