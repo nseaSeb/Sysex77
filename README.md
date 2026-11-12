@@ -66,6 +66,10 @@ Inspiré, côté fonctionnalités, de l'éditeur *SynthWorks SY77*.
   remplacer par une voix Init, copier vers une banque — numéros d'emplacement et checksums
   recalculés, Multi de la banque mis à jour, voix à 4 éléments limitées à la banque D,
   tags/notes conservés, sauvegarde `.bak`.
+- **Quadratic Mixture** (clic droit sur une voix de la librairie) : 4 voix du même type aux coins
+  d'un pad, la position du curseur mélange enveloppes, niveaux, filtres et LFO. *TEST* l'écoute
+  dans le tampon d'édition, *STORE* l'ajoute à la banque `Mixtures.syx` de la librairie (rien n'est
+  écrit dans une mémoire du synthé).
 - **Cartes d'ondes AWM** : noms d'ondes des cartouches (W77xx pré-remplies) éditables dans
   *Setting > Wave cards...*.
 - **Mode développeur** : vue hexa d'un preset de la librairie avec l'interprétation de chaque octet
@@ -229,7 +233,8 @@ a Play button; undo and A/B included), a **Multi editor** (16-part table, edit t
 editable name, open from the library MULTI view or request from the SY77, confirmed full send to
 the edit buffer), **bank organisation** (right-click: duplicate, move, swap, replace with Init,
 copy to bank; slots and checksums rewritten, the bank's multis follow, 4-element voices kept in
-bank D, tags preserved, .bak backup), Bulk Protect remembered and re-sent at startup when off,
+bank D, tags preserved, .bak backup), a **Quadratic Mixture** window (4 same-type voices at the corners of a pad;
+TEST in the edit buffer, STORE to the library's Mixtures.syx bank), Bulk Protect remembered and re-sent at startup when off,
 editable AWM wave-card name tables, and a
 developer-mode preset hex view (right-click / Cmd+Shift+H). **Built-in updater**: checks GitHub Releases on launch and can download + install
 the new version automatically (macOS; opt-out in *Setting*; opens the release page on Windows/Linux). Some editor edits are state-only for
